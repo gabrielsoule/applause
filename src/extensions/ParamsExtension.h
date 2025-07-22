@@ -10,7 +10,7 @@
 #include <memory>
 #include <atomic>
 #include <optional>
-
+#include "util/DebugHelpers.h"
 #include "core/Extension.h"
 #include "util/thirdparty/rocket.hpp"
 #include "util/ParamMessageQueue.h"
@@ -329,5 +329,96 @@ namespace applause
          * @param out the CLAP output event struct from process()
          */
         void processEvents(const clap_input_events_t* in, const clap_output_events_t* out);
+        
+        /**
+         * @brief Save all parameter values to a YAS archive.
+         * @tparam Archive YAS archive type (typically binary output archive)
+         * @param ar The YAS archive to save to
+         * @return true on success, false on error
+         * @note Call this from your StateExtension save callback
+         */
+        template<typename Archive>
+        bool saveToStream(Archive& ar) noexcept;
+        
+        /**
+         * @brief Load parameter values from a YAS archive.
+         * @tparam Archive YAS archive type (typically binary input archive)
+         * @param ar The YAS archive to load from
+         * @return true on success, false on error
+         * @note Call this from your StateExtension load callback
+         */
+        template<typename Archive>
+        bool loadFromStream(Archive& ar) noexcept;
     };
+    
+    // Template implementations
+    template<typename Archive>
+    bool ParamsExtension::saveToStream(Archive& ar) noexcept {
+        try {
+            // Create a vector of parameter ID to value pairs
+            std::vector<std::pair<clap_id, float>> param_values;
+            param_values.reserve(param_count_);
+            
+            // Collect all parameter values (including internal ones)
+            for (uint32_t i = 0; i < param_count_; ++i) {
+                const auto& param_info = infos_[i];
+                param_values.emplace_back(param_info.clapId, param_info.getValue());
+            }
+            
+            // Serialize to the archive
+            ar & param_values;
+            
+            LOG_DBG("Saved", param_values.size(), "parameter values to state");
+            return true;
+        }
+        catch (const std::exception& e) {
+            LOG_ERR("Failed to save state:", e.what());
+            return false;
+        }
+        catch (...) {
+            LOG_ERR("Failed to save state: unknown exception");
+            return false;
+        }
+    }
+    
+    template<typename Archive>
+    bool ParamsExtension::loadFromStream(Archive& ar) noexcept {
+        try {
+            // Deserialize parameter values
+            std::vector<std::pair<clap_id, float>> param_values;
+            ar & param_values;
+            
+            LOG_DBG("Loading", param_values.size(), "parameter values from state");
+            
+            // Apply loaded values
+            for (const auto& [clap_id, value] : param_values) {
+                auto it = clap_id_to_index_.find(clap_id);
+                if (it != clap_id_to_index_.end()) {
+                    uint32_t index = it->second;
+                    values_[index].store(value, std::memory_order_relaxed);
+                    
+                    // Notify UI of parameter change if message queue exists
+                    if (message_queue_) {
+                        message_queue_->toUi().enqueue({ParamMessageQueue::PARAM_VALUE, clap_id, value});
+
+                    }
+                    
+                    LOG_DBG("Loaded parameter ID", clap_id, "with value", value);
+                }
+                else {
+                    LOG_WARN("Parameter with CLAP ID", clap_id, "not found in current plugin");
+                }
+            }
+            
+            return true;
+        }
+        catch (const std::exception& e) {
+            LOG_ERR("Failed to load state:", e.what());
+            return false;
+        }
+        catch (...) {
+            LOG_ERR("Failed to load state: unknown exception");
+            return false;
+        }
+    }
 } // namespace applause
