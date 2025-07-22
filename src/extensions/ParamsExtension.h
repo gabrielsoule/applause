@@ -1,0 +1,333 @@
+#pragma once
+
+#include <clap/ext/params.h>
+#include <clap/events.h>
+#include <clap/host.h>
+#include <vector>
+#include <string>
+#include <span>
+#include <unordered_map>
+#include <memory>
+#include <atomic>
+#include <optional>
+
+#include "core/Extension.h"
+#include "util/thirdparty/rocket.hpp"
+#include "util/ParamMessageQueue.h"
+
+namespace applause
+{
+    // Forward declaration
+    class ParamsExtension;
+    /**
+     * Provides a lightweight, efficient, and thread-safe handle
+     * for interacting with a parameter's value.
+     *
+     * This class is designed for use in high-performance DSP code
+     * where frequent read-only access to parameter values is required.
+     */
+    struct ParamHandle
+    {
+        friend class ParamsExtension;
+        friend class ParamInfo;
+
+    private:
+        std::atomic<float>* value_ = nullptr;
+
+    public:
+        [[nodiscard]] float getValue() const noexcept
+        {
+            return value_->load(std::memory_order_relaxed);
+        }
+    };
+
+    /**
+     * A heftier information struct that can be used in the UI thread
+     * to display pertinent information to the user.
+     *
+     * This class should not be used from the audio thread or otherwise employed by
+     * any performance-sensitive DSP code. The DSP side of your plugin should use ParamHandles
+     * for efficient and cache-friendly read-only parameter access.
+     */
+    class ParamInfo
+    {
+        friend class ParamsExtension;
+        friend struct ParamHandle;
+
+    public:
+        /**
+         * The internal ID used by the CLAP host
+         */
+        uint32_t clapId;
+
+        /**
+        * A human-readable name, e.g. "Filter 1 Cutoff".
+        * This will be given to the CLAP host and be visible within the hosted environment.
+        */
+        std::string name;
+
+        /**
+         * A short name that can be displayed on UI components, e.g. "Cutoff".
+         * Useful for UI labels where text needs to be short and exact purpose
+         * can be inferred from UI context.
+         */
+        std::string shortName = "";
+
+        /**
+         * The unit, if applicable, e.g. "Hz"
+         */
+        std::string unit = "";
+
+        float minValue = 0.0f;
+        float maxValue = 1.0f;
+        float defaultValue = 0.0f;
+
+        /**
+         * If true, the parameter will be entirely "internal" and invisible to the DAW.
+         * It will not be registered with the CLAP ABI.
+         * There will be no automation, modulation, etc.
+         */
+        bool internal = false;
+
+        /**
+         * If true, the parameter represents discrete integer values only.
+         * Values are cast to integer using truncation (2.8 → 2).
+         * Common for mode selection, boolean parameters, enumerated choices.
+         */
+        bool stepped = false;
+
+        /**
+         * Signal emitted when the parameter value changes from the host side.
+         * UI components can connect to this to update their visual state.
+         */
+        mutable rocket::signal<void(float)> on_value_changed;
+
+        float getValue() const noexcept;
+        /**
+         * Atomically set the value of the parameter, and notify both the plugin host and the
+         * (audio-thread components of) the plugin.
+         *
+         * This function can ONLY be called from the UI thread.
+         */
+        void setValueNotifyingHost(float value) const noexcept;
+
+        /**
+         * You should only use this function if you know what you're doing!
+         *
+         * Atomically set the value of the parameter without notifying the host.
+         * The only reason you should use this function is that you're overriding
+         * any default CLAP event handling, and therefore you need to respond
+         * to a parameter change from the host's side.
+        */
+        void setValueSilently(float value) const noexcept;
+
+        /**
+         * Notify the host that parameter gesture has begun (e.g., user started dragging slider).
+         * This should be called when the user starts interacting with a parameter control.
+         */
+        void beginGesture() const noexcept;
+
+        /**
+         * Notify the host that parameter gesture has ended (e.g., user released slider).
+         * This should be called when the user finishes interacting with a parameter control.
+         */
+        void endGesture() const noexcept;
+
+        /**
+         * Parse user input text to extract a numeric value for this parameter.
+         *
+         * Extracts the first number found in the text, ignoring non-numeric characters.
+         * The extracted value is automatically clamped to [minValue, maxValue].
+         * For stepped parameters, the value is truncated to an integer.
+         *
+         * @param text User input text to parse (e.g., "123.4", "50Hz", "100 ms")
+         * @return The parsed and clamped value, or std::nullopt if no number found
+         *
+         * Examples:
+         *   "123.4" → 123.4
+         *   "50Hz" → 50.0
+         *   "100 ms" → 100.0
+         *   "-45.6dB" → -45.6 (clamped if outside range)
+         *   "abc" → std::nullopt
+         *   "" → std::nullopt
+         */
+        std::optional<float> parseText(const std::string& text) const noexcept;
+
+    private:
+        ParamHandle* handle_ = nullptr;
+
+        // A pointer to the parent registry, so that the host can be notified about parameter changes.
+        // In the future, we can and should use an event system for this.
+        ParamsExtension* registry_ = nullptr;
+    };
+
+    class ParamBuilder
+    {
+        friend class ParamsExtension;
+
+    public:
+        explicit ParamBuilder(std::string id);
+
+        ParamBuilder& name(std::string n);
+        ParamBuilder& shortName(std::string s);
+        ParamBuilder& range(float min, float max, float defaultValue);
+        ParamBuilder& unit(std::string u);
+        ParamBuilder& internal(bool flag);
+        ParamBuilder& isStepped(bool flag);
+
+    private:
+        const ParamInfo& build() const;
+        const std::string& getId() const;
+
+        std::string id_;
+        mutable ParamInfo info_;
+    };
+
+    /**
+     * Implements the CLAP parameter extension, enabling efficient parameter management
+     * between a plugin and the host.
+     *
+     * The ParamsExtension handles registering parameters, providing real-time read-only
+     * access to parameter values, and facilitating communication of parameter changes
+     * through the CLAP API. It is designed to be cache-friendly and blazing fast.
+     *
+     * To use the extension, instantiate it in your plugin constructor (you'll have to pass in the host pointer
+     * from your PluginBase), register it with your plugin, and register some parameters!
+     *
+     * Make sure to call ParamsExtension::processEvents(...) in your plugin's process function,
+     * otherwise the ParamExtension won't receive parameter updates from the host during processing.
+     *
+     * The ParamsExtension has an optional pointer to a ParamMessageQueue which facilitates safe, cross-thread
+     * communication between the main UI thread and the audio thread. If your plugin has a GUI, you'll need to make sure
+     * that both the ParamsExtension and the GUI share a pointer to a ParamMessageQueue. The applause GUIExtension
+     * comes with a ParamMessageQueue that you can plug directly into your ParamsExtension during construction.
+     */
+    class ParamsExtension : public IExtension
+    {
+        friend struct ParamHandle;
+        friend class ParamInfo;
+        friend class ParamBuilder;
+    private:
+        mutable clap_plugin_params_t clap_struct_{}; ///< C struct for CLAP host
+
+        static uint32_t clap_params_count(const clap_plugin_t* plugin) noexcept;
+        static bool clap_params_get_info(const clap_plugin_t* plugin,
+                                         uint32_t param_index,
+                                         clap_param_info_t* param_info) noexcept;
+        static bool clap_params_get_value(const clap_plugin_t* plugin,
+                                          clap_id param_id,
+                                          double* out_value) noexcept;
+        static bool clap_params_value_to_text(const clap_plugin_t* plugin,
+                                              clap_id param_id,
+                                              double value,
+                                              char* out_buffer,
+                                              uint32_t out_buffer_capacity) noexcept;
+        static bool clap_params_text_to_value(const clap_plugin_t* plugin,
+                                              clap_id param_id,
+                                              const char* param_value_text,
+                                              double* out_value) noexcept;
+        static void clap_params_flush(const clap_plugin_t* plugin,
+                                      const clap_input_events_t* in,
+                                      const clap_output_events_t* out) noexcept;
+        
+        void flush(const clap_input_events_t* in,
+                  const clap_output_events_t* out) noexcept;
+
+        ParamMessageQueue* message_queue_;
+        const clap_host_t* host_ = nullptr;
+        const clap_host_params_t* host_params_ = nullptr;
+        std::unique_ptr<std::atomic<float>[]> values_;
+        std::unique_ptr<ParamHandle[]> handles_;
+        std::unique_ptr<ParamInfo[]> infos_;
+
+        // Lookup structures for O(1) access
+        std::unordered_map<clap_id, uint32_t> clap_id_to_index_;
+        std::unordered_map<std::string, uint32_t> string_id_to_index_;
+        std::vector<uint32_t> external_to_internal_index_;
+
+        uint32_t param_count_ = 0;
+        uint32_t external_param_count_ = 0;
+        uint32_t max_params_ = 0;
+
+    public:
+        static constexpr const char* ID = CLAP_EXT_PARAMS;
+
+        /**
+         * @brief Construct the parameters extension. You'll have to pass a pointer to the host struct,
+         * since the parameters extension needs to occasionally communicate with the host directly
+         * (e.g. when a parameter is changed by the user, and the plugin is dormant/not processing)
+         *
+         * You'll also need to tell the extension the maximum number of params your plugin may support.
+         * For efficiency, parameters are allocated as a cache-aligned memory block; there is no dynamic allocation.
+         * This does not need to equal the exact number of parameters you register; you can round to the nearest
+         * power of 2 that is greater than your registered parameter count.
+         * @param host The CLAP host pointer
+         */
+         ParamsExtension(const clap_host_t* host, uint32_t max_params = 128);
+
+        const char* id() const override { return ID; }
+        const void* getClapExtensionStruct() const override { return &clap_struct_; }
+
+        /**
+         * @brief Register a new parameter with the extension.
+         * @param builder ParamBuilder containing the parameter configuration
+         * @note Thread-safe: Call only from main thread during plugin initialization
+         * @note Generates a stable CLAP ID from the string ID using FNV-1a hash
+         */
+        void registerParam(const ParamBuilder& builder);
+        
+        /**
+         * @brief Get a lightweight handle for real-time (audio thread) parameter read-only access.
+         * @param paramId The CLAP ID of the parameter
+         * @return Reference to the parameter handle
+         * @throws Assertion failure if parameter not found
+         * @note The result of this function should always be cached; do not call it every process()!
+         */
+        ParamHandle& getHandle(clap_id paramId);
+        
+        /**
+         * @brief Get a lightweight handle for real-time parameter access.
+         * @param stringId The string identifier used when registering the parameter
+         * @return Reference to the parameter handle
+         * @throws Assertion failure if parameter not found
+         * @note The result of this function should always be cached; do not call it every process()!
+         */
+        ParamHandle& getHandle(std::string_view stringId);
+        
+        /**
+         * @brief Get full parameter information for UI and host interaction.
+         * @param paramId The CLAP ID of the parameter
+         * @return Reference to the parameter info object
+         * @throws Assertion failure if parameter not found
+         * @note Result of this function should always be cached.
+         * You should not call this function from the audio thread, or use ParamInfo in any real-time DSP code.
+         */
+        ParamInfo& getInfo(clap_id paramId);
+        
+        /**
+         * @brief Get full parameter information for UI and host interaction.
+         * @param stringId The string identifier used when registering the parameter
+         * @return Reference to the parameter info object
+         * @throws Assertion failure if parameter not found
+         * @note Result of this function should always be cached.
+         * You should not call this function from the audio thread, or use ParamInfo in any real-time DSP code.
+         */
+        ParamInfo& getInfo(std::string_view stringId);
+        
+        /**
+         * @brief Get a span of all registered parameters.
+         * @return std::span containing all ParamInfo objects
+         * @note The span size equals the number of registered parameters (both internal and external)
+         */
+        std::span<ParamInfo> getAllParameters() const noexcept;
+
+        /**
+         * @brief Process the CLAP events generated during process()
+         * If you use the ParamsExtension, you MUST call this in your process() function so that the extension
+         * can respond to parameter events and send outgoing parameter changes to the host.
+         * @param in The CLAP input event struct from process()
+         * @param out the CLAP output event struct from process()
+         */
+        void processEvents(const clap_input_events_t* in, const clap_output_events_t* out);
+    };
+} // namespace applause

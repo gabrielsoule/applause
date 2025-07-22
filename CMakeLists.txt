@@ -1,0 +1,97 @@
+cmake_minimum_required(VERSION 3.21)
+project(Applause VERSION 0.1.0 LANGUAGES C CXX)
+
+# Enable OBJC/OBJCXX on macOS
+if(APPLE)
+    enable_language(OBJC)
+    enable_language(OBJCXX)
+endif()
+
+# C++ standard
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+# Include CPM for dependency management
+include(cmake/CPM.cmake)
+
+# === Dependencies ===
+
+# CLAP
+CPMAddPackage(
+    NAME clap
+    GITHUB_REPOSITORY free-audio/clap
+    GIT_TAG main
+    OPTIONS "CLAP_BUILD_TESTS OFF"
+)
+
+# CLAP Helpers
+CPMAddPackage(
+    NAME clap-helpers
+    GITHUB_REPOSITORY free-audio/clap-helpers
+    GIT_TAG main
+    OPTIONS "CLAP_HELPERS_BUILD_TESTS OFF"
+)
+
+# ReaderWriterQueue
+CPMAddPackage(
+    NAME readerwriterqueue
+    GITHUB_REPOSITORY cameron314/readerwriterqueue
+    GIT_TAG master
+)
+
+# YAS (header-only)
+CPMAddPackage(
+    NAME yas
+    GITHUB_REPOSITORY niXman/yas
+    GIT_TAG master
+    DOWNLOAD_ONLY YES
+)
+if(yas_ADDED)
+    add_library(yas INTERFACE)
+    target_include_directories(yas INTERFACE ${yas_SOURCE_DIR}/include)
+endif()
+
+# Visage
+CPMAddPackage(
+    NAME visage
+    GITHUB_REPOSITORY vitalaudio/visage
+    GIT_TAG main
+    OPTIONS
+        "VISAGE_BUILD_EXAMPLES OFF"
+        "VISAGE_BUILD_TESTS OFF"
+)
+
+# === Applause Library ===
+
+# Collect sources
+file(GLOB_RECURSE APPLAUSE_SOURCES src/*.cpp src/*.h)
+
+# Create library
+add_library(applause STATIC ${APPLAUSE_SOURCES})
+add_library(Applause::Applause ALIAS applause)
+
+# Include directories
+target_include_directories(applause PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+)
+
+# Link dependencies
+target_link_libraries(applause
+    PUBLIC
+        clap
+        clap-helpers
+        visage
+        yas
+        readerwriterqueue
+)
+
+# Platform-specific
+if(WIN32)
+    target_compile_definitions(applause PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+elseif(APPLE)
+    target_link_libraries(applause PRIVATE "-framework CoreFoundation")
+endif()
+
+message(STATUS "Applause configured successfully")
