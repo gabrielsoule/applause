@@ -1,4 +1,11 @@
 cmake_minimum_required(VERSION 3.21)
+
+# Set macOS deployment target before project() to ensure it's available everywhere
+if(APPLE)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "13.3" CACHE STRING "Minimum macOS deployment target" FORCE)
+    message(STATUS "Applause: Setting CMAKE_OSX_DEPLOYMENT_TARGET to ${CMAKE_OSX_DEPLOYMENT_TARGET}")
+endif()
+
 project(Applause VERSION 0.1.0 LANGUAGES C CXX)
 
 # Enable OBJC/OBJCXX on macOS
@@ -63,6 +70,29 @@ CPMAddPackage(
         "VISAGE_BUILD_TESTS OFF"
 )
 
+# CLAP Wrapper
+if(APPLE)
+    CPMAddPackage(
+        NAME clap-wrapper
+        GITHUB_REPOSITORY free-audio/clap-wrapper
+        GIT_TAG main
+        OPTIONS
+            "CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}"
+            "CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE"
+            "CLAP_WRAPPER_BUILD_TESTS OFF"
+    )
+else()
+    CPMAddPackage(
+        NAME clap-wrapper
+        GITHUB_REPOSITORY free-audio/clap-wrapper
+        GIT_TAG main
+        OPTIONS
+            "CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE"
+            "CLAP_WRAPPER_BUILD_TESTS OFF"
+    )
+endif()
+set(CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE)
+
 # === Applause Library ===
 
 # Collect sources
@@ -75,6 +105,7 @@ add_library(Applause::Applause ALIAS applause)
 # Include directories
 target_include_directories(applause PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
 
 # Link dependencies
@@ -92,6 +123,12 @@ if(WIN32)
     target_compile_definitions(applause PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
 elseif(APPLE)
     target_link_libraries(applause PRIVATE "-framework CoreFoundation")
+endif()
+
+# Examples
+option(APPLAUSE_BUILD_EXAMPLES "Build example plugins" ON)
+if(APPLAUSE_BUILD_EXAMPLES)
+    add_subdirectory(examples)
 endif()
 
 message(STATUS "Applause configured successfully")
