@@ -1,5 +1,5 @@
 #include "NotePortsExtension.h"
-#include "core/PluginBase.h"
+#include "../core/PluginBase.h"
 #include <cstring>
 
 namespace applause {
@@ -38,42 +38,6 @@ uint32_t NotePortsExtension::choose_preferred_dialect(uint32_t supported_dialect
     if (supported_dialects & CLAP_NOTE_DIALECT_MIDI_MPE) return CLAP_NOTE_DIALECT_MIDI_MPE;
     if (supported_dialects & CLAP_NOTE_DIALECT_MIDI2) return CLAP_NOTE_DIALECT_MIDI2;
     return CLAP_NOTE_DIALECT_MIDI; // fallback
-}
-
-NotePortsExtension::NotePortsExtension() {
-    clap_struct_ = {};
-    clap_struct_.count = clap_note_ports_count;
-    clap_struct_.get = clap_note_ports_get;
-}
-
-NotePortsExtension& NotePortsExtension::addInput(const std::string& name, 
-                            uint32_t dialect,
-                            clap_id custom_id) {
-    return addInput(name, dialect, dialect, custom_id);
-}
-
-NotePortsExtension& NotePortsExtension::addOutput(const std::string& name,
-                                 uint32_t dialect,
-                                 clap_id custom_id) {
-    return addOutput(name, dialect, dialect, custom_id);
-}
-
-NotePortsExtension& NotePortsExtension::addInput(const std::string& name, 
-                            uint32_t supported_dialects,
-                            uint32_t preferred_dialect,
-                            clap_id custom_id) {
-    clap_id id = custom_id != CLAP_INVALID_ID ? custom_id : next_id_++;
-    input_ports_.emplace_back(id, name, supported_dialects, preferred_dialect);
-    return *this;
-}
-
-NotePortsExtension& NotePortsExtension::addOutput(const std::string& name,
-                             uint32_t supported_dialects,
-                             uint32_t preferred_dialect, 
-                             clap_id custom_id) {
-    clap_id id = custom_id != CLAP_INVALID_ID ? custom_id : next_id_++;
-    output_ports_.emplace_back(id, name, supported_dialects, preferred_dialect);
-    return *this;
 }
 
 } // namespace applause
