@@ -19,6 +19,25 @@ namespace applause
 {
     // Forward declaration
     class ParamsExtension;
+    
+    /**
+     * @brief Configuration structure for a parameter.
+     * 
+     * This struct uses C++20 designated initializers for clear, declarative configuration.
+     * All fields have sensible defaults, allowing you to specify only what you need.
+     */
+    struct ParamConfig {
+        std::string string_id;                    ///< String identifier for the parameter (required)
+        std::string name = "";                    ///< Display name (if empty, uses string_id)
+        std::string short_name = "";              ///< Short display name (e.g., "Cutoff")
+        std::string unit = "";                    ///< Unit string (e.g., "Hz", "dB")
+        float min_value = 0.0f;                   ///< Minimum value
+        float max_value = 1.0f;                   ///< Maximum value
+        float default_value = 0.5f;               ///< Default value
+        bool is_stepped = false;                  ///< Whether parameter uses discrete integer values
+        bool is_internal = false;                 ///< Whether parameter is internal (not exposed to DAW)
+    };
+    
     /**
      * Provides a lightweight, efficient, and thread-safe handle
      * for interacting with a parameter's value.
@@ -161,28 +180,6 @@ namespace applause
         ParamsExtension* registry_ = nullptr;
     };
 
-    class ParamBuilder
-    {
-        friend class ParamsExtension;
-
-    public:
-        explicit ParamBuilder(std::string id);
-
-        ParamBuilder& name(std::string n);
-        ParamBuilder& shortName(std::string s);
-        ParamBuilder& range(float min, float max, float defaultValue);
-        ParamBuilder& unit(std::string u);
-        ParamBuilder& internal(bool flag);
-        ParamBuilder& isStepped(bool flag);
-
-    private:
-        const ParamInfo& build() const;
-        const std::string& getId() const;
-
-        std::string id_;
-        mutable ParamInfo info_;
-    };
-
     /**
      * Implements the CLAP parameter extension, enabling efficient parameter management
      * between a plugin and the host.
@@ -206,7 +203,6 @@ namespace applause
     {
         friend struct ParamHandle;
         friend class ParamInfo;
-        friend class ParamBuilder;
     private:
         mutable clap_plugin_params_t clap_struct_{}; ///< C struct for CLAP host
 
@@ -277,11 +273,11 @@ namespace applause
 
         /**
          * @brief Register a new parameter with the extension.
-         * @param builder ParamBuilder containing the parameter configuration
+         * @param config ParamConfig containing the parameter configuration
          * @note Thread-safe: Call only from main thread during plugin initialization
          * @note Generates a stable CLAP ID from the string ID using FNV-1a hash
          */
-        void registerParam(const ParamBuilder& builder);
+        void registerParam(const ParamConfig& config);
         
         /**
          * @brief Get a lightweight handle for real-time (audio thread) parameter read-only access.

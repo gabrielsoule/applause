@@ -12,62 +12,6 @@
 
 namespace applause
 {
-    ParamBuilder::ParamBuilder(std::string id)
-        : id_(std::move(id))
-    {
-        info_.clapId = -1; //a placeholder ID; it is up to the Registry to assign unique IDs
-    }
-
-    ParamBuilder& ParamBuilder::name(std::string n)
-    {
-        info_.name = std::move(n);
-        return *this;
-    }
-
-    ParamBuilder& ParamBuilder::shortName(std::string s)
-    {
-        info_.shortName = std::move(s);
-        return *this;
-    }
-
-    ParamBuilder& ParamBuilder::range(float min, float max, float defaultValue)
-    {
-        info_.minValue = min;
-        info_.maxValue = max;
-        info_.defaultValue = defaultValue;
-        ASSERT(defaultValue >= min && defaultValue <= max, "Default value not between min and max value!");
-        return *this;
-    }
-
-    ParamBuilder& ParamBuilder::unit(std::string u)
-    {
-        info_.unit = std::move(u);
-        return *this;
-    }
-
-    ParamBuilder& ParamBuilder::internal(bool flag)
-    {
-        info_.internal = flag;
-        return *this;
-    }
-
-    ParamBuilder& ParamBuilder::isStepped(bool flag)
-    {
-        info_.stepped = flag;
-        return *this;
-    }
-
-    const ParamInfo& ParamBuilder::build() const
-    {
-        // If no name was set, use the ID as the name
-        if (info_.name.empty())
-        {
-            info_.name = id_;
-        }
-        return info_;
-    }
-
-    const std::string& ParamBuilder::getId() const { return id_; }
     // ParamInfo implementation
     float ParamInfo::getValue() const noexcept
     {
@@ -362,17 +306,28 @@ namespace applause
         }
     }
 
-    void ParamsExtension::registerParam(const ParamBuilder& builder)
+    void ParamsExtension::registerParam(const ParamConfig& config)
     {
         ASSERT(param_count_ < max_params_,
                "Too many parameters registered! Allocate more through the ParamRegistry constructor.");
+        
+        ASSERT(config.default_value >= config.min_value && config.default_value <= config.max_value,
+               "Default value not between min and max value!");
 
-        ParamInfo info = builder.build();
-        const std::string& stringId = builder.getId();
+        // Create ParamInfo from ParamConfig
+        ParamInfo info;
+        info.name = config.name.empty() ? config.string_id : config.name;
+        info.shortName = config.short_name;
+        info.unit = config.unit;
+        info.minValue = config.min_value;
+        info.maxValue = config.max_value;
+        info.defaultValue = config.default_value;
+        info.stepped = config.is_stepped;
+        info.internal = config.is_internal;
 
         // Generate stable CLAP ID using FNV-1a hash
         {
-            const char* str = stringId.c_str();
+            const char* str = config.string_id.c_str();
             uint32_t hash = 2166136261u;
             while (*str)
             {
@@ -405,7 +360,7 @@ namespace applause
 
         // Update lookup structures
         clap_id_to_index_[info.clapId] = index;
-        string_id_to_index_[stringId] = index;
+        string_id_to_index_[config.string_id] = index;
 
         // Track external parameters for host enumeration
         if (!info.internal)
@@ -418,7 +373,7 @@ namespace applause
 
 
         LOG_INFO("Registered parameter {} with CLAP ID {} at index {}",
-                 stringId, info.clapId, index);
+                 config.string_id, info.clapId, index);
     }
 
     ParamHandle& ParamsExtension::getHandle(clap_id paramId)
