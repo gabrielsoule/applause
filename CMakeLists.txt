@@ -97,7 +97,9 @@ endif()
 set(CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE)
 
 # Include clap-wrapper's CMake functions to make make_clapfirst_plugins available
-include(${clap-wrapper_SOURCE_DIR}/cmake/wrapper_functions.cmake)
+# The wrapper_functions.cmake uses relative paths, so we need to set the module path
+list(APPEND CMAKE_MODULE_PATH "${clap-wrapper_SOURCE_DIR}/cmake")
+include(make_clapfirst)
 
 # === Applause Library ===
 
