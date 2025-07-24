@@ -1,12 +1,12 @@
-#include "ApplauseExamplePlugin.h"
+#include "ExampleShowcasePlugin.h"
 #include <cstring>
 #include "util/DebugHelpers.h"
-ApplauseExamplePlugin::ApplauseExamplePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
+ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
     : PluginBase(descriptor, host),
       params_(host),
       gui_ext_(host)
 {
-    LOG_INFO("ApplauseExample constructor");
+    LOG_INFO("ExampleShowcase constructor");
 
     // Configure extensions
     note_ports_.addInput(applause::NotePortConfig::midi("MIDI In"));
@@ -72,25 +72,25 @@ ApplauseExamplePlugin::ApplauseExamplePlugin(const clap_plugin_descriptor_t* des
     registerExtension(gui_ext_);
 }
 
-bool ApplauseExamplePlugin::init() noexcept {
-    LOG_INFO("ApplauseExample::init()");
+bool ExampleShowcasePlugin::init() noexcept {
+    LOG_INFO("ExampleShowcase::init()");
     return true;
 }
 
-void ApplauseExamplePlugin::destroy() noexcept {
-    LOG_INFO("ApplauseExample::destroy()");
+void ExampleShowcasePlugin::destroy() noexcept {
+    LOG_INFO("ExampleShowcase::destroy()");
 }
 
-bool ApplauseExamplePlugin::activate(double sampleRate, uint32_t minFrameCount, uint32_t maxFrameCount) noexcept {
-    LOG_INFO("ApplauseExample::activate() - sampleRate: {}", sampleRate);
+bool ExampleShowcasePlugin::activate(double sampleRate, uint32_t minFrameCount, uint32_t maxFrameCount) noexcept {
+    LOG_INFO("ExampleShowcase::activate() - sampleRate: {}", sampleRate);
     return true;
 }
 
-void ApplauseExamplePlugin::deactivate() noexcept {
-    LOG_INFO("ApplauseExample::deactivate()");
+void ExampleShowcasePlugin::deactivate() noexcept {
+    LOG_INFO("ExampleShowcase::deactivate()");
 }
 
-clap_process_status ApplauseExamplePlugin::process(const clap_process_t* process) noexcept {
+clap_process_status ExampleShowcasePlugin::process(const clap_process_t* process) noexcept {
     
     // Let the parameter module process events.
     params_.processEvents(process->in_events, process->out_events);

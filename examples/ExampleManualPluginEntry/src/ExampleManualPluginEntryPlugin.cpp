@@ -1,12 +1,12 @@
-#include "ApplauseExamplePlugin.h"
+#include "ExampleManualPluginEntryPlugin.h"
 #include <cstring>
 #include "util/DebugHelpers.h"
-ApplauseExamplePlugin::ApplauseExamplePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
+ExampleManualPluginEntryPlugin::ExampleManualPluginEntryPlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
     : PluginBase(descriptor, host),
       params_(host),
       gui_ext_(host)
 {
-    LOG_INFO("ApplauseExample constructor");
+    LOG_INFO("ExampleManualPluginEntry constructor");
 
     // Configure extensions
     note_ports_.addInput(applause::NotePortConfig::midi("MIDI In"));
@@ -72,25 +72,25 @@ ApplauseExamplePlugin::ApplauseExamplePlugin(const clap_plugin_descriptor_t* des
     registerExtension(gui_ext_);
 }
 
-bool ApplauseExamplePlugin::init() noexcept {
-    LOG_INFO("ApplauseExample::init()");
+bool ExampleManualPluginEntryPlugin::init() noexcept {
+    LOG_INFO("ExampleManualPluginEntry::init()");
     return true;
 }
 
-void ApplauseExamplePlugin::destroy() noexcept {
-    LOG_INFO("ApplauseExample::destroy()");
+void ExampleManualPluginEntryPlugin::destroy() noexcept {
+    LOG_INFO("ExampleManualPluginEntry::destroy()");
 }
 
-bool ApplauseExamplePlugin::activate(double sampleRate, uint32_t minFrameCount, uint32_t maxFrameCount) noexcept {
-    LOG_INFO("ApplauseExample::activate() - sampleRate: {}", sampleRate);
+bool ExampleManualPluginEntryPlugin::activate(double sampleRate, uint32_t minFrameCount, uint32_t maxFrameCount) noexcept {
+    LOG_INFO("ExampleManualPluginEntry::activate() - sampleRate: {}", sampleRate);
     return true;
 }
 
-void ApplauseExamplePlugin::deactivate() noexcept {
-    LOG_INFO("ApplauseExample::deactivate()");
+void ExampleManualPluginEntryPlugin::deactivate() noexcept {
+    LOG_INFO("ExampleManualPluginEntry::deactivate()");
 }
 
-clap_process_status ApplauseExamplePlugin::process(const clap_process_t* process) noexcept {
+clap_process_status ExampleManualPluginEntryPlugin::process(const clap_process_t* process) noexcept {
     
     // Let the parameter module process events.
     params_.processEvents(process->in_events, process->out_events);

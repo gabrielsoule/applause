@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(ApplauseExample VERSION 0.1.0 LANGUAGES C CXX)
+project(ExampleManualPluginEntry VERSION 0.1.0 LANGUAGES C CXX)
 
 # Enable OBJC/OBJCXX on macOS
 if(APPLE)
@@ -20,14 +20,14 @@ if(NOT TARGET Applause::Applause)
 endif()
 
 # Create plugin implementation library
-set(APPLAUSE_EXAMPLE_SOURCES
-        src/ApplauseExamplePlugin.cpp
-        src/ApplauseExamplePlugin.h
-        src/ApplauseExampleEditor.cpp
-        src/ApplauseExampleEditor.h
+set(EXAMPLE_MANUAL_PLUGIN_ENTRY_SOURCES
+        src/ExampleManualPluginEntryPlugin.cpp
+        src/ExampleManualPluginEntryPlugin.h
+        src/ExampleManualPluginEntryEditor.cpp
+        src/ExampleManualPluginEntryEditor.h
 )
 
-add_library(${PROJECT_NAME}-impl STATIC ${APPLAUSE_EXAMPLE_SOURCES})
+add_library(${PROJECT_NAME}-impl STATIC ${EXAMPLE_MANUAL_PLUGIN_ENTRY_SOURCES})
 
 # Link with Applause and its dependencies
 target_link_libraries(${PROJECT_NAME}-impl PUBLIC
@@ -48,9 +48,9 @@ endif()
 make_clapfirst_plugins(
     TARGET_NAME ${PROJECT_NAME}
     IMPL_TARGET ${PROJECT_NAME}-impl
-    OUTPUT_NAME "ApplauseExample"
-    ENTRY_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/ApplauseExamplePluginEntry.cpp"
-    BUNDLE_IDENTIFIER "com.applause.example"
+    OUTPUT_NAME "ExampleManualPluginEntry"
+    ENTRY_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/ExampleManualPluginEntryPluginEntry.cpp"
+    BUNDLE_IDENTIFIER "fm.gns.applause.examples.manualpluginentry"
     BUNDLE_VERSION ${PROJECT_VERSION}
     COPY_AFTER_BUILD TRUE
     PLUGIN_FORMATS CLAP VST3 AUV2
@@ -58,7 +58,7 @@ make_clapfirst_plugins(
     # AUV2 metadata
     AUV2_MANUFACTURER_NAME "APP"
     AUV2_MANUFACTURER_CODE "App1"
-    AUV2_SUBTYPE_CODE "ApEx"
+    AUV2_SUBTYPE_CODE "EMPE"
     AUV2_INSTRUMENT_TYPE "aumu"
 )
 

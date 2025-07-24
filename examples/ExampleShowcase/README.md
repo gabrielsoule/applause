@@ -1,13 +1,13 @@
-# Applause Example Plugin with CMake API
+# Example Showcase Plugin
 
-This example demonstrates how to use the simplified Applause CMake API to build CLAP plugins with minimal boilerplate.
+This example showcases how to use the simplified Applause CMake API to build CLAP plugins with minimal boilerplate.
 
 ## Key Features
 
-The `applause_plugin()` CMake function automatically generates all plugin entry point code, eliminating the need for manual boilerplate. You only need to:
+The `add_applause_plugin()` CMake function automatically generates all plugin entry point code, eliminating the need for manual boilerplate. You only need to:
 
 1. Write your plugin class inheriting from `applause::PluginBase`
-2. Call `applause_plugin()` in CMakeLists.txt with your plugin details
+2. Call `add_applause_plugin()` in CMakeLists.txt with your plugin details
 3. Build - the entry point code is generated automatically!
 
 ## Benefits
@@ -19,4 +19,4 @@ The `applause_plugin()` CMake function automatically generates all plugin entry 
 
 ## Usage
 
-See `CMakeLists.txt` for the complete example of using `applause_plugin()`.
+See `CMakeLists.txt` for the complete example of using `add_applause_plugin()`.

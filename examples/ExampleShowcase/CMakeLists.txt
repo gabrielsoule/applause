@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(ApplauseExampleCMakeAPI VERSION 0.1.0 LANGUAGES C CXX)
+project(ExampleShowcase VERSION 0.1.0 LANGUAGES C CXX)
 
 # Enable OBJC/OBJCXX on macOS
 if(APPLE)
@@ -20,7 +20,7 @@ if(NOT TARGET Applause::Applause)
 endif()
 
 # Auto-discover source files
-file(GLOB_RECURSE APPLAUSE_EXAMPLE_SOURCES
+file(GLOB_RECURSE EXAMPLE_SHOWCASE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
 )
@@ -28,33 +28,33 @@ file(GLOB_RECURSE APPLAUSE_EXAMPLE_SOURCES
 # Create plugin using the simplified API
 add_applause_plugin(
     TARGET_NAME ${PROJECT_NAME}
-    OUTPUT_NAME "ApplauseExampleCMakeAPI"
-    PLUGIN_CLASS ApplauseExamplePlugin
-    PLUGIN_HEADER "ApplauseExamplePlugin.h"
+    OUTPUT_NAME "ExampleShowcase"
+    PLUGIN_CLASS ExampleShowcasePlugin
+    PLUGIN_HEADER "ExampleShowcasePlugin.h"
     
     # Plugin descriptor
-    PLUGIN_ID "com.applause.example"
-    PLUGIN_NAME "Applause Example"
-    PLUGIN_VENDOR "Applause Framework"
-    PLUGIN_URL "https://github.com/example/applause"
+    PLUGIN_ID "fm.gns.applause.example.showcase"
+    PLUGIN_NAME "Example Showcase"
+    PLUGIN_VENDOR "Showcase Framework"
+    PLUGIN_URL "example.com"
     PLUGIN_VERSION ${PROJECT_VERSION}
-    PLUGIN_DESCRIPTION "Example plugin using the Applause framework"
+    PLUGIN_DESCRIPTION "Example plugin showcasing the Applause framework with CMake API"
     # Search for plugin-features.h in the CLAP source repository for a complete list of CLAP feature flags.
     PLUGIN_FEATURES INSTRUMENT SYNTHESIZER
     
-    SOURCES ${APPLAUSE_EXAMPLE_SOURCES}
+    SOURCES ${EXAMPLE_SHOWCASE_SOURCES}
     
     # Plugin formats to generate
     PLUGIN_FORMATS CLAP VST3 AUV2 Standalone
     
     # Bundle information
-    BUNDLE_IDENTIFIER "com.applause.example"
+    BUNDLE_IDENTIFIER "fm.gns.applause.example.showcase"
     BUNDLE_VERSION ${PROJECT_VERSION}
     
     # AUV2 specific
     AUV2_MANUFACTURER_NAME "APP"
     AUV2_MANUFACTURER_CODE "App1"
-    AUV2_SUBTYPE_CODE "ApEx"
+    AUV2_SUBTYPE_CODE "ExSh"
     AUV2_INSTRUMENT_TYPE "aumu"
     
     # Options

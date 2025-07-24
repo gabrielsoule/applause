@@ -6,13 +6,13 @@
 #include "extensions/StateExtension.h"
 #include "extensions/ParamsExtension.h"
 #include "extensions/GUIExtension.h"
-#include "ApplauseExampleEditor.h"
+#include "ExampleShowcaseEditor.h"
 #include "util/DebugHelpers.h"
 
-class ApplauseExamplePlugin : public applause::PluginBase {
+class ExampleShowcasePlugin : public applause::PluginBase {
 public:
-     explicit ApplauseExamplePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host);
-    ~ApplauseExamplePlugin() override = default;
+     explicit ExampleShowcasePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host);
+    ~ExampleShowcasePlugin() override = default;
     
     // Plugin lifecycle
     bool init() noexcept override;
@@ -29,5 +29,5 @@ private:
     applause::AudioPortsExtension audio_ports_;
     applause::StateExtension state_;
     applause::ParamsExtension params_;
-    applause::GUIExtension<ApplauseExampleEditor> gui_ext_;
+    applause::GUIExtension<ExampleShowcaseEditor> gui_ext_;
 };

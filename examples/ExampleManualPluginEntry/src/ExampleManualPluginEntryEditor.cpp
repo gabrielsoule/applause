@@ -1,10 +1,10 @@
-#include "ApplauseExampleEditor.h"
+#include "ExampleManualPluginEntryEditor.h"
 #include "util/DebugHelpers.h"
 #include <visage_graphics/canvas.h>
 
 using namespace visage::dimension;
 
-ApplauseExampleEditor::ApplauseExampleEditor(applause::ParamsExtension* params)
+ExampleManualPluginEntryEditor::ExampleManualPluginEntryEditor(applause::ParamsExtension* params)
     : Editor(params), params_(params)
 {
     // Create parameter UI
@@ -32,14 +32,14 @@ ApplauseExampleEditor::ApplauseExampleEditor(applause::ParamsExtension* params)
     }
 }
 
-void ApplauseExampleEditor::draw(visage::Canvas& canvas)
+void ExampleManualPluginEntryEditor::draw(visage::Canvas& canvas)
 {
     // Black background
     canvas.setColor(0xFF000000);
     canvas.fill(0, 0, width(), height());
 }
 
-void ApplauseExampleEditor::resized()
+void ExampleManualPluginEntryEditor::resized()
 {
     // Layout components
     parameter_ui_->setBounds(20, 20, 400, 400);

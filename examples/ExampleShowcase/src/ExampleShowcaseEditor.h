@@ -7,11 +7,11 @@
 #include <memory>
 #include <functional>
 
-class ApplauseExampleEditor : public applause::Editor
+class ExampleShowcaseEditor : public applause::Editor
 {
 public:
-    explicit ApplauseExampleEditor(applause::ParamsExtension* params);
-    ~ApplauseExampleEditor() override = default;
+    explicit ExampleShowcaseEditor(applause::ParamsExtension* params);
+    ~ExampleShowcaseEditor() override = default;
     
     void draw(visage::Canvas& canvas) override;
     void resized() override;
