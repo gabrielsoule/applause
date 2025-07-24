@@ -19,9 +19,6 @@ if(NOT TARGET Applause::Applause)
     add_subdirectory(../.. applause_parent EXCLUDE_FROM_ALL)
 endif()
 
-# Include the Applause CMake utilities
-include(${CMAKE_CURRENT_SOURCE_DIR}/libs/applause/cmake/ApplausePlugin.cmake)
-
 # Auto-discover source files
 file(GLOB_RECURSE APPLAUSE_EXAMPLE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
