@@ -23,6 +23,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # Include CPM for dependency management
 include(cmake/CPM.cmake)
 
+# Include Applause plugin helper functions
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ApplausePlugin.cmake)
+
 # === Dependencies ===
 
 # CLAP
