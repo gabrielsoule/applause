@@ -96,6 +96,9 @@ else()
 endif()
 set(CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE)
 
+# Include clap-wrapper's CMake functions to make make_clapfirst_plugins available
+include(${clap-wrapper_SOURCE_DIR}/cmake/wrapper_functions.cmake)
+
 # === Applause Library ===
 
 # Collect sources
