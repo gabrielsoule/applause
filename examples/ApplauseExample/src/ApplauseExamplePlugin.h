@@ -11,11 +11,8 @@
 
 class ApplauseExamplePlugin : public applause::PluginBase {
 public:
-    explicit ApplauseExamplePlugin(const clap_host_t* host);
+     explicit ApplauseExamplePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host);
     ~ApplauseExamplePlugin() override = default;
-    
-    static const clap_plugin_descriptor_t* getDescriptor();
-    static const clap_plugin_factory_t factory;
     
     // Plugin lifecycle
     bool init() noexcept override;
@@ -33,9 +30,4 @@ private:
     applause::StateExtension state_;
     applause::ParamsExtension params_;
     applause::GUIExtension<ApplauseExampleEditor> gui_ext_;
-    
-    // Parameter handles for efficient audio thread access
-    applause::ParamHandle* param1_handle_ = nullptr;
-    applause::ParamHandle* param2_handle_ = nullptr;
-    applause::ParamHandle* filter_mode_handle_ = nullptr;
 };
