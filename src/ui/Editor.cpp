@@ -19,7 +19,7 @@ void applause::Editor::timerCallback()
         }
         else
         {
-            ASSERT_FALSE("Editor received unexpected message type " + std::to_string(msg.type));
+            ASSERT_FALSE("Editor received unexpected message type");
         }
     }
 }

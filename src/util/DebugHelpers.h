@@ -92,6 +92,6 @@ namespace debug {
 #define DBG(...) ((void)0)
 #define LOGVAR(x) ""
 #define ASSERT(condition, message) ((void)0)
-#define ASSERTFALSE(message) ((void)0)
+#define ASSERT_FALSE(message) ((void)0)
 
 #endif
