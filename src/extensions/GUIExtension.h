@@ -100,6 +100,7 @@ namespace applause
         const clap_host_posix_fd_support_t* hostFdSupport_;
 #endif
         std::unique_ptr<Editor> editor_;
+        ParamsExtension* params_ = nullptr; // an optional params extension
         int width_;
         int height_;
         bool fixedAspectRatio_;
@@ -120,6 +121,9 @@ namespace applause
         const char* id() const override { return ID; }
         const void* getClapExtensionStruct() const override { return &clap_struct_; }
 
+        void registerParamsExtension(ParamsExtension* params);
+        
+
         virtual Editor* getEditor() { return editor_.get(); }
 
         // Host GUI callback helpers
@@ -139,7 +143,7 @@ namespace applause
         
     protected:
         void createEditor() override {
-            editor_ = std::make_unique<TEditor>();
+            editor_ = std::make_unique<TEditor>(params_);
             editor_->setWindowDimensions(width_, height_);
         }
 

@@ -21,8 +21,10 @@ endif()
 
 # Create plugin implementation library
 set(APPLAUSE_EXAMPLE_SOURCES
-    src/ApplauseExample.cpp
-    src/ApplauseExample.h
+        src/ApplauseExamplePlugin.cpp
+        src/ApplauseExamplePlugin.h
+        src/ApplauseExampleEditor.cpp
+        src/ApplauseExampleEditor.h
 )
 
 add_library(${PROJECT_NAME}-impl STATIC ${APPLAUSE_EXAMPLE_SOURCES})
@@ -47,7 +49,7 @@ make_clapfirst_plugins(
     TARGET_NAME ${PROJECT_NAME}
     IMPL_TARGET ${PROJECT_NAME}-impl
     OUTPUT_NAME "ApplauseExample"
-    ENTRY_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/ApplauseExampleEntry.cpp"
+    ENTRY_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/ApplauseExamplePluginEntry.cpp"
     BUNDLE_IDENTIFIER "com.applause.example"
     BUNDLE_VERSION ${PROJECT_VERSION}
     COPY_AFTER_BUILD TRUE

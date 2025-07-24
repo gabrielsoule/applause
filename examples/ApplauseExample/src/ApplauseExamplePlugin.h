@@ -4,14 +4,15 @@
 #include "extensions/AudioPortsExtension.h"
 #include "extensions/NotePortsExtension.h"
 #include "extensions/StateExtension.h"
+#include "extensions/ParamsExtension.h"
+#include "extensions/GUIExtension.h"
+#include "ApplauseExampleEditor.h"
 #include "util/DebugHelpers.h"
 
-namespace applause_example {
-
-class ApplauseExample : public applause::PluginBase {
+class ApplauseExamplePlugin : public applause::PluginBase {
 public:
-    explicit ApplauseExample(const clap_host_t* host);
-    ~ApplauseExample() override = default;
+    explicit ApplauseExamplePlugin(const clap_host_t* host);
+    ~ApplauseExamplePlugin() override = default;
     
     static const clap_plugin_descriptor_t* getDescriptor();
     static const clap_plugin_factory_t factory;
@@ -30,6 +31,11 @@ private:
     applause::NotePortsExtension note_ports_;
     applause::AudioPortsExtension audio_ports_;
     applause::StateExtension state_;
+    applause::ParamsExtension params_;
+    applause::GUIExtension<ApplauseExampleEditor> gui_ext_;
+    
+    // Parameter handles for efficient audio thread access
+    applause::ParamHandle* param1_handle_ = nullptr;
+    applause::ParamHandle* param2_handle_ = nullptr;
+    applause::ParamHandle* filter_mode_handle_ = nullptr;
 };
-
-} // namespace applause_example

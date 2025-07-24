@@ -85,10 +85,10 @@ namespace debug {
 #else
 
 #define LOG_TRACE(...) ((void)0)
-#define LOG_DEBUG(...) ((void)0)
+#define LOG_DBG(...) ((void)0)
 #define LOG_INFO(...)  ((void)0)
 #define LOG_WARN(...)  ((void)0)
-#define LOG_ERROR(...) ((void)0)
+#define LOG_ERR(...) ((void)0)
 #define DBG(...) ((void)0)
 #define LOGVAR(x) ""
 #define ASSERT(condition, message) ((void)0)

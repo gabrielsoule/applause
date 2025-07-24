@@ -114,6 +114,7 @@ target_link_libraries(applause
         clap
         clap-helpers
         visage
+        VisageEmbeddedFonts
         yas
         readerwriterqueue
 )

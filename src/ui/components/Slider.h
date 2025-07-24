@@ -1,0 +1,34 @@
+#pragma once
+
+#include <visage_ui/frame.h>
+
+namespace applause {
+
+/**
+* A simple slider widget.
+*/
+class Slider : public visage::Frame
+{
+public:
+    void draw(visage::Canvas& canvas) override;
+    void resized() override;
+    void mouseDown(const visage::MouseEvent& event) override;
+    void mouseDrag(const visage::MouseEvent& event) override;
+    void mouseUp(const visage::MouseEvent& event) override;
+    bool mouseWheel(const visage::MouseEvent& event) override;
+
+    void setValue(float value);
+
+    visage::CallbackList<void(float)> on_value_changed;
+    visage::CallbackList<void()> on_drag_started;
+    visage::CallbackList<void()> on_drag_ended;
+private:
+    void processDrag(float rawDragPos);
+    bool dragging_ = false;
+    float value_ = 0; // [0, 1]
+
+    static constexpr float kWheelSensitivity = 0.01f;
+
+};
+
+} // namespace applause

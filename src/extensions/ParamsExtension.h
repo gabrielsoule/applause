@@ -267,6 +267,13 @@ namespace applause
 
         const char* id() const override { return ID; }
         const void* getClapExtensionStruct() const override { return &clap_struct_; }
+        
+        /**
+         * @brief Set the message queue for thread-safe UI<->audio communication.
+         * This should be called by the GUI extension when connecting the params to the UI.
+         * @param queue Pointer to the message queue (typically owned by the Editor)
+         */
+        void setMessageQueue(ParamMessageQueue* queue) { message_queue_ = queue; }
 
         /**
          * @brief Register a new parameter with the extension.

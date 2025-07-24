@@ -1,8 +1,6 @@
-#include "ApplauseExample.h"
+#include "ApplauseExamplePlugin.h"
 #include <cstring>
 #include "util/DebugHelpers.h"
-
-namespace applause_example {
 
 // Plugin descriptor
 static const clap_plugin_descriptor_t descriptor = {
@@ -22,44 +20,91 @@ static const clap_plugin_descriptor_t descriptor = {
     }
 };
 
-ApplauseExample::ApplauseExample(const clap_host_t* host) 
-    : PluginBase(&descriptor, host) {
+ApplauseExamplePlugin::ApplauseExamplePlugin(const clap_host_t* host)
+    : PluginBase(&descriptor, host),
+      params_(host),
+      gui_ext_(host)
+{
     LOG_INFO("ApplauseExample constructor");
-    
+
     // Configure extensions
     note_ports_.addInput(applause::NotePortConfig::midi("MIDI In"));
-    
+
     audio_ports_.addOutput(applause::AudioPortConfig::mainStereo("Main Out"));
+
+    // Register parameters (ported from HelloClap)
+    params_.registerParam(
+        applause::ParamBuilder("param1")
+        .name("Parameter 1")
+        .shortName("Param 1")
+        .range(0.0f, 1.0f, 0.5f));
+
+    params_.registerParam(
+        applause::ParamBuilder("param2")
+        .name("Parameter 2")
+        .shortName("Param 2")
+        .range(10.0f, 20000.0f, 400.0f));
+
+    params_.registerParam(
+        applause::ParamBuilder("filter_mode")
+        .name("Filter Mode")
+        .shortName("Mode")
+        .range(0.0f, 5.0f, 0.0f)
+        .isStepped(true));
+
+    // Cache parameter handles for efficient audio thread access
+    param1_handle_ = &params_.getHandle("param1");
+    param2_handle_ = &params_.getHandle("param2");
+    filter_mode_handle_ = &params_.getHandle("filter_mode");
+
+    // Configure state extension callbacks for parameter persistence
+    state_.setSaveCallback([this](auto& ar)
+    {
+        return params_.saveToStream(ar);
+    });
+
+    state_.setLoadCallback([this](auto& ar)
+    {
+        return params_.loadFromStream(ar);
+    });
+
+    // Connect params extension to GUI extension
+    gui_ext_.registerParamsExtension(&params_);
     
     // Register extensions with the plugin
     registerExtension(note_ports_);
     registerExtension(audio_ports_);
     registerExtension(state_);
+    registerExtension(params_);
+    registerExtension(gui_ext_);
 }
 
-const clap_plugin_descriptor_t* ApplauseExample::getDescriptor() {
+const clap_plugin_descriptor_t* ApplauseExamplePlugin::getDescriptor() {
     return &descriptor;
 }
 
-bool ApplauseExample::init() noexcept {
+bool ApplauseExamplePlugin::init() noexcept {
     LOG_INFO("ApplauseExample::init()");
     return true;
 }
 
-void ApplauseExample::destroy() noexcept {
+void ApplauseExamplePlugin::destroy() noexcept {
     LOG_INFO("ApplauseExample::destroy()");
 }
 
-bool ApplauseExample::activate(double sampleRate, uint32_t minFrameCount, uint32_t maxFrameCount) noexcept {
+bool ApplauseExamplePlugin::activate(double sampleRate, uint32_t minFrameCount, uint32_t maxFrameCount) noexcept {
     LOG_INFO("ApplauseExample::activate() - sampleRate: {}", sampleRate);
     return true;
 }
 
-void ApplauseExample::deactivate() noexcept {
+void ApplauseExamplePlugin::deactivate() noexcept {
     LOG_INFO("ApplauseExample::deactivate()");
 }
 
-clap_process_status ApplauseExample::process(const clap_process_t* process) noexcept {
+clap_process_status ApplauseExamplePlugin::process(const clap_process_t* process) noexcept {
+    
+    // Process parameter events
+    params_.processEvents(process->in_events, process->out_events);
     
     // Get audio buffers
     if (process->audio_outputs_count < 1) {
@@ -68,6 +113,11 @@ clap_process_status ApplauseExample::process(const clap_process_t* process) noex
     
     const uint32_t frame_count = process->frames_count;
     const clap_audio_buffer_t* output = &process->audio_outputs[0];
+    
+    // Get current parameter values for use in audio processing
+    float param1_value = param1_handle_->getValue();
+    float param2_value = param2_handle_->getValue();
+    float filter_mode = filter_mode_handle_->getValue();
     
     // Process MIDI events
     const clap_event_header_t* event;
@@ -79,7 +129,10 @@ clap_process_status ApplauseExample::process(const clap_process_t* process) noex
         while (event_index < event_count) {
             event = process->in_events->get(process->in_events, event_index);
             
-            LOG_INFO("Got an event! Event type is {}", event->type);
+            // Log non-parameter events (parameter events are handled by params_.processEvents)
+            if (event->type != CLAP_EVENT_PARAM_VALUE) {
+                LOG_INFO("Got an event! Event type is {}", event->type);
+            }
             
             event_index++;
         }
@@ -99,7 +152,7 @@ static const clap_plugin_t* factory_create_plugin(
         return nullptr;
     }
     
-    auto* plugin = new ApplauseExample(host);
+    auto* plugin = new ApplauseExamplePlugin(host);
     return plugin->clapPlugin();
 }
 
@@ -117,10 +170,8 @@ static const clap_plugin_descriptor_t* factory_get_plugin_descriptor(
     return nullptr;
 }
 
-const clap_plugin_factory_t ApplauseExample::factory = {
+const clap_plugin_factory_t ApplauseExamplePlugin::factory = {
     .get_plugin_count = factory_get_plugin_count,
     .get_plugin_descriptor = factory_get_plugin_descriptor,
     .create_plugin = factory_create_plugin
 };
-
-} // namespace applause_example

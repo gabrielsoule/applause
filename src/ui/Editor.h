@@ -21,6 +21,9 @@ namespace applause
         explicit Editor(ParamsExtension* params = nullptr);
         void timerCallback() override;
         
+        // Get the message queue for thread-safe parameter communication
+        ParamMessageQueue* getMessageQueue() { return &message_queue_; }
+        
     private:
         ParamMessageQueue message_queue_;
         ParamsExtension* params_ = nullptr;

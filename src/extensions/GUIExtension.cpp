@@ -24,6 +24,18 @@ namespace applause
 #endif
         }
     }
+    
+    void GUIExtensionBase::registerParamsExtension(ParamsExtension* params)
+    {
+        params_ = params;
+        
+        // If editor already exists, connect the message queue immediately
+        if (editor_ && params_)
+        {
+            params_->setMessageQueue(editor_->getMessageQueue());
+            LOG_INFO("Connected message queue from existing Editor to ParamsExtension");
+        }
+    }
 
     // Static callback implementations
     bool GUIExtensionBase::clap_gui_is_api_supported(const clap_plugin_t* plugin,
@@ -72,6 +84,13 @@ namespace applause
 
         ext->createEditor();
         
+        // Connect the message queue from Editor to ParamsExtension if both exist
+        if (ext->editor_ && ext->params_)
+        {
+            ext->params_->setMessageQueue(ext->editor_->getMessageQueue());
+            LOG_INFO("Connected message queue from Editor to ParamsExtension");
+        }
+        
         // Set fixed aspect ratio if enabled
         if (ext->editor_ && ext->fixedAspectRatio_)
         {
@@ -95,6 +114,13 @@ namespace applause
         }
 #endif
 
+        // Disconnect the message queue before destroying editor
+        if (ext->params_)
+        {
+            ext->params_->setMessageQueue(nullptr);
+            LOG_INFO("Disconnected message queue from ParamsExtension");
+        }
+        
         ext->destroyEditor();
         LOG_INFO("GUI destroyed");
     }

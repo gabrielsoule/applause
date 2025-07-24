@@ -1,4 +1,4 @@
-#include "ApplauseExample.h"
+#include "ApplauseExamplePlugin.h"
 #include <clap/clap.h>
 #include <cstring>
 
@@ -12,7 +12,7 @@ static void clap_deinit() {
 
 static const void* clap_get_factory(const char* factory_id) {
     if (std::strcmp(factory_id, CLAP_PLUGIN_FACTORY_ID) == 0) {
-        return &applause_example::ApplauseExample::factory;
+        return &ApplauseExamplePlugin::factory;
     }
     return nullptr;
 }

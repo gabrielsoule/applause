@@ -76,7 +76,11 @@ namespace applause
 
     void ParamInfo::setValueNotifyingHost(float value) const noexcept
     {
-        registry_->message_queue_->toAudio().enqueue({ParamMessageQueue::PARAM_VALUE, clapId, value});
+        // Queue message to audio thread if message queue exists (GUI is present)
+        if (registry_->message_queue_)
+        {
+            registry_->message_queue_->toAudio().enqueue({ParamMessageQueue::PARAM_VALUE, clapId, value});
+        }
 
         handle_->value_->store(std::clamp(value, minValue, maxValue), std::memory_order_relaxed);
 
@@ -97,7 +101,11 @@ namespace applause
 
     void ParamInfo::beginGesture() const noexcept
     {
-        registry_->message_queue_->toAudio().enqueue({ParamMessageQueue::BEGIN_GESTURE, clapId, 0.0f});
+        // Queue message to audio thread if message queue exists (GUI is present)
+        if (registry_->message_queue_)
+        {
+            registry_->message_queue_->toAudio().enqueue({ParamMessageQueue::BEGIN_GESTURE, clapId, 0.0f});
+        }
 
         // Request flush from host if available
         if (registry_->host_params_ && registry_->host_params_->request_flush)
@@ -108,7 +116,12 @@ namespace applause
 
     void ParamInfo::endGesture() const noexcept
     {
-        registry_->message_queue_->toAudio().enqueue({ParamMessageQueue::END_GESTURE, clapId, 0.0f});
+        // Queue message to audio thread if message queue exists (GUI is present)
+        if (registry_->message_queue_)
+        {
+            registry_->message_queue_->toAudio().enqueue({ParamMessageQueue::END_GESTURE, clapId, 0.0f});
+        }
+        
         // Request flush from host if available
         if (registry_->host_params_ && registry_->host_params_->request_flush)
         {
