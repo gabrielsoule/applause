@@ -1,10 +1,14 @@
 #include "ExampleManualPluginEntryPlugin.h"
 #include <cstring>
+#include <ExampleManualPluginEntryEditor.h>
 #include "util/DebugHelpers.h"
-ExampleManualPluginEntryPlugin::ExampleManualPluginEntryPlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
+#include "ui/ApplauseEditor.h"
+
+ExampleManualPluginEntryPlugin::ExampleManualPluginEntryPlugin(const clap_plugin_descriptor_t* descriptor,
+                                                               const clap_host_t* host)
     : PluginBase(descriptor, host),
       params_(host),
-      gui_ext_(host, 
+      gui_ext_(host,
                [this]() { return std::make_unique<ExampleManualPluginEntryEditor>(&params_); },
                800, 600)
 {
@@ -71,28 +75,33 @@ ExampleManualPluginEntryPlugin::ExampleManualPluginEntryPlugin(const clap_plugin
     registerExtension(gui_ext_);
 }
 
-bool ExampleManualPluginEntryPlugin::init() noexcept {
+bool ExampleManualPluginEntryPlugin::init() noexcept
+{
     LOG_INFO("ExampleManualPluginEntry::init()");
     return true;
 }
 
-void ExampleManualPluginEntryPlugin::destroy() noexcept {
+void ExampleManualPluginEntryPlugin::destroy() noexcept
+{
     LOG_INFO("ExampleManualPluginEntry::destroy()");
 }
 
-bool ExampleManualPluginEntryPlugin::activate(double sampleRate, uint32_t minFrameCount, uint32_t maxFrameCount) noexcept {
+bool ExampleManualPluginEntryPlugin::activate(double sampleRate, uint32_t minFrameCount,
+                                              uint32_t maxFrameCount) noexcept
+{
     LOG_INFO("ExampleManualPluginEntry::activate() - sampleRate: {}", sampleRate);
     return true;
 }
 
-void ExampleManualPluginEntryPlugin::deactivate() noexcept {
+void ExampleManualPluginEntryPlugin::deactivate() noexcept
+{
     LOG_INFO("ExampleManualPluginEntry::deactivate()");
 }
 
-clap_process_status ExampleManualPluginEntryPlugin::process(const clap_process_t* process) noexcept {
-    
+clap_process_status ExampleManualPluginEntryPlugin::process(const clap_process_t* process) noexcept
+{
     // Let the parameter module process events.
     params_.processEvents(process->in_events, process->out_events);
-    
+
     return CLAP_PROCESS_SLEEP;
 }

@@ -9,7 +9,7 @@ ExampleManualPluginEntryEditor::ExampleManualPluginEntryEditor(applause::ParamsE
 {
     // Create parameter UI
     parameter_ui_ = std::make_unique<applause::GenericParameterUI>();
-    
+
     // Add all non-internal parameters to the UI
     if (getParamsExtension())
     {
@@ -21,9 +21,9 @@ ExampleManualPluginEntryEditor::ExampleManualPluginEntryEditor(applause::ParamsE
             }
         }
     }
-    
+
     addChild(parameter_ui_.get());
-    
+
     // Create a test knob for param2
     if (getParamsExtension())
     {
@@ -43,7 +43,7 @@ void ExampleManualPluginEntryEditor::resized()
 {
     // Layout components
     parameter_ui_->setBounds(20, 20, 400, 400);
-    
+
     if (test_param_knob_)
     {
         test_param_knob_->setBounds(440, 80, 50, 50 + 20);

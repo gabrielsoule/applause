@@ -28,25 +28,28 @@ static const clap_plugin_descriptor_t descriptor = {
 static const clap_plugin_t* factory_create_plugin(
     const clap_plugin_factory_t* factory,
     const clap_host_t* host,
-    const char* plugin_id) {
-    
-    if (!plugin_id || std::strcmp(plugin_id, descriptor.id) != 0) {
+    const char* plugin_id)
+{
+    if (!plugin_id || std::strcmp(plugin_id, descriptor.id) != 0)
+    {
         return nullptr;
     }
-    
+
     auto* plugin = new ExampleManualPluginEntryPlugin(&descriptor, host);
     return plugin->clapPlugin();
 }
 
-static uint32_t factory_get_plugin_count(const clap_plugin_factory_t* factory) {
+static uint32_t factory_get_plugin_count(const clap_plugin_factory_t* factory)
+{
     return 1;
 }
 
 static const clap_plugin_descriptor_t* factory_get_plugin_descriptor(
     const clap_plugin_factory_t* factory,
-    uint32_t index) {
-    
-    if (index == 0) {
+    uint32_t index)
+{
+    if (index == 0)
+    {
         return &descriptor;
     }
     return nullptr;
@@ -59,15 +62,19 @@ static const clap_plugin_factory_t example_manual_plugin_entry_factory = {
 };
 
 // Plugin entry point implementation
-static bool clap_init(const char* path) {
+static bool clap_init(const char* path)
+{
     return true;
 }
 
-static void clap_deinit() {
+static void clap_deinit()
+{
 }
 
-static const void* clap_get_factory(const char* factory_id) {
-    if (std::strcmp(factory_id, CLAP_PLUGIN_FACTORY_ID) == 0) {
+static const void* clap_get_factory(const char* factory_id)
+{
+    if (std::strcmp(factory_id, CLAP_PLUGIN_FACTORY_ID) == 0)
+    {
         return &example_manual_plugin_entry_factory;
     }
     return nullptr;
