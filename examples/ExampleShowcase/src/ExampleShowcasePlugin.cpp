@@ -4,7 +4,9 @@
 ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
     : PluginBase(descriptor, host),
       params_(host),
-      gui_ext_(host)
+      gui_ext_(host, 
+               [this]() { return std::make_unique<ExampleShowcaseEditor>(&params_); },
+               800, 600)
 {
     LOG_INFO("ExampleShowcase constructor");
 
@@ -61,9 +63,6 @@ ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* des
         return params_.loadFromStream(ar);
     });
 
-    // Connect params extension to GUI extension
-    gui_ext_.registerParamsExtension(&params_);
-    
     // Register extensions with the plugin
     registerExtension(note_ports_);
     registerExtension(audio_ports_);

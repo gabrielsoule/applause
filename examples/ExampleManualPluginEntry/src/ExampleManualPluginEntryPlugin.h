@@ -6,7 +6,6 @@
 #include "extensions/StateExtension.h"
 #include "extensions/ParamsExtension.h"
 #include "extensions/GUIExtension.h"
-#include "ExampleManualPluginEntryEditor.h"
 #include "util/DebugHelpers.h"
 
 class ExampleManualPluginEntryPlugin : public applause::PluginBase {
@@ -29,5 +28,5 @@ private:
     applause::AudioPortsExtension audio_ports_;
     applause::StateExtension state_;
     applause::ParamsExtension params_;
-    applause::GUIExtension<ExampleManualPluginEntryEditor> gui_ext_;
+    applause::GUIExtension gui_ext_;
 };

@@ -6,6 +6,7 @@
 #include "extensions/StateExtension.h"
 #include "extensions/ParamsExtension.h"
 #include "extensions/GUIExtension.h"
+#include "ui/ApplauseEditor.h"
 #include "ExampleShowcaseEditor.h"
 #include "util/DebugHelpers.h"
 
@@ -29,5 +30,5 @@ private:
     applause::AudioPortsExtension audio_ports_;
     applause::StateExtension state_;
     applause::ParamsExtension params_;
-    applause::GUIExtension<ExampleShowcaseEditor> gui_ext_;
+    applause::GUIExtension gui_ext_;
 };

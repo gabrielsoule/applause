@@ -101,7 +101,6 @@ ParamValueTextBox::ParamValueTextBox(ParamInfo& paramInfo) : param_info_(paramIn
             this->updateTextDisplay();
         }
         
-        LOG_DBG("ParamValueTextBox: Parameter value changed to {}", value);
     });
 }
 

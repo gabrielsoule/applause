@@ -3,7 +3,6 @@
 #include "core/PluginBase.h"
 #include "extensions/AudioPortsExtension.h"
 #include "util/DebugHelpers.h"
-#include <cstdint>
 
 class ExampleNoiseGeneratorPlugin : public applause::PluginBase {
 public:

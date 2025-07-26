@@ -1,18 +1,26 @@
 #include "GUIExtension.h"
 #include "../core/PluginBase.h"
 #include "../util/DebugHelpers.h"
-#include <cstring> // for strcmp
-#include <cmath>   // for std::abs, std::round
+#include <cstring>
+#include <cmath>
+#include <numeric>
 
 namespace applause
 {
-    // Constructor
-    GUIExtensionBase::GUIExtensionBase(const clap_host_t* host, int defaultWidth, int defaultHeight, bool fixedAspectRatio)
-        : host_(host), width_(defaultWidth), height_(defaultHeight), fixedAspectRatio_(fixedAspectRatio)
+    GUIExtension::GUIExtension(const clap_host_t* host,
+                               EditorFactory factory,
+                               uint32_t defaultWidth,
+                               uint32_t defaultHeight,
+                               bool fixedAspectRatio)
+        : host_(host)
+          , editor_factory_(std::move(factory))
+          , width_(defaultWidth)
+          , height_(defaultHeight)
+          , fixedAspectRatio_(fixedAspectRatio)
     {
         // Calculate aspect ratio from default dimensions
         aspectRatio_ = static_cast<float>(defaultWidth) / static_cast<float>(defaultHeight);
-        
+
         // Get host GUI extension for callbacks
         if (host_)
         {
@@ -24,23 +32,11 @@ namespace applause
 #endif
         }
     }
-    
-    void GUIExtensionBase::registerParamsExtension(ParamsExtension* params)
-    {
-        params_ = params;
-        
-        // If editor already exists, connect the message queue immediately
-        if (editor_ && params_)
-        {
-            params_->setMessageQueue(editor_->getMessageQueue());
-            LOG_INFO("Connected message queue from existing Editor to ParamsExtension");
-        }
-    }
 
     // Static callback implementations
-    bool GUIExtensionBase::clap_gui_is_api_supported(const clap_plugin_t* plugin,
-                                                     const char* api,
-                                                     bool is_floating) noexcept
+    bool GUIExtension::clap_gui_is_api_supported(const clap_plugin_t* plugin,
+                                                 const char* api,
+                                                 bool is_floating) noexcept
     {
         if (is_floating)
             return false;
@@ -59,18 +55,18 @@ namespace applause
         return false;
     }
 
-    bool GUIExtensionBase::clap_gui_get_preferred_api(const clap_plugin_t* plugin,
-                                                      const char** api,
-                                                      bool* is_floating) noexcept
+    bool GUIExtension::clap_gui_get_preferred_api(const clap_plugin_t* plugin,
+                                                  const char** api,
+                                                  bool* is_floating) noexcept
     {
         return false; // we don't support multiple graphics backends yet; this can be safely ignored
     }
 
-    bool GUIExtensionBase::clap_gui_create(const clap_plugin_t* plugin,
-                                           const char* api,
-                                           bool is_floating) noexcept
+    bool GUIExtension::clap_gui_create(const clap_plugin_t* plugin,
+                                       const char* api,
+                                       bool is_floating) noexcept
     {
-        auto* ext = PluginBase::findExtension<GUIExtensionBase>(plugin);
+        auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
         if (!ext) return false;
 
         if (is_floating)
@@ -83,14 +79,7 @@ namespace applause
         }
 
         ext->createEditor();
-        
-        // Connect the message queue from Editor to ParamsExtension if both exist
-        if (ext->editor_ && ext->params_)
-        {
-            ext->params_->setMessageQueue(ext->editor_->getMessageQueue());
-            LOG_INFO("Connected message queue from Editor to ParamsExtension");
-        }
-        
+
         // Set fixed aspect ratio if enabled
         if (ext->editor_ && ext->fixedAspectRatio_)
         {
@@ -101,42 +90,39 @@ namespace applause
         return true;
     }
 
-    void GUIExtensionBase::clap_gui_destroy(const clap_plugin_t* plugin) noexcept
+    void GUIExtension::clap_gui_destroy(const clap_plugin_t* plugin) noexcept
     {
-        auto* ext = PluginBase::findExtension<GUIExtensionBase>(plugin);
+        auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
         if (!ext) return;
 
 #ifdef __linux__
         // Unregister Linux FD support before destroying
-        if (ext->editor_ && ext->editor_->window() && ext->hostFdSupport_)
+        if (ext->editor_ && ext->hostFdSupport_)
         {
-            ext->hostFdSupport_->unregister(ext->host_, ext->editor_->window()->posixFd());
+            int fd = ext->editor_->getPosixFd();
+            if (fd >= 0)
+            {
+                ext->hostFdSupport_->unregister(ext->host_, fd);
+            }
         }
 #endif
 
-        // Disconnect the message queue before destroying editor
-        if (ext->params_)
-        {
-            ext->params_->setMessageQueue(nullptr);
-            LOG_INFO("Disconnected message queue from ParamsExtension");
-        }
-        
         ext->destroyEditor();
         LOG_INFO("GUI destroyed");
     }
 
-    bool GUIExtensionBase::clap_gui_set_scale(const clap_plugin_t* plugin,
-                                              double scale) noexcept
+    bool GUIExtension::clap_gui_set_scale(const clap_plugin_t* plugin,
+                                          double scale) noexcept
     {
         // this extension can be safely ignored for now
         return false;
     }
 
-    bool GUIExtensionBase::clap_gui_get_size(const clap_plugin_t* plugin,
-                                             uint32_t* width,
-                                             uint32_t* height) noexcept
+    bool GUIExtension::clap_gui_get_size(const clap_plugin_t* plugin,
+                                         uint32_t* width,
+                                         uint32_t* height) noexcept
     {
-        auto* ext = PluginBase::findExtension<GUIExtensionBase>(plugin);
+        auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
         if (!ext) return false;
 
         if (ext->editor_)
@@ -154,31 +140,32 @@ namespace applause
         return true;
     }
 
-    bool GUIExtensionBase::clap_gui_can_resize(const clap_plugin_t* plugin) noexcept
+    bool GUIExtension::clap_gui_can_resize(const clap_plugin_t* plugin) noexcept
     {
-        auto* ext = PluginBase::findExtension<GUIExtensionBase>(plugin);
+        auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
         if (!ext) return false;
 
         return true;
     }
 
-    bool GUIExtensionBase::clap_gui_get_resize_hints(const clap_plugin_t* plugin,
-                                                     clap_gui_resize_hints_t* hints) noexcept
+    bool GUIExtension::clap_gui_get_resize_hints(const clap_plugin_t* plugin,
+                                                 clap_gui_resize_hints_t* hints) noexcept
     {
-        auto* ext = PluginBase::findExtension<GUIExtensionBase>(plugin);
+        auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
         if (!ext) return false;
 
         // Provide reasonable defaults
         hints->can_resize_horizontally = true;
         hints->can_resize_vertically = true;
         hints->preserve_aspect_ratio = ext->fixedAspectRatio_;
-        
+
         if (ext->fixedAspectRatio_)
         {
-            // Use integer ratio to avoid rounding errors
-            // For 4:3 aspect ratio (800x600)
-            hints->aspect_ratio_width = 4;
-            hints->aspect_ratio_height = 3;
+            // Calculate integer aspect ratio from actual dimensions
+            // Use GCD to find the simplest integer ratio
+            uint32_t gcd = std::gcd(ext->width_, ext->height_);
+            hints->aspect_ratio_width = ext->width_ / gcd;
+            hints->aspect_ratio_height = ext->height_ / gcd;
         }
         else
         {
@@ -189,11 +176,11 @@ namespace applause
         return true;
     }
 
-    bool GUIExtensionBase::clap_gui_adjust_size(const clap_plugin_t* plugin,
-                                                uint32_t* width,
-                                                uint32_t* height) noexcept
+    bool GUIExtension::clap_gui_adjust_size(const clap_plugin_t* plugin,
+                                            uint32_t* width,
+                                            uint32_t* height) noexcept
     {
-        auto* ext = PluginBase::findExtension<GUIExtensionBase>(plugin);
+        auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
         if (!ext) return false;
 
         if (!ext->fixedAspectRatio_)
@@ -204,41 +191,41 @@ namespace applause
 
         // Enforce aspect ratio - same logic as ClapPlugin example
         float current_ratio = static_cast<float>(*width) / static_cast<float>(*height);
-        
+
         if (std::abs(current_ratio - ext->aspectRatio_) > 0.001f)
         {
             // Prefer adjusting height to maintain width
             uint32_t new_height = static_cast<uint32_t>(std::round(*width / ext->aspectRatio_));
             *height = std::max(new_height, 1u);
         }
-        
+
         return true;
     }
 
-    bool GUIExtensionBase::clap_gui_set_size(const clap_plugin_t* plugin,
-                                             uint32_t width,
-                                             uint32_t height) noexcept
+    bool GUIExtension::clap_gui_set_size(const clap_plugin_t* plugin,
+                                         uint32_t width,
+                                         uint32_t height) noexcept
     {
-        auto* ext = PluginBase::findExtension<GUIExtensionBase>(plugin);
+        auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
         if (!ext) return false;
 
         // Store the dimensions
         ext->width_ = width;
         ext->height_ = height;
-        
+
         // Update editor size if it exists
         if (ext->editor_)
         {
             ext->editor_->setWindowDimensions(width, height);
         }
-        
+
         return true;
     }
 
-    bool GUIExtensionBase::clap_gui_set_parent(const clap_plugin_t* plugin,
-                                               const clap_window_t* window) noexcept
+    bool GUIExtension::clap_gui_set_parent(const clap_plugin_t* plugin,
+                                           const clap_window_t* window) noexcept
     {
-        auto* ext = PluginBase::findExtension<GUIExtensionBase>(plugin);
+        auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
         if (!ext || !ext->editor_) return false;
 
         // Show the editor in the parent window
@@ -246,47 +233,51 @@ namespace applause
 
 #ifdef __linux__
         // Register Linux FD support if available
-        if (ext->hostFdSupport_ && ext->editor_->window())
+        if (ext->hostFdSupport_ && ext->editor_)
         {
-            int fd_flags = CLAP_POSIX_FD_READ | CLAP_POSIX_FD_WRITE | CLAP_POSIX_FD_ERROR;
-            return ext->hostFdSupport_->register_(ext->host_, ext->editor_->window()->posixFd(), fd_flags);
+            int fd = ext->editor_->getPosixFd();
+            if (fd >= 0)
+            {
+                int fd_flags = CLAP_POSIX_FD_READ | CLAP_POSIX_FD_WRITE | CLAP_POSIX_FD_ERROR;
+                return ext->hostFdSupport_->register_(ext->host_, fd, fd_flags);
+            }
         }
 #endif
-        
+
         return true;
     }
 
-    bool GUIExtensionBase::clap_gui_set_transient(const clap_plugin_t* plugin,
-                                                  const clap_window_t* window) noexcept
+    bool GUIExtension::clap_gui_set_transient(const clap_plugin_t* plugin,
+                                              const clap_window_t* window) noexcept
     {
-        auto* ext = PluginBase::findExtension<GUIExtensionBase>(plugin);
+        auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
         if (!ext || !ext->editor_) return false;
 
         // TODO: Implement transient window setting for floating windows
         return true;
     }
 
-    void GUIExtensionBase::clap_gui_suggest_title(const clap_plugin_t* plugin,
-                                                  const char* title) noexcept
+    void GUIExtension::clap_gui_suggest_title(const clap_plugin_t* plugin,
+                                              const char* title) noexcept
     {
-        auto* ext = PluginBase::findExtension<GUIExtensionBase>(plugin);
+        auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
         if (!ext || !ext->editor_) return;
 
         // TODO: Set window title for floating windows
     }
 
-    bool GUIExtensionBase::clap_gui_show(const clap_plugin_t* plugin) noexcept
+    bool GUIExtension::clap_gui_show(const clap_plugin_t* plugin) noexcept
     {
-        auto* ext = PluginBase::findExtension<GUIExtensionBase>(plugin);
+        auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
         if (!ext || !ext->editor_) return false;
 
         // Visage handles visibility through show() with parent
         return true;
     }
 
-    bool GUIExtensionBase::clap_gui_hide(const clap_plugin_t* plugin) noexcept
+    bool GUIExtension::clap_gui_hide(const clap_plugin_t* plugin) noexcept
     {
-        auto* ext = PluginBase::findExtension<GUIExtensionBase>(plugin);
+        auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
         if (!ext || !ext->editor_) return false;
 
         // Visage handles visibility through the host
@@ -294,21 +285,21 @@ namespace applause
     }
 
     // Host callback helpers
-    bool GUIExtensionBase::requestResize(uint32_t width, uint32_t height)
+    bool GUIExtension::requestResize(uint32_t width, uint32_t height)
     {
         if (!hostGui_ || !editor_) return false;
 
         return hostGui_->request_resize(host_, width, height);
     }
 
-    bool GUIExtensionBase::requestShow()
+    bool GUIExtension::requestShow()
     {
         if (!hostGui_ || !editor_) return false;
 
         return hostGui_->request_show(host_);
     }
 
-    bool GUIExtensionBase::requestHide()
+    bool GUIExtension::requestHide()
     {
         if (!hostGui_ || !editor_) return false;
 
@@ -317,21 +308,54 @@ namespace applause
 
 #ifdef __linux__
     // Linux POSIX FD support implementation
-    void GUIExtensionBase::clap_on_posix_fd(const clap_plugin_t* plugin, int fd, clap_posix_fd_flags_t flags) noexcept
+    void GUIExtension::clap_on_posix_fd(const clap_plugin_t* plugin, int fd, clap_posix_fd_flags_t flags) noexcept
     {
-        auto* ext = PluginBase::findExtension<GUIExtensionBase>(plugin);
+        auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
         if (!ext) return;
         
         ext->onPosixFd(fd, flags);
     }
 
-    void GUIExtensionBase::onPosixFd(int fd, clap_posix_fd_flags_t flags) noexcept
+    void GUIExtension::onPosixFd(int fd, clap_posix_fd_flags_t flags) noexcept
     {
-        if (editor_ && editor_->window())
+        if (editor_)
         {
-            editor_->window()->processPluginFdEvents();
+            editor_->processPosixFdEvents();
         }
     }
 #endif
 
+    void GUIExtension::createEditor()
+    {
+        if (!editor_factory_)
+        {
+            LOG_ERR("No editor factory provided");
+            return;
+        }
+
+        editor_ = editor_factory_();
+        if (!editor_)
+        {
+            LOG_ERR("Editor factory returned nullptr");
+            return;
+        }
+
+        // Set initial dimensions
+        editor_->setWindowDimensions(width_, height_);
+
+        // Set fixed aspect ratio if enabled
+        if (fixedAspectRatio_)
+        {
+            editor_->setFixedAspectRatio(true);
+        }
+    }
+
+    void GUIExtension::destroyEditor()
+    {
+        if (editor_)
+        {
+            editor_->close();
+            editor_.reset();
+        }
+    }
 } // namespace applause

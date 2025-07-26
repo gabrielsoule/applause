@@ -5,15 +5,15 @@
 using namespace visage::dimension;
 
 ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params)
-    : Editor(params), params_(params)
+    : applause::ApplauseEditor(params)
 {
     // Create parameter UI
     parameter_ui_ = std::make_unique<applause::GenericParameterUI>();
     
     // Add all non-internal parameters to the UI
-    if (params_)
+    if (getParamsExtension())
     {
-        for (auto& param : params_->getAllParameters())
+        for (auto& param : getParamsExtension()->getAllParameters())
         {
             if (!param.internal)
             {
@@ -25,9 +25,9 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params)
     addChild(parameter_ui_.get());
     
     // Create a test knob for param2
-    if (params_)
+    if (getParamsExtension())
     {
-        test_param_knob_ = std::make_unique<applause::ParamKnob>(params_->getInfo("param2"));
+        test_param_knob_ = std::make_unique<applause::ParamKnob>(getParamsExtension()->getInfo("param2"));
         addChild(test_param_knob_.get());
     }
 }

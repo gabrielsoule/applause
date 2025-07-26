@@ -1,13 +1,12 @@
 #pragma once
 
-#include "ui/Editor.h"
+#include "ui/ApplauseEditor.h"
 #include "ui/components/GenericParameterUI.h"
 #include "ui/components/ParamKnob.h"
 #include "extensions/ParamsExtension.h"
 #include <memory>
-#include <functional>
 
-class ExampleManualPluginEntryEditor : public applause::Editor
+class ExampleManualPluginEntryEditor : public applause::ApplauseEditor
 {
 public:
     explicit ExampleManualPluginEntryEditor(applause::ParamsExtension* params);
@@ -19,5 +18,4 @@ public:
 private:
     std::unique_ptr<applause::GenericParameterUI> parameter_ui_;
     std::unique_ptr<applause::ParamKnob> test_param_knob_;
-    applause::ParamsExtension* params_;
 };
