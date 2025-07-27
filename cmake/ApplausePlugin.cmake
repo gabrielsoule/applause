@@ -263,7 +263,10 @@ extern \"C\" CLAP_EXPORT const clap_plugin_entry_t clap_entry = {
     
     # Add to parent target if it exists
     if(TARGET applause-examples)
+        message(STATUS "Applause: Adding ${APPL_TARGET_NAME}_all to applause-examples dependencies")
         add_dependencies(applause-examples ${APPL_TARGET_NAME}_all)
+    else()
+        message(STATUS "Applause: applause-examples target doesn't exist yet for ${APPL_TARGET_NAME}")
     endif()
     
 endfunction()
