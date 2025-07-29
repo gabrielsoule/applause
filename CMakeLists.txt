@@ -44,13 +44,6 @@ CPMAddPackage(
     OPTIONS "CLAP_HELPERS_BUILD_TESTS OFF"
 )
 
-# ReaderWriterQueue
-CPMAddPackage(
-    NAME readerwriterqueue
-    GITHUB_REPOSITORY cameron314/readerwriterqueue
-    GIT_TAG master
-)
-
 # YAS (header-only)
 CPMAddPackage(
     NAME yas
@@ -124,7 +117,6 @@ target_link_libraries(applause
         visage
         VisageEmbeddedFonts
         yas
-        readerwriterqueue
 )
 
 # Platform-specific

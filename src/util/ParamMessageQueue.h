@@ -1,6 +1,6 @@
 #pragma once
 
-#include <readerwriterqueue.h>
+#include "thirdparty/readerwriterqueue.h"
 
 namespace applause
 {
@@ -29,11 +29,11 @@ namespace applause
             float value;
         };
 
-        moodycamel::ReaderWriterQueue<Message>& toAudio() { return ui2audio_; }
-        moodycamel::ReaderWriterQueue<Message>& toUi() { return audio2ui_; }
+        applause::ReaderWriterQueue<Message>& toAudio() { return ui2audio_; }
+        applause::ReaderWriterQueue<Message>& toUi() { return audio2ui_; }
 
     private:
-        moodycamel::ReaderWriterQueue<Message> ui2audio_;
-        moodycamel::ReaderWriterQueue<Message> audio2ui_;
+        applause::ReaderWriterQueue<Message> ui2audio_;
+        applause::ReaderWriterQueue<Message> audio2ui_;
     };
 } // namespace applause
