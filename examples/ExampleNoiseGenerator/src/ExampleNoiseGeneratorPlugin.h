@@ -1,5 +1,7 @@
 #pragma once
 
+#include <extensions/StateExtension.h>
+
 #include "core/PluginBase.h"
 #include "extensions/AudioPortsExtension.h"
 #include "util/DebugHelpers.h"
@@ -21,6 +23,7 @@ public:
 private:
     // Extensions
     applause::AudioPortsExtension audio_ports_;
+    applause::StateExtension state_;
     
     // Fast PRNG state for white noise generation
     uint32_t noise_seed_;

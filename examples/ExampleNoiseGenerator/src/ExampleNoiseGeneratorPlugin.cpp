@@ -13,6 +13,11 @@ ExampleNoiseGeneratorPlugin::ExampleNoiseGeneratorPlugin(const clap_plugin_descr
     
     // Register extensions with the plugin
     registerExtension(audio_ports_);
+
+    // The state extension doesn't do anything since we have no parameters,
+    // However, some DAWs (e.g. Bitwig) complain when a plugin doesn't implement state properly.
+    // This is annoying to the user, so we mitigate here by registering a state extension, even though we don't have state.
+    registerExtension(state_);
 }
 
 bool ExampleNoiseGeneratorPlugin::init() noexcept {
