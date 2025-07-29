@@ -9,7 +9,7 @@ ExampleFilterPlugin::ExampleFilterPlugin(const clap_plugin_descriptor_t* descrip
       params_(host),
       gui_ext_(host,
                [this]() { return std::make_unique<ExampleFilterEditor>(&params_); },
-               400, 180)
+               340, 180)
 {
     LOG_INFO("ExampleFilter constructor");
 

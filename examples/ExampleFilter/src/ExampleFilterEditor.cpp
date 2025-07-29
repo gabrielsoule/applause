@@ -22,8 +22,8 @@ ExampleFilterEditor::ExampleFilterEditor(applause::ParamsExtension* params)
 void ExampleFilterEditor::resized()
 {
     // Calculate knob dimensions
-    const float knob_width = 80.0f;
-    const float knob_height = 80.0f + 20.0f; // Knob + label height
+    const float knob_width = 60.0f;
+    const float knob_height = 60.0f + 20.0f; // Knob + label height
     const float spacing = 30.0f;
     const float total_width = (knob_width * 3) + (spacing * 2);
     
