@@ -143,7 +143,7 @@ namespace applause
         {
         }
 
-        virtual bool activate(double sampleRate, uint32_t minFrames, uint32_t maxFrames) { return true; }
+        virtual bool activate(double sample_rate, uint32_t min_frames, uint32_t max_frames) { return true; }
 
         virtual void deactivate()
         {
