@@ -82,6 +82,18 @@ namespace applause
         virtual void setFixedAspectRatio(bool fixed) = 0;
         
         /**
+         * @brief Check if the editor is configured to maintain a fixed aspect ratio.
+         * @return true if aspect ratio is fixed, false otherwise
+         */
+        virtual bool isFixedAspectRatio() const = 0;
+        
+        /**
+         * @brief Get the current aspect ratio of the editor.
+         * @return The aspect ratio as width/height
+         */
+        virtual float getAspectRatio() const = 0;
+        
+        /**
          * @brief Get a native window handle if available.
          * 
          * This is optional and may return nullptr. Used for advanced integrations.

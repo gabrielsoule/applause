@@ -7,6 +7,8 @@ using namespace visage::dimension;
 ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params)
     : applause::ApplauseEditor(params)
 {
+    ApplauseEditor::setFixedAspectRatio(true);
+
     // Create parameter UI
     parameter_ui_ = std::make_unique<applause::GenericParameterUI>();
     

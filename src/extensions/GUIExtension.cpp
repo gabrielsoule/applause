@@ -157,20 +157,46 @@ namespace applause
         // Provide reasonable defaults
         hints->can_resize_horizontally = true;
         hints->can_resize_vertically = true;
-        hints->preserve_aspect_ratio = ext->fixedAspectRatio_;
-
-        if (ext->fixedAspectRatio_)
+        
+        // Query editor's actual state if it exists
+        if (ext->editor_)
         {
-            // Calculate integer aspect ratio from actual dimensions
-            // Use GCD to find the simplest integer ratio
-            uint32_t gcd = std::gcd(ext->width_, ext->height_);
-            hints->aspect_ratio_width = ext->width_ / gcd;
-            hints->aspect_ratio_height = ext->height_ / gcd;
+            hints->preserve_aspect_ratio = ext->editor_->isFixedAspectRatio();
+            
+            if (hints->preserve_aspect_ratio)
+            {
+                // Use editor's current dimensions for the most accurate ratio
+                uint32_t width = ext->editor_->width();
+                uint32_t height = ext->editor_->height();
+                
+                // Use GCD to find the simplest integer ratio
+                uint32_t gcd = std::gcd(width, height);
+                hints->aspect_ratio_width = width / gcd;
+                hints->aspect_ratio_height = height / gcd;
+            }
+            else
+            {
+                hints->aspect_ratio_width = 0;
+                hints->aspect_ratio_height = 0;
+            }
         }
         else
         {
-            hints->aspect_ratio_width = 0;
-            hints->aspect_ratio_height = 0;
+            // Fall back to stored values when editor doesn't exist
+            hints->preserve_aspect_ratio = ext->fixedAspectRatio_;
+
+            if (ext->fixedAspectRatio_)
+            {
+                // Calculate integer aspect ratio from stored dimensions
+                uint32_t gcd = std::gcd(ext->width_, ext->height_);
+                hints->aspect_ratio_width = ext->width_ / gcd;
+                hints->aspect_ratio_height = ext->height_ / gcd;
+            }
+            else
+            {
+                hints->aspect_ratio_width = 0;
+                hints->aspect_ratio_height = 0;
+            }
         }
 
         return true;
@@ -183,7 +209,26 @@ namespace applause
         auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
         if (!ext) return false;
 
-        if (!ext->fixedAspectRatio_)
+        // Check if we should enforce aspect ratio
+        bool shouldEnforceAspectRatio = false;
+        float aspectRatio = ext->aspectRatio_;
+        
+        if (ext->editor_)
+        {
+            // Query editor's actual state
+            shouldEnforceAspectRatio = ext->editor_->isFixedAspectRatio();
+            if (shouldEnforceAspectRatio)
+            {
+                aspectRatio = ext->editor_->getAspectRatio();
+            }
+        }
+        else
+        {
+            // Fall back to stored values
+            shouldEnforceAspectRatio = ext->fixedAspectRatio_;
+        }
+
+        if (!shouldEnforceAspectRatio)
         {
             // No adjustment needed if not fixed aspect ratio
             return true;
@@ -192,10 +237,10 @@ namespace applause
         // Enforce aspect ratio - same logic as ClapPlugin example
         float current_ratio = static_cast<float>(*width) / static_cast<float>(*height);
 
-        if (std::abs(current_ratio - ext->aspectRatio_) > 0.001f)
+        if (std::abs(current_ratio - aspectRatio) > 0.001f)
         {
             // Prefer adjusting height to maintain width
-            uint32_t new_height = static_cast<uint32_t>(std::round(*width / ext->aspectRatio_));
+            uint32_t new_height = static_cast<uint32_t>(std::round(*width / aspectRatio));
             *height = std::max(new_height, 1u);
         }
 

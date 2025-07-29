@@ -40,6 +40,8 @@ namespace applause
         uint32_t height() const override;
         void setWindowDimensions(uint32_t width, uint32_t height) override;
         void setFixedAspectRatio(bool fixed) override;
+        bool isFixedAspectRatio() const override;
+        float getAspectRatio() const override;
         
 #ifdef __linux__
         int getPosixFd() override;

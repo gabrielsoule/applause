@@ -70,6 +70,16 @@ namespace applause
         visage::ApplicationWindow::setFixedAspectRatio(fixed);
     }
     
+    bool ApplauseEditor::isFixedAspectRatio() const
+    {
+        return visage::ApplicationWindow::isFixedAspectRatio();
+    }
+    
+    float ApplauseEditor::getAspectRatio() const
+    {
+        return visage::ApplicationWindow::aspectRatio();
+    }
+    
 #ifdef __linux__
     int ApplauseEditor::getPosixFd()
     {
