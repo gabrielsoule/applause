@@ -12,7 +12,6 @@ public:
     explicit ExampleManualPluginEntryEditor(applause::ParamsExtension* params);
     ~ExampleManualPluginEntryEditor() override = default;
 
-    void draw(visage::Canvas& canvas) override;
     void resized() override;
 
 private:

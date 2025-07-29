@@ -12,7 +12,6 @@ public:
     explicit ExampleShowcaseEditor(applause::ParamsExtension* params);
     ~ExampleShowcaseEditor() override = default;
     
-    void draw(visage::Canvas& canvas) override;
     void resized() override;
     
 private:

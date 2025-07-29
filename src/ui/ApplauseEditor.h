@@ -16,8 +16,8 @@ namespace applause
      * 
      * For custom GUI frameworks, implement IEditor directly instead of using this class.
      */
-    class ApplauseEditor : public IEditor, 
-                           public visage::ApplicationWindow, 
+    class ApplauseEditor : public IEditor,
+                           public visage::ApplicationWindow,
                            public visage::EventTimer
     {
     public:
@@ -25,12 +25,12 @@ namespace applause
          * @brief Construct an ApplauseEditor with parameter extension support.
          */
         explicit ApplauseEditor(ParamsExtension* params = nullptr);
-        
+
         /**
          * @brief Destructor - disconnects from ParamsExtension.
          */
         ~ApplauseEditor() override;
-        
+
         // IEditor interface implementation
         ParamMessageQueue* getMessageQueue() override;
         ParamsExtension* getParamsExtension();
@@ -42,16 +42,17 @@ namespace applause
         void setFixedAspectRatio(bool fixed) override;
         bool isFixedAspectRatio() const override;
         float getAspectRatio() const override;
-        
+        void draw(visage::Canvas& canvas) override;
+
 #ifdef __linux__
         int getPosixFd() override;
         void processPosixFdEvents() override;
 #endif
-        
+
         void timerCallback() override;
-        
+
     private:
-        ParamMessageQueue message_queue_;  // Owned by the editor
+        ParamMessageQueue message_queue_; // Owned by the editor
         ParamsExtension* params_ = nullptr;
     };
 } // namespace applause

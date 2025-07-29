@@ -34,13 +34,6 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params)
     }
 }
 
-void ExampleShowcaseEditor::draw(visage::Canvas& canvas)
-{
-    // Black background
-    canvas.setColor(0xFF000000);
-    canvas.fill(0, 0, width(), height());
-}
-
 void ExampleShowcaseEditor::resized()
 {
     // Layout components

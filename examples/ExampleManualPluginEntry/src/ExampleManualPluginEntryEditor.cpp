@@ -32,13 +32,6 @@ ExampleManualPluginEntryEditor::ExampleManualPluginEntryEditor(applause::ParamsE
     }
 }
 
-void ExampleManualPluginEntryEditor::draw(visage::Canvas& canvas)
-{
-    // Black background
-    canvas.setColor(0xFF000000);
-    canvas.fill(0, 0, width(), height());
-}
-
 void ExampleManualPluginEntryEditor::resized()
 {
     // Layout components
