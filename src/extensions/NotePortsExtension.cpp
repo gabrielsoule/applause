@@ -4,6 +4,103 @@
 
 namespace applause {
 
+// NotePortConfig static methods
+NotePortConfig NotePortConfig::midi(const std::string& name) {
+    return {
+        .name = name,
+        .supported_dialects = CLAP_NOTE_DIALECT_MIDI,
+        .preferred_dialect = CLAP_NOTE_DIALECT_MIDI
+    };
+}
+
+NotePortConfig NotePortConfig::clap(const std::string& name) {
+    return {
+        .name = name,
+        .supported_dialects = CLAP_NOTE_DIALECT_CLAP,
+        .preferred_dialect = CLAP_NOTE_DIALECT_CLAP
+    };
+}
+
+NotePortConfig NotePortConfig::midiMPE(const std::string& name) {
+    return {
+        .name = name,
+        .supported_dialects = CLAP_NOTE_DIALECT_MIDI | CLAP_NOTE_DIALECT_MIDI_MPE,
+        .preferred_dialect = CLAP_NOTE_DIALECT_MIDI_MPE
+    };
+}
+
+NotePortConfig NotePortConfig::universal(const std::string& name) {
+    return {
+        .name = name,
+        .supported_dialects = CLAP_NOTE_DIALECT_CLAP | CLAP_NOTE_DIALECT_MIDI | 
+                              CLAP_NOTE_DIALECT_MIDI_MPE | CLAP_NOTE_DIALECT_MIDI2,
+        .preferred_dialect = CLAP_NOTE_DIALECT_CLAP
+    };
+}
+
+// NotePortsExtension constructor
+NotePortsExtension::NotePortsExtension(const clap_host_t* host) : host_(host) {
+    if (host_) {
+        host_note_ports_ = static_cast<const clap_host_note_ports_t*>(
+            host_->get_extension(host_, CLAP_EXT_NOTE_PORTS)
+        );
+    }
+}
+
+// NotePortsExtension methods
+NotePortsExtension& NotePortsExtension::addInput(const NotePortConfig& config) {
+    clap_id id = (config.id == CLAP_INVALID_ID) ? next_id_++ : config.id;
+    uint32_t preferred = config.preferred_dialect ? config.preferred_dialect 
+                                                  : choose_preferred_dialect(config.supported_dialects);
+    NotePortConfig adjusted_config = config;
+    adjusted_config.preferred_dialect = preferred;
+    adjusted_config.id = id;
+    input_ports_.emplace_back(adjusted_config, id);
+    return *this;
+}
+
+NotePortsExtension& NotePortsExtension::addOutput(const NotePortConfig& config) {
+    clap_id id = (config.id == CLAP_INVALID_ID) ? next_id_++ : config.id;
+    uint32_t preferred = config.preferred_dialect ? config.preferred_dialect 
+                                                  : choose_preferred_dialect(config.supported_dialects);
+    NotePortConfig adjusted_config = config;
+    adjusted_config.preferred_dialect = preferred;
+    adjusted_config.id = id;
+    output_ports_.emplace_back(adjusted_config, id);
+    return *this;
+}
+
+size_t NotePortsExtension::inputCount() const { 
+    return input_ports_.size(); 
+}
+
+size_t NotePortsExtension::outputCount() const { 
+    return output_ports_.size(); 
+}
+
+const std::vector<NotePortsExtension::PortInfo>& NotePortsExtension::inputPorts() const { 
+    return input_ports_; 
+}
+
+const std::vector<NotePortsExtension::PortInfo>& NotePortsExtension::outputPorts() const { 
+    return output_ports_; 
+}
+
+uint32_t NotePortsExtension::getHostSupportedDialects() const {
+    if (host_note_ports_) {
+        return host_note_ports_->supported_dialects(host_);
+    }
+    return 0; // Host doesn't support note ports extension
+}
+
+const char* NotePortsExtension::id() const { 
+    return ID; 
+}
+
+const void* NotePortsExtension::getClapExtensionStruct() const { 
+    return &clap_struct_; 
+}
+
 uint32_t NotePortsExtension::clap_note_ports_count(const clap_plugin_t* plugin, bool is_input) noexcept {
     auto* ext = PluginBase::findExtension<NotePortsExtension>(plugin);
     if (!ext) return 0;
