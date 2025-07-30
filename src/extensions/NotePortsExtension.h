@@ -98,6 +98,10 @@ private:
     std::vector<PortInfo> output_ports_;  ///< Configured output ports
     clap_id next_id_ = 0;                 ///< Auto-incrementing ID generator
     
+    // Host connection
+    const clap_host_t* host_ = nullptr;
+    const clap_host_note_ports_t* host_note_ports_ = nullptr;
+    
     // CLAP C callbacks
     static uint32_t clap_note_ports_count(const clap_plugin_t* plugin, bool is_input) noexcept;
     static bool clap_note_ports_get(const clap_plugin_t* plugin, uint32_t index, bool is_input,
@@ -115,7 +119,17 @@ private:
 public:
     static constexpr const char* ID = CLAP_EXT_NOTE_PORTS;
 
-    NotePortsExtension() = default;
+    /**
+     * @brief Constructor with host connection for dialect querying.
+     * @param host CLAP host interface (can be nullptr for basic functionality)
+     */
+    explicit NotePortsExtension(const clap_host_t* host = nullptr) : host_(host) {
+        if (host_) {
+            host_note_ports_ = static_cast<const clap_host_note_ports_t*>(
+                host_->get_extension(host_, CLAP_EXT_NOTE_PORTS)
+            );
+        }
+    }
 
     const char* id() const override { return ID; }
     const void* getClapExtensionStruct() const override { return &clap_struct_; }
@@ -175,6 +189,20 @@ public:
      * @return Vector of output port configurations
      */
     const std::vector<PortInfo>& outputPorts() const { return output_ports_; }
+    
+    /**
+     * @brief Query which note dialects the host supports.
+     * @return Bitfield of supported dialects, or 0 if host doesn't support note ports extension
+     *   To use it, check individual dialects with bitwise AND (&):
+     *   bool supports_clap = (result & CLAP_NOTE_DIALECT_CLAP) != 0;
+     *   bool supports_mpe = (result & CLAP_NOTE_DIALECT_MIDI_MPE) != 0;
+     */
+    uint32_t getHostSupportedDialects() const {
+        if (host_note_ports_) {
+            return host_note_ports_->supported_dialects(host_);
+        }
+        return 0; // Host doesn't support note ports extension
+    }
 };
 
 } // namespace applause

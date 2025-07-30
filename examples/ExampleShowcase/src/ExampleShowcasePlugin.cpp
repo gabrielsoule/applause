@@ -3,6 +3,7 @@
 #include "util/DebugHelpers.h"
 ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
     : PluginBase(descriptor, host),
+      note_ports_(host),
       params_(host),
       gui_ext_(host, 
                [this]() { return std::make_unique<ExampleShowcaseEditor>(&params_); },
