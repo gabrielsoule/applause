@@ -15,9 +15,19 @@ namespace applause {
 class ParamValueTextBox : public visage::Frame
 {
 public:
+    // Theme colors for customization
+    VISAGE_THEME_DEFINE_COLOR(ApplauseTextEditorBackground);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseTextEditorBorder);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseTextEditorText);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseTextEditorDefaultText);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseTextEditorCaret);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseTextEditorSelection);
+    VISAGE_THEME_DEFINE_VALUE(ApplauseTextEditorRounding);
+
     explicit ParamValueTextBox(ParamInfo& paramInfo);
     
     void resized() override;
+    void init() override;
     
     /** Force update the displayed text to match the current parameter value */
     void updateTextDisplay();

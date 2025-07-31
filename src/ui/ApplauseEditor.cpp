@@ -6,6 +6,8 @@ namespace applause
     ApplauseEditor::ApplauseEditor(ParamsExtension* params)
         : params_(params)
     {
+        // Initialize palette with default theme values
+
         // If params provided, connect our message queue and start the timer
         if (params_)
         {
