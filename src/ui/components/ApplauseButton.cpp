@@ -37,8 +37,8 @@ namespace applause {
 
   // UiButton theme colors and values
   // Regular button colors - Normal, Hover, Pressed
-  VISAGE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseUiButtonBackground, 0xff000000);
-  VISAGE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseUiButtonBackgroundHover, 0xff222222);  // Light grey
+  VISAGE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseUiButtonBackground, 0x00000000);  // Transparent
+  VISAGE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseUiButtonBackgroundHover, 0x00ffffff);  // Low opacity white
   VISAGE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseUiButtonBackgroundPressed, 0xffffffff);  // White
   
   VISAGE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseUiButtonText, 0xffffffff);  // White
@@ -51,7 +51,7 @@ namespace applause {
   
   // Action button colors - Normal, Hover, Pressed
   VISAGE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseUiActionButtonBackground, 0xff9977ee);
-  VISAGE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseUiActionButtonBackgroundHover, 0xff22222);  // Light grey
+  VISAGE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseUiActionButtonBackgroundHover, 0x00ffffff);  // Low opacity white
   VISAGE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseUiActionButtonBackgroundPressed, 0xffffffff);  // White
   
   VISAGE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseUiActionButtonText, 0xffffffff);  // White
@@ -71,8 +71,8 @@ namespace applause {
 
   // ToggleTextButton theme colors and values
   // Background colors - Off state (normal, hover), On state (white like UIButton pressed)
-  VISAGE_THEME_IMPLEMENT_COLOR(ToggleTextButton, ApplauseToggleTextButtonBackgroundOff, 0xff000000);  // Black
-  VISAGE_THEME_IMPLEMENT_COLOR(ToggleTextButton, ApplauseToggleTextButtonBackgroundOffHover, 0xff222222);  // Light grey
+  VISAGE_THEME_IMPLEMENT_COLOR(ToggleTextButton, ApplauseToggleTextButtonBackgroundOff, 0x00000000);  // Transparent
+  VISAGE_THEME_IMPLEMENT_COLOR(ToggleTextButton, ApplauseToggleTextButtonBackgroundOffHover, 0x00ffffff);  // Low opacity white
   VISAGE_THEME_IMPLEMENT_COLOR(ToggleTextButton, ApplauseToggleTextButtonBackgroundOn, 0xffffffff);  // White (like UIButton pressed)
   VISAGE_THEME_IMPLEMENT_COLOR(ToggleTextButton, ApplauseToggleTextButtonBackgroundOnHover, 0xffffffff);  // White
   

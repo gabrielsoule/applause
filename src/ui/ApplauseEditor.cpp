@@ -85,7 +85,7 @@ namespace applause
 
     void ApplauseEditor::draw(visage::Canvas& canvas)
     {
-        canvas.setColor(0xFF000000);
+        canvas.setColor(0xFF1d1930);
         canvas.fill(0, 0, width(), height());
     }
 
