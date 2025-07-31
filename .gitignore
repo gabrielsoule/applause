@@ -26,3 +26,7 @@ Thumbs.db
 *.dylib
 *.dll
 /.claude/
+/.crush/
+/.agent/
+/.gemini/
+# in case anyone is running agents
