@@ -4,6 +4,12 @@
 
 namespace applause {
 
+Slider::Slider() {
+    hover_amount_.setTargetValue(1.0f);
+    hover_amount_.setSourceValue(0.0f);  // Set initial value to 0
+    hover_amount_.setAnimationTime(150);
+}
+
 void Slider::resized()
 {
 }
@@ -11,8 +17,10 @@ void Slider::resized()
 void Slider::mouseDown(const visage::MouseEvent& event)
 {
     dragging_ = true;
+    hover_amount_.target(true);  // Keep animation at max during drag
     on_drag_started.callback();
     processDrag(event.position.x);
+    redraw();
 }
 
 void Slider::mouseDrag(const visage::MouseEvent& event)
@@ -25,6 +33,11 @@ void Slider::mouseUp(const visage::MouseEvent& event)
     dragging_ = false;
     on_drag_ended.callback();
     processDrag(event.position.x);
+    // If not hovering anymore, animate back to normal
+    if (!hovering_) {
+        hover_amount_.target(false);
+    }
+    redraw();
 }
 
 bool Slider::mouseWheel(const visage::MouseEvent& event)
@@ -61,11 +74,34 @@ void Slider::processDrag(float rawDragPos)
     redraw();
 }
 
+void Slider::mouseEnter(const visage::MouseEvent& event)
+{
+    hovering_ = true;
+    hover_amount_.target(true);
+    redraw();
+}
+
+void Slider::mouseExit(const visage::MouseEvent& event)
+{
+    hovering_ = false;
+    if (!dragging_) {
+        hover_amount_.target(false);
+    }
+    redraw();
+}
 
 void Slider::draw(visage::Canvas& canvas)
 {
+    // Update animation and determine border thickness
+    hover_amount_.update();
+    float animValue = hover_amount_.value();
+    float borderThickness = 2.0f + (animValue * 2.0f);  // Animates from 2.0f to 4.0f
+
+    if (hover_amount_.isAnimating())
+        redraw();
+
     canvas.setColor(0xFFFFFFFF);
-    canvas.rectangleBorder(0, 0, width(), height(), 2);
+    canvas.rectangleBorder(0, 0, width(), height(), borderThickness);
     canvas.fill(0, 0, value_ * width(), height());
 }
 
