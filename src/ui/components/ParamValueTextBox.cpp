@@ -3,6 +3,7 @@
 #include <sstream>
 #include <iomanip>
 #include <cmath>
+#include <embedded/applause_fonts.h>
 
 #include "embedded/fonts.h"
 #include "util/DebugHelpers.h"
@@ -25,7 +26,7 @@ ParamValueTextBox::ParamValueTextBox(ParamInfo& paramInfo) : param_info_(paramIn
     auto text_editor = std::make_unique<visage::TextEditor>("param_value");
     text_editor->setMultiLine(false);  // Single line
     text_editor->setJustification(visage::Font::kCenter);  // Center text
-    text_editor->setFont(visage::Font(14, visage::fonts::DroidSansMono_ttf));
+    text_editor->setFont(visage::Font(12, applause::fonts::JetBrainsMonoNL_SemiBold_ttf));
 
     // Store the raw pointer before moving
     text_editor_ = text_editor.get();
@@ -108,7 +109,11 @@ void ParamValueTextBox::init()
     visage::Frame::init();
     
     // Map our Applause theme colors to TextEditor's expected theme IDs
-    // This allows users to customize appearance via top-level palette
+    // Basically, each ParamValueTextBox reads the global ApplauseXYZ color IDs,
+    // makes a local palette, and tells the underlying editor (which this class extends) to use that palette.
+    // This allows users to customize appearance via a top-level palette,
+    // while keeping the default Visage text editor theme untouched.
+    // This is a bit of a hack, but it does the trick.
     custom_palette_.initWithDefaults();
     custom_palette_.setColor(visage::TextEditor::TextEditorBackground, paletteColor(ApplauseTextEditorBackground));
     custom_palette_.setColor(visage::TextEditor::TextEditorBorder, paletteColor(ApplauseTextEditorBorder));

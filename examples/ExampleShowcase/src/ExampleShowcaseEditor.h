@@ -3,6 +3,7 @@
 #include "ui/ApplauseEditor.h"
 #include "ui/components/GenericParameterUI.h"
 #include "ui/components/ParamKnob.h"
+#include "ui/components/ApplauseButton.h"
 #include "extensions/ParamsExtension.h"
 #include <memory>
 
@@ -16,5 +17,13 @@ public:
     
 private:
     std::unique_ptr<applause::GenericParameterUI> parameter_ui_;
-    std::unique_ptr<applause::ParamKnob> test_param_knob_;
+    
+    // Individual knobs for each parameter
+    std::unique_ptr<applause::ParamKnob> param1_knob_;
+    std::unique_ptr<applause::ParamKnob> param2_knob_;
+    std::unique_ptr<applause::ParamKnob> filter_mode_knob_;
+    
+    // Test buttons
+    std::unique_ptr<applause::UiButton> ui_button_;
+    std::unique_ptr<applause::ToggleTextButton> toggle_button_;
 };

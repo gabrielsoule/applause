@@ -2,6 +2,8 @@
 #include <visage_graphics/font.h>
 #include "embedded/fonts.h"
 #include <algorithm>
+#include <embedded/applause_fonts.h>
+
 #include "util/DebugHelpers.h"
 
 using namespace visage::dimension;
@@ -24,7 +26,7 @@ void GenericParameterEntry::draw(visage::Canvas& canvas)
     float textHeight = height();
     
     // Draw the parameter name (right-aligned)
-    const visage::Font font(14, visage::fonts::DroidSansMono_ttf);
+    const visage::Font font(12,applause::fonts::JetBrainsMonoNL_SemiBold_ttf);
     canvas.setColor(0xFFFFFFFF);
     canvas.text(paramInfo_.name, font, visage::Font::kRight, textX, textY, textWidth, textHeight);
 }

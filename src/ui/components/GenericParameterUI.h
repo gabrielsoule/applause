@@ -29,7 +29,7 @@ private:
 
     ParamInfo& paramInfo_;
     std::unique_ptr<ParamSlider> paramSlider_;
-    float labelWidth_ = 120.0;
+    float labelWidth_ = 100.0;
 };
 
 

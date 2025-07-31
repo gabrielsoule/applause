@@ -13,13 +13,11 @@ public:
     void setValue(float value);
     float getValue() const { return value_; }
 
-    // Callbacks
     visage::CallbackList<void(float)> onValueChanged;
     visage::CallbackList<void()> onDragStarted;
     visage::CallbackList<void()> onDragEnded;
 
 protected:
-    // Frame overrides
     void draw(visage::Canvas& canvas) override;
     void mouseDown(const visage::MouseEvent& e) override;
     void mouseDrag(const visage::MouseEvent& e) override;

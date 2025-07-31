@@ -1,6 +1,6 @@
 #include "ParamKnob.h"
 #include <visage_graphics/font.h>
-#include "embedded/fonts.h"
+#include "embedded/applause_fonts.h"
 #include "util/DebugHelpers.h"
 
 namespace applause {
@@ -48,7 +48,7 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo) : param_info_(paramInfo)
 void ParamKnob::draw(visage::Canvas& canvas)
 {
     // Draw the parameter short name at the bottom
-    const visage::Font font(12, visage::fonts::DroidSansMono_ttf);
+    const visage::Font font(12, applause::fonts::JetBrainsMonoNL_Regular_ttf);
     
     // Calculate text area bounds (bottom of the component)
     float textY = height() - kLabelHeight;
