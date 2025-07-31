@@ -6,7 +6,9 @@
 namespace applause {
 
 Knob::Knob() {
-
+    hover_amount_.setTargetValue(1.0f);
+    hover_amount_.setSourceValue(0.0f);  // Set initial value to 0
+    hover_amount_.setAnimationTime(150);
 }
 
 void Knob::setValue(float value) {
@@ -20,12 +22,19 @@ void Knob::draw(visage::Canvas& canvas) {
     float centerY = height() * 0.5f;
     float radius = size * 0.5f;
     
+    // Update animation and determine arc thickness
+    hover_amount_.update();
+    float animValue = hover_amount_.value();
+    float arcThickness = 2.0f + (animValue * 2.0f);
+
+    if (hover_amount_.isAnimating())
+        redraw();
     canvas.setColor(0xFF828282);
 
     float centerRadians = 270.0f * (static_cast<float>(M_PI) / 180.0f);
     float spanRadians = 150.0f * (static_cast<float>(M_PI) / 180.0f);
     
-    canvas.arc(centerX - radius, centerY - radius, size, 2.0f, 
+    canvas.arc(centerX - radius, centerY - radius, size, arcThickness, 
                centerRadians, spanRadians, true);
 
     if (value_ > 0.0f) {
@@ -37,7 +46,7 @@ void Knob::draw(visage::Canvas& canvas) {
         float progressCenterRad = progressCenterDeg * (static_cast<float>(M_PI) / 180.0f);
         float progressSpanRad = progressSpanDeg * (static_cast<float>(M_PI) / 180.0f);
         
-        canvas.arc(centerX - radius, centerY - radius, size, 2.0f,
+        canvas.arc(centerX - radius, centerY - radius, size, arcThickness,
                    progressCenterRad, progressSpanRad, true);
     }
     
@@ -63,7 +72,9 @@ void Knob::mouseDown(const visage::MouseEvent& e) {
     dragging_ = true;
     drag_start_y_ = e.position.y;
     drag_start_value_ = value_;
+    hover_amount_.target(true);  // Keep animation at max during drag
     onDragStarted.callback();
+    redraw();
 }
 
 void Knob::mouseDrag(const visage::MouseEvent& e) {
@@ -77,7 +88,26 @@ void Knob::mouseUp(const visage::MouseEvent& e) {
         dragging_ = false;
         processDrag(e.position.y);
         onDragEnded.callback();
+        // If not hovering anymore, animate back to normal
+        if (!hovering_) {
+            hover_amount_.target(false);
+        }
+        redraw();
     }
+}
+
+void Knob::mouseEnter(const visage::MouseEvent& e) {
+    hovering_ = true;
+    hover_amount_.target(true);
+    redraw();
+}
+
+void Knob::mouseExit(const visage::MouseEvent& e) {
+    hovering_ = false;
+    if (!dragging_) {
+        hover_amount_.target(false);
+    }
+    redraw();
 }
 
 bool Knob::mouseWheel(const visage::MouseEvent& e) {

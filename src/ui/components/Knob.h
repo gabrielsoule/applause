@@ -1,6 +1,7 @@
 #pragma once
 
 #include <visage_ui/frame.h>
+#include <visage_graphics/animation.h>
 
 namespace applause {
 
@@ -22,6 +23,8 @@ protected:
     void mouseDown(const visage::MouseEvent& e) override;
     void mouseDrag(const visage::MouseEvent& e) override;
     void mouseUp(const visage::MouseEvent& e) override;
+    void mouseEnter(const visage::MouseEvent& e) override;
+    void mouseExit(const visage::MouseEvent& e) override;
     bool mouseWheel(const visage::MouseEvent& e) override;
 
 private:
@@ -29,8 +32,10 @@ private:
     
     float value_ = 0.0f;  // Normalized value [0, 1]
     bool dragging_ = false;
+    bool hovering_ = false;
     float drag_start_y_ = 0.0f;
     float drag_start_value_ = 0.0f;
+    visage::Animation<float> hover_amount_;
     
     static constexpr float kDragSensitivity = 0.005f;
     static constexpr float kWheelSensitivity = 0.015f;
