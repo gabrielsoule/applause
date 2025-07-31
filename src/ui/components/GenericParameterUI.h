@@ -2,10 +2,8 @@
 
 #include <visage_ui/frame.h>
 #include <visage_ui/scroll_bar.h>
-#include <visage_utils/dimension.h>
 #include "ParamSlider.h"
 #include <vector>
-#include <functional>
 #include <memory>
 
 namespace applause {

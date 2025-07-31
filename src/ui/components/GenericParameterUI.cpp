@@ -59,7 +59,6 @@ GenericParameterUI::GenericParameterUI()
 
 void GenericParameterUI::draw(visage::Canvas& canvas)
 {
-    //draw a white rectangular border
     canvas.setColor(0xFFFFFFFF);
     canvas.rectangleBorder(0, 0, width(), height(), 2);
 }
@@ -72,6 +71,7 @@ void GenericParameterUI::resized()
     computeLayout();
     
     // Then get actual content height from computed layout
+    // oddly enough there is not a function to get the width/height that a flex layout would consume
     float contentHeight = 0;
     if (!entries_.empty()) {
         // Find the bottom-most child position
