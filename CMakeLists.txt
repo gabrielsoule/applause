@@ -96,6 +96,10 @@ include(make_clapfirst)
 
 # === Applause Library ===
 
+# Embed font resources
+file(GLOB APPLAUSE_FONT_FILES ${CMAKE_CURRENT_SOURCE_DIR}/resources/fonts/*.ttf)
+add_embedded_resources(ApplauseEmbeddedFonts "applause_fonts.h" "applause::fonts" "${APPLAUSE_FONT_FILES}")
+
 # Collect sources
 file(GLOB_RECURSE APPLAUSE_SOURCES src/*.cpp src/*.h)
 
@@ -116,6 +120,7 @@ target_link_libraries(applause
         clap-helpers
         visage
         VisageEmbeddedFonts
+        ApplauseEmbeddedFonts
         yas
 )
 
