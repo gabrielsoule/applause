@@ -34,7 +34,7 @@ public:
     
 private:
     ParamInfo& param_info_;
-    visage::TextEditor* text_editor_ = nullptr;  // Raw pointer, owned by parent
+    std::unique_ptr<visage::TextEditor> text_editor_ = nullptr;  // Raw pointer, owned by parent
     rocket::scoped_connection param_connection_;
     
     // Custom palette for terminal-style theming
