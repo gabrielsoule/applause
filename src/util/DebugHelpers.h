@@ -1,22 +1,32 @@
 #pragma once
 
+#if APPLAUSE_USE_FMT
+#include <fmt/format.h>
+#else
 #include <format>
+#endif
 #include <iostream>
 #include <chrono>
 #include <string_view>
 #include <cassert>
 
+#if APPLAUSE_USE_FMT
+#define FMT_NAMESPACE fmt
+#else
+#define FMT_NAMESPACE std
+#endif
+
 #ifndef NDEBUG
 
 namespace debug {
-    
+
     enum class Level {
         DBG = 0,
         INFO = 1,
         WARN = 2,
         ERR = 3
     };
-    
+
     constexpr std::string_view level_name(const Level level) {
         switch (level) {
             case Level::DBG:   return "DEBUG";
@@ -26,25 +36,25 @@ namespace debug {
         }
         return "UNKNOWN";
     }
-    
+
     inline std::string timestamp() {
         const auto now = std::chrono::system_clock::now();
         const auto time = std::chrono::system_clock::to_time_t(now);
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             now.time_since_epoch()) % 1000;
-        
+
         std::tm* tm = std::localtime(&time);
-        return std::format("{:02d}:{:02d}:{:02d}.{:03d}", 
+        return FMT_NAMESPACE::format("{:02d}:{:02d}:{:02d}.{:03d}",
                           tm->tm_hour, tm->tm_min, tm->tm_sec, ms.count());
     }
-    
+
     template<typename... Args>
     void log(Level level, std::string_view file, int line, std::string_view func,
-             std::format_string<Args...> fmt, Args&&... args) {
-        auto msg = std::format(fmt, std::forward<Args>(args)...);
+             FMT_NAMESPACE::format_string<Args...> fmt, Args&&... args) {
+        auto msg = FMT_NAMESPACE::format(fmt, std::forward<Args>(args)...);
         auto filename = file.substr(file.find_last_of("/\\") + 1);
-        
-        std::cout << std::format("[{}] {} {}:{} ({}) {}",
+
+        std::cout << FMT_NAMESPACE::format("[{}] {} {}:{} ({}) {}",
                                 timestamp(),
                                 level_name(level),
                                 filename,
@@ -52,12 +62,12 @@ namespace debug {
                                 func,
                                 msg) << std::endl;
     }
-    
+
     template<typename T>
     std::string var_string(std::string_view name, const T& value) {
-        return std::format("[{}={}]", name, value);
+        return FMT_NAMESPACE::format("[{}={}]", name, value);
     }
-    
+
 }
 
 #define LOG_TRACE(...) debug::log(debug::Level::TRACE, __FILE__, __LINE__, __func__, __VA_ARGS__)

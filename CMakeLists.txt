@@ -124,6 +124,17 @@ target_link_libraries(applause
         yas
 )
 
+if(APPLAUSE_USE_FMT)
+    message(STATUS "Configuring Applause with fmt")
+    CPMAddPackage(
+        NAME fmt
+        GITHUB_REPOSITORY fmtlib/fmt
+        GIT_TAG 11.2.0
+    )
+    target_link_libraries(applause PUBLIC fmt)
+    target_compile_definitions(applause PUBLIC APPLAUSE_USE_FMT)
+endif()
+
 # Platform-specific
 if(WIN32)
     target_compile_definitions(applause PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)

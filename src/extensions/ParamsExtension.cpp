@@ -65,7 +65,7 @@ namespace applause
         {
             registry_->message_queue_->toAudio().enqueue({ParamMessageQueue::END_GESTURE, clapId, 0.0f});
         }
-        
+
         // Request flush from host if available
         if (registry_->host_params_ && registry_->host_params_->request_flush)
         {
@@ -204,11 +204,11 @@ namespace applause
             int int_value = static_cast<int>(value);
             if (!info.unit.empty())
             {
-                text = std::format("{} {}", int_value, info.unit);
+                text = FMT_NAMESPACE::format("{} {}", int_value, info.unit);
             }
             else
             {
-                text = std::format("{}", int_value);
+                text = FMT_NAMESPACE::format("{}", int_value);
             }
         }
         else
@@ -216,11 +216,11 @@ namespace applause
             // For continuous parameters, show with appropriate precision
             if (!info.unit.empty())
             {
-                text = std::format("{:.2f} {}", value, info.unit);
+                text = FMT_NAMESPACE::format("{:.2f} {}", value, info.unit);
             }
             else
             {
-                text = std::format("{:.2f}", value);
+                text = FMT_NAMESPACE::format("{:.2f}", value);
             }
         }
 
@@ -310,7 +310,7 @@ namespace applause
     {
         ASSERT(param_count_ < max_params_,
                "Too many parameters registered! Allocate more through the ParamRegistry constructor.");
-        
+
         ASSERT(config.default_value >= config.min_value && config.default_value <= config.max_value,
                "Default value not between min and max value!");
 
