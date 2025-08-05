@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../core/Extension.h"
+#include "applause/core/Extension.h"
 #include <clap/ext/audio-ports.h>
 #include <vector>
 #include <string>

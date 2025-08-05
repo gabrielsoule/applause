@@ -1,6 +1,6 @@
 #include "ExampleShowcasePlugin.h"
 #include <cstring>
-#include "util/DebugHelpers.h"
+#include "applause/util/DebugHelpers.h"
 ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
     : PluginBase(descriptor, host),
       note_ports_(host),
@@ -38,6 +38,7 @@ ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* des
         .string_id = "param2",
         .name = "Parameter 2",
         .short_name = "Param 2",
+        .unit = "Hz",
         .min_value = 10.0f,
         .max_value = 20000.0f,
         .default_value = 400.0f

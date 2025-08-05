@@ -1,5 +1,5 @@
 #include "Slider.h"
-#include "util/DebugHelpers.h"
+#include "applause/util/DebugHelpers.h"
 #include <algorithm>
 
 namespace applause {

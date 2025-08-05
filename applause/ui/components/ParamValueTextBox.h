@@ -3,8 +3,8 @@
 #include <visage_ui/frame.h>
 #include <visage_widgets/text_editor.h>
 #include <visage_graphics/palette.h>
-#include "util/thirdparty/rocket.hpp"
-#include <extensions/ParamsExtension.h>
+#include "applause/util/thirdparty/rocket.hpp"
+#include "applause/extensions/ParamsExtension.h"
 
 namespace applause {
 
@@ -34,7 +34,7 @@ public:
     
 private:
     ParamInfo& param_info_;
-    visage::TextEditor* text_editor_ = nullptr;  // Raw pointer, owned by parent
+    std::unique_ptr<visage::TextEditor> text_editor_ = nullptr;  // Raw pointer, owned by parent
     rocket::scoped_connection param_connection_;
     
     // Custom palette for terminal-style theming

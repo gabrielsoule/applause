@@ -1,6 +1,5 @@
 # Examples for Applause CLAP Plugin Framework
 
-# Create a custom target to build all examples at once
 add_custom_target(applause-examples
     COMMENT "Building all Applause examples"
 )

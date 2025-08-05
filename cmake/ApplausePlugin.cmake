@@ -121,7 +121,7 @@ function(add_applause_plugin)
     set(ENTRY_CONTENT "#include \"${APPL_PLUGIN_HEADER}\"
 #include <clap/clap.h>
 #include <cstring>
-#include \"util/DebugHelpers.h\"
+#include \"applause/util/DebugHelpers.h\"
 
 // Plugin features
 static const char* features[] = {

@@ -1,6 +1,6 @@
 #include "ParamSlider.h"
 #include <visage_graphics/canvas.h>
-#include "util/DebugHelpers.h"
+#include "applause/util/DebugHelpers.h"
 
 namespace applause {
 

@@ -1,6 +1,6 @@
 #include "GUIExtension.h"
-#include "../core/PluginBase.h"
-#include "../util/DebugHelpers.h"
+#include "applause/core/PluginBase.h"
+#include "applause/util/DebugHelpers.h"
 #include <cstring>
 #include <cmath>
 #include <numeric>

@@ -1,11 +1,11 @@
 #pragma once
 
-#include "core/PluginBase.h"
-#include "extensions/AudioPortsExtension.h"
-#include "extensions/ParamsExtension.h"
-#include "extensions/StateExtension.h"
-#include "extensions/GUIExtension.h"
-#include "util/DebugHelpers.h"
+#include "applause/core/PluginBase.h"
+#include "applause/extensions/AudioPortsExtension.h"
+#include "applause/extensions/ParamsExtension.h"
+#include "applause/extensions/StateExtension.h"
+#include "applause/extensions/GUIExtension.h"
+#include "applause/util/DebugHelpers.h"
 
 #include <chowdsp_filters/chowdsp_filters.h>
 

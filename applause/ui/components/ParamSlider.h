@@ -1,11 +1,11 @@
 #pragma once
 
 #include <visage_ui/frame.h>
-#include "util/thirdparty/rocket.hpp"
+#include "applause/util/thirdparty/rocket.hpp"
 #include "Slider.h"
 #include "ParamValueTextBox.h"
 #include <memory>
-#include <extensions/ParamsExtension.h>
+#include "applause/extensions/ParamsExtension.h"
 
 namespace applause {
 
@@ -23,7 +23,7 @@ public:
 
 private:
     static constexpr int kLabelWidth = 80;
-    static constexpr int kLabelPadding = 10;
+    static constexpr int kLabelPadding = 5;
 
     ParamInfo& param_info_;
     std::unique_ptr<Slider> slider_;

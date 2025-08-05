@@ -101,7 +101,7 @@ file(GLOB APPLAUSE_FONT_FILES ${CMAKE_CURRENT_SOURCE_DIR}/resources/fonts/*.ttf)
 add_embedded_resources(ApplauseEmbeddedFonts "applause_fonts.h" "applause::fonts" "${APPLAUSE_FONT_FILES}")
 
 # Collect sources
-file(GLOB_RECURSE APPLAUSE_SOURCES src/*.cpp src/*.h)
+file(GLOB_RECURSE APPLAUSE_SOURCES applause/*.cpp applause/*.h)
 
 # Create library
 add_library(applause STATIC ${APPLAUSE_SOURCES})
@@ -109,8 +109,8 @@ add_library(Applause::Applause ALIAS applause)
 
 # Include directories
 target_include_directories(applause PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include>
 )
 
 # Link dependencies
@@ -132,7 +132,7 @@ elseif(APPLE)
 endif()
 
 # Examples
-option(APPLAUSE_BUILD_EXAMPLES "Build example plugins" ON)
+option(APPLAUSE_BUILD_EXAMPLES "Build example plugins" ${PROJECT_IS_TOP_LEVEL})
 if(APPLAUSE_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
