@@ -1,7 +1,3 @@
-//
-// Created by Gabriel Soule on 7/21/25.
-//
-
 #include "ParamsExtension.h"
 #include "applause/core/PluginBase.h"
 #include <cstring>
@@ -16,7 +12,8 @@
 
 namespace applause
 {
-    // Default converter functions
+    // This default converter function tries to fit the number into five digits,
+    // using no more than two digits of decimal precision (1/100ths).
     std::string ParamsExtension::defaultValueToText(float value, const ParamInfo& info)
     {
         std::ostringstream stream;
@@ -27,26 +24,25 @@ namespace applause
         }
         else
         {
-            // Adaptive precision algorithm (from ParamValueTextBox)
-            const int maxChars = 5;
-            const int maxDecimals = 2;
+            const int max_chars = 5;
+            const int max_decimals = 2;
 
-            float absValue = std::abs(value);
-            int integerDigits = (absValue >= 1.0f) ? static_cast<int>(std::log10(absValue)) + 1 : 1;
-            int signChars = (value < 0) ? 1 : 0;
-            int usedChars = integerDigits + signChars;
+            float abs_value = std::abs(value);
+            int integer_digits = (abs_value >= 1.0f) ? static_cast<int>(std::log10(abs_value)) + 1 : 1;
+            int sign_chars = (value < 0) ? 1 : 0;
+            int used_chars = integer_digits + sign_chars;
 
-            if (usedChars >= maxChars)
+            if (used_chars >= max_chars)
             {
                 stream << std::fixed << std::setprecision(0) << value;
             }
             else
             {
-                int availableForDecimal = maxChars - usedChars;
-                if (availableForDecimal >= 2)
+                int available_for_decimal = max_chars - used_chars;
+                if (available_for_decimal >= 2)
                 {
-                    int decimalsToShow = std::min(maxDecimals, availableForDecimal - 1);
-                    stream << std::fixed << std::setprecision(decimalsToShow) << value;
+                    int decimals_to_show = std::min(max_decimals, available_for_decimal - 1);
+                    stream << std::fixed << std::setprecision(decimals_to_show) << value;
                 }
                 else
                 {
@@ -86,16 +82,14 @@ namespace applause
 
         // Use strtof for efficient parsing
         char* endptr;
-        errno = 0;  // Clear errno before conversion
+        errno = 0;
         float value = std::strtof(str, &endptr);
 
-        // Check if any conversion happened
         if (endptr == str || errno == ERANGE)
         {
             return std::nullopt;
         }
 
-        // Clamp to parameter range
         value = std::clamp(value, info.minValue, info.maxValue);
 
         // For stepped parameters, truncate to integer
@@ -209,8 +203,8 @@ namespace applause
         std::strncpy(param_info->name, info.name.c_str(), CLAP_NAME_SIZE - 1);
         param_info->name[CLAP_NAME_SIZE - 1] = '\0';
 
-        // Module path - we don't use modules yet
-        param_info->module[0] = '\0';
+        std::strncpy(param_info->module, info.module.c_str(), CLAP_PATH_SIZE - 1);
+        param_info->module[CLAP_PATH_SIZE - 1] = '\0';
 
         // Set value ranges
         param_info->min_value = info.minValue;
@@ -358,6 +352,7 @@ namespace applause
         // Create ParamInfo from ParamConfig
         ParamInfo info;
         info.name = config.name.empty() ? config.string_id : config.name;
+        info.module = config.module;
         info.shortName = config.short_name;
         info.unit = config.unit;
         info.minValue = config.min_value;
@@ -509,9 +504,10 @@ namespace applause
                     values_[index].store(new_value, std::memory_order_relaxed);
 
                     // Notify UI of parameter change from host
-                    if (message_queue_) message_queue_->toUi().enqueue({
-                        ParamMessageQueue::PARAM_VALUE, param_id, new_value
-                    });
+                    if (message_queue_)
+                        message_queue_->toUi().enqueue({
+                            ParamMessageQueue::PARAM_VALUE, param_id, new_value
+                        });
                 }
             }
         }

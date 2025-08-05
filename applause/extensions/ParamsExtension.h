@@ -31,6 +31,7 @@ namespace applause
     struct ParamConfig {
         std::string string_id;                    ///< String identifier for the parameter (required)
         std::string name = "";                    ///< Display name (if empty, uses string_id)
+        std::string module = "";                  ///< Module path for hierarchical grouping (e.g., "Filter/Envelope")
         std::string short_name = "";              ///< Short display name (e.g., "Cutoff")
         std::string unit = "";                    ///< Unit string (e.g., "Hz", "dB")
         float min_value = 0.0f;                   ///< Minimum value
@@ -90,6 +91,14 @@ namespace applause
         * This will be given to the CLAP host and be visible within the hosted environment.
         */
         std::string name;
+
+        /**
+         * Module path for hierarchical parameter grouping, e.g. "Filter/Envelope".
+         * Uses forward slash '/' as separator to create nested groups.
+         * This helps hosts organize parameters in their UI (tree views, sections, etc.).
+         * Can be empty if no grouping is needed.
+         */
+        std::string module = "";
 
         /**
          * A short name that can be displayed on UI components, e.g. "Cutoff".
