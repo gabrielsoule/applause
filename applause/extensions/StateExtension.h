@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/Extension.h"
+#include "applause/core/Extension.h"
 #include <clap/ext/state.h>
 #include <clap/stream.h>
 #include <functional>

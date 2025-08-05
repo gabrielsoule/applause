@@ -1,6 +1,6 @@
 #include "ExampleNoiseGeneratorPlugin.h"
 #include <cstring>
-#include "util/DebugHelpers.h"
+#include "applause/util/DebugHelpers.h"
 
 ExampleNoiseGeneratorPlugin::ExampleNoiseGeneratorPlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
     : PluginBase(descriptor, host),

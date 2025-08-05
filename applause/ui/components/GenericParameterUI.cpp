@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <embedded/applause_fonts.h>
 
-#include "util/DebugHelpers.h"
+#include "applause/util/DebugHelpers.h"
 
 using namespace visage::dimension;
 

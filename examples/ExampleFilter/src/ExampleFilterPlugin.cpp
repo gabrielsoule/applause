@@ -1,7 +1,7 @@
 #include "ExampleFilterPlugin.h"
 #include "ExampleFilterEditor.h"
 #include <cstring>
-#include "util/DebugHelpers.h"
+#include "applause/util/DebugHelpers.h"
 #include <clap/events.h>
 
 ExampleFilterPlugin::ExampleFilterPlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
@@ -25,9 +25,10 @@ ExampleFilterPlugin::ExampleFilterPlugin(const clap_plugin_descriptor_t* descrip
         .string_id = "filter_cutoff",
         .name = "Filter Cutoff",
         .short_name = "Cutoff",
+        .unit = "Hz",
         .min_value = 20.0f, // 20 Hz minimum
         .max_value = 20000.0f, // 20 kHz maximum
-        .default_value = 500.0f // 1 kHz default
+        .default_value = 500.0f // 500 Hz default
     });
 
     // Register filter resonance parameter
