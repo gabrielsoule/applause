@@ -132,7 +132,7 @@ elseif(APPLE)
 endif()
 
 # Examples
-option(APPLAUSE_BUILD_EXAMPLES "Build example plugins" ON)
+option(APPLAUSE_BUILD_EXAMPLES "Build example plugins" ${PROJECT_IS_TOP_LEVEL})
 if(APPLAUSE_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
