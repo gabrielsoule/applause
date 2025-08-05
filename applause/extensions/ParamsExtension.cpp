@@ -20,7 +20,7 @@ namespace applause
     std::string ParamsExtension::defaultValueToText(float value, const ParamInfo& info)
     {
         std::ostringstream stream;
-        
+
         if (info.stepped)
         {
             stream << static_cast<int>(value);
@@ -30,12 +30,12 @@ namespace applause
             // Adaptive precision algorithm (from ParamValueTextBox)
             const int maxChars = 5;
             const int maxDecimals = 2;
-            
+
             float absValue = std::abs(value);
             int integerDigits = (absValue >= 1.0f) ? static_cast<int>(std::log10(absValue)) + 1 : 1;
             int signChars = (value < 0) ? 1 : 0;
             int usedChars = integerDigits + signChars;
-            
+
             if (usedChars >= maxChars)
             {
                 stream << std::fixed << std::setprecision(0) << value;
@@ -54,16 +54,16 @@ namespace applause
                 }
             }
         }
-        
+
         // Append unit if present
         if (!info.unit.empty())
         {
             stream << " " << info.unit;
         }
-        
+
         return stream.str();
     }
-    
+
     std::optional<float> ParamsExtension::defaultTextToValue(const std::string& text, const ParamInfo& info)
     {
         if (text.empty())
@@ -72,38 +72,38 @@ namespace applause
         }
 
         const char* str = text.c_str();
-        
+
         // Skip leading non-numeric characters (except sign and decimal point)
         while (*str && !std::isdigit(*str) && *str != '-' && *str != '+' && *str != '.')
         {
             ++str;
         }
-        
+
         if (!*str)
         {
             return std::nullopt;
         }
-        
+
         // Use strtof for efficient parsing
         char* endptr;
         errno = 0;  // Clear errno before conversion
         float value = std::strtof(str, &endptr);
-        
+
         // Check if any conversion happened
         if (endptr == str || errno == ERANGE)
         {
             return std::nullopt;
         }
-        
+
         // Clamp to parameter range
         value = std::clamp(value, info.minValue, info.maxValue);
-        
+
         // For stepped parameters, truncate to integer
         if (info.stepped)
         {
             value = static_cast<float>(static_cast<int>(value));
         }
-        
+
         return value;
     }
 
@@ -160,7 +160,7 @@ namespace applause
         {
             registry_->message_queue_->toAudio().enqueue({ParamMessageQueue::END_GESTURE, clapId, 0.0f});
         }
-        
+
         // Request flush from host if available
         if (registry_->host_params_ && registry_->host_params_->request_flush)
         {
@@ -172,7 +172,7 @@ namespace applause
     {
         return value_to_text_(value, *this);
     }
-    
+
     std::optional<float> ParamInfo::textToValue(const std::string& text) const noexcept
     {
         return text_to_value_(text, *this);
@@ -351,7 +351,7 @@ namespace applause
     {
         ASSERT(param_count_ < max_params_,
                "Too many parameters registered! Allocate more through the ParamRegistry constructor.");
-        
+
         ASSERT(config.default_value >= config.min_value && config.default_value <= config.max_value,
                "Default value not between min and max value!");
 
@@ -398,7 +398,7 @@ namespace applause
         info.handle_ = &handles_[index];
         infos_[index] = info;
         infos_[index].registry_ = this;
-        
+
         // Use custom converters if provided, otherwise use defaults
         infos_[index].value_to_text_ = config.value_to_text ? config.value_to_text : defaultValueToText;
         infos_[index].text_to_value_ = config.text_to_value ? config.text_to_value : defaultTextToValue;
