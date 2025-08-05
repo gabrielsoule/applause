@@ -1,10 +1,10 @@
 #pragma once
 
-#include "core/PluginBase.h"
-#include "extensions/ParamsExtension.h"
-#include "extensions/StateExtension.h"
-#include "extensions/GUIExtension.h"
-#include "ui/GenericParameterUIEditor.h"
+#include "applause/core/PluginBase.h"
+#include "applause/extensions/ParamsExtension.h"
+#include "applause/extensions/StateExtension.h"
+#include "applause/extensions/GUIExtension.h"
+#include "applause/ui/GenericParameterUIEditor.h"
 
 class ExampleGenericParameterUIPlugin : public applause::PluginBase
 {

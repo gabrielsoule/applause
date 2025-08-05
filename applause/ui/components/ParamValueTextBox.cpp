@@ -6,7 +6,7 @@
 #include <embedded/applause_fonts.h>
 
 #include "embedded/fonts.h"
-#include "util/DebugHelpers.h"
+#include "applause/util/DebugHelpers.h"
 
 namespace applause
 {

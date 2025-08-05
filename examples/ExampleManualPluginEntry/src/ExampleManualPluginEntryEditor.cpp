@@ -1,5 +1,5 @@
 #include "ExampleManualPluginEntryEditor.h"
-#include "util/DebugHelpers.h"
+#include "applause/util/DebugHelpers.h"
 #include <visage_graphics/canvas.h>
 
 using namespace visage::dimension;

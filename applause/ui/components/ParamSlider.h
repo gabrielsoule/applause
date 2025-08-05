@@ -1,11 +1,11 @@
 #pragma once
 
 #include <visage_ui/frame.h>
-#include "util/thirdparty/rocket.hpp"
+#include "applause/util/thirdparty/rocket.hpp"
 #include "Slider.h"
 #include "ParamValueTextBox.h"
 #include <memory>
-#include <extensions/ParamsExtension.h>
+#include "applause/extensions/ParamsExtension.h"
 
 namespace applause {
 

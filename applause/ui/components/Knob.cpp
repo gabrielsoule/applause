@@ -1,5 +1,5 @@
 #include "Knob.h"
-#include "util/DebugHelpers.h"
+#include "applause/util/DebugHelpers.h"
 #include <cmath>
 #include <algorithm>
 

@@ -1,5 +1,5 @@
 #include "StateExtension.h"
-#include "core/PluginBase.h"
+#include "applause/core/PluginBase.h"
 
 namespace applause
 {

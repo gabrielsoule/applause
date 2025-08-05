@@ -1,6 +1,6 @@
 #include "ExampleShowcasePlugin.h"
 #include <cstring>
-#include "util/DebugHelpers.h"
+#include "applause/util/DebugHelpers.h"
 ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
     : PluginBase(descriptor, host),
       note_ports_(host),

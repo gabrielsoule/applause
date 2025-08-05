@@ -1,7 +1,7 @@
 #include "ParamKnob.h"
 #include <visage_graphics/font.h>
 #include "embedded/applause_fonts.h"
-#include "util/DebugHelpers.h"
+#include "applause/util/DebugHelpers.h"
 
 namespace applause {
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/Extension.h"
+#include "applause/core/Extension.h"
 #include <clap/ext/gui.h>
 #ifdef __linux__
 #include <clap/ext/posix-fd-support.h>
@@ -9,7 +9,7 @@
 #include <memory>
 #include <functional>
 
-#include "ui/IEditor.h"
+#include "applause/ui/IEditor.h"
 
 namespace applause
 {

@@ -10,10 +10,10 @@
 #include <memory>
 #include <atomic>
 #include <optional>
-#include "util/DebugHelpers.h"
-#include "core/Extension.h"
-#include "util/thirdparty/rocket.hpp"
-#include "util/ParamMessageQueue.h"
+#include "applause/util/DebugHelpers.h"
+#include "applause/core/Extension.h"
+#include "applause/util/thirdparty/rocket.hpp"
+#include "applause/util/ParamMessageQueue.h"
 
 namespace applause
 {

@@ -3,12 +3,12 @@
 //
 
 #include "ParamsExtension.h"
-#include "core/PluginBase.h"
+#include "applause/core/PluginBase.h"
 #include <cstring>
 #include <regex>
 #include <clap/events.h>
 
-#include "util/DebugHelpers.h"
+#include "applause/util/DebugHelpers.h"
 
 namespace applause
 {

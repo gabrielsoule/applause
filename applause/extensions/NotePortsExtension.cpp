@@ -1,5 +1,5 @@
 #include "NotePortsExtension.h"
-#include "../core/PluginBase.h"
+#include "applause/core/PluginBase.h"
 #include <cstring>
 
 namespace applause {

@@ -1,9 +1,9 @@
 #pragma once
 #include "IEditor.h"
-#include "util/ParamMessageQueue.h"
+#include "applause/util/ParamMessageQueue.h"
 #include "visage_app/application_window.h"
 #include "visage_graphics/palette.h"
-#include "extensions/ParamsExtension.h"
+#include "applause/extensions/ParamsExtension.h"
 #include <functional>
 
 namespace applause

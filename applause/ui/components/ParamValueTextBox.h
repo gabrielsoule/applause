@@ -3,8 +3,8 @@
 #include <visage_ui/frame.h>
 #include <visage_widgets/text_editor.h>
 #include <visage_graphics/palette.h>
-#include "util/thirdparty/rocket.hpp"
-#include <extensions/ParamsExtension.h>
+#include "applause/util/thirdparty/rocket.hpp"
+#include "applause/extensions/ParamsExtension.h"
 
 namespace applause {
 

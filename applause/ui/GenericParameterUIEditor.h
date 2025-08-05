@@ -2,7 +2,7 @@
 
 #include "ApplauseEditor.h"
 #include "components/GenericParameterUI.h"
-#include "extensions/ParamsExtension.h"
+#include "applause/extensions/ParamsExtension.h"
 #include <memory>
 
 namespace applause {

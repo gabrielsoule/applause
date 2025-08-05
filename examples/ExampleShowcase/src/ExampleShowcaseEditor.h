@@ -1,10 +1,10 @@
 #pragma once
 
-#include "ui/ApplauseEditor.h"
-#include "ui/components/GenericParameterUI.h"
-#include "ui/components/ParamKnob.h"
-#include "ui/components/ApplauseButton.h"
-#include "extensions/ParamsExtension.h"
+#include "applause/ui/ApplauseEditor.h"
+#include "applause/ui/components/GenericParameterUI.h"
+#include "applause/ui/components/ParamKnob.h"
+#include "applause/ui/components/ApplauseButton.h"
+#include "applause/extensions/ParamsExtension.h"
 #include <memory>
 
 class ExampleShowcaseEditor : public applause::ApplauseEditor

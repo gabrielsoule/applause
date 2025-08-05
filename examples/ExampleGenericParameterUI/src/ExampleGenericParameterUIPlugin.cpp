@@ -1,5 +1,5 @@
 #include "ExampleGenericParameterUIPlugin.h"
-#include "util/DebugHelpers.h"
+#include "applause/util/DebugHelpers.h"
 
 ExampleGenericParameterUIPlugin::ExampleGenericParameterUIPlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
     : PluginBase(descriptor, host),
