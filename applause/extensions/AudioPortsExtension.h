@@ -4,6 +4,7 @@
 #include <clap/ext/audio-ports.h>
 #include <vector>
 #include <string>
+#include <string_view>
 
 namespace applause {
 
@@ -26,9 +27,9 @@ struct AudioPortConfig {
      * @param name Display name for the port
      * @return Configuration for a stereo port
      */
-    static AudioPortConfig stereo(const std::string& name) {
+    static AudioPortConfig stereo(std::string_view name) {
         return {
-            .name = name,
+            .name = std::string(name),
             .channel_count = 2,
             .port_type = CLAP_PORT_STEREO
         };
@@ -39,9 +40,9 @@ struct AudioPortConfig {
      * @param name Display name for the port
      * @return Configuration for a main stereo port
      */
-    static AudioPortConfig mainStereo(const std::string& name) {
+    static AudioPortConfig mainStereo(std::string_view name) {
         return {
-            .name = name,
+            .name = std::string(name),
             .channel_count = 2,
             .port_type = CLAP_PORT_STEREO,
             .flags = CLAP_AUDIO_PORT_IS_MAIN
@@ -53,9 +54,9 @@ struct AudioPortConfig {
      * @param name Display name for the port
      * @return Configuration for a mono port
      */
-    static AudioPortConfig mono(const std::string& name) {
+    static AudioPortConfig mono(std::string_view name) {
         return {
-            .name = name,
+            .name = std::string(name),
             .channel_count = 1,
             .port_type = CLAP_PORT_MONO
         };
@@ -66,9 +67,9 @@ struct AudioPortConfig {
      * @param name Display name for the port
      * @return Configuration for a main mono port
      */
-    static AudioPortConfig mainMono(const std::string& name) {
+    static AudioPortConfig mainMono(std::string_view name) {
         return {
-            .name = name,
+            .name = std::string(name),
             .channel_count = 1,
             .port_type = CLAP_PORT_MONO,
             .flags = CLAP_AUDIO_PORT_IS_MAIN
@@ -81,9 +82,9 @@ struct AudioPortConfig {
      * @param pair_id ID of the paired port
      * @return Configuration for a stereo port with in-place processing
      */
-    static AudioPortConfig stereoInPlace(const std::string& name, clap_id pair_id) {
+    static AudioPortConfig stereoInPlace(std::string_view name, clap_id pair_id) {
         return {
-            .name = name,
+            .name = std::string(name),
             .channel_count = 2,
             .port_type = CLAP_PORT_STEREO,
             .in_place_pair = pair_id
@@ -97,11 +98,11 @@ struct AudioPortConfig {
      * @param type Port type string (optional)
      * @return Configuration for a custom port
      */
-    static AudioPortConfig custom(const std::string& name, uint32_t channels, const std::string& type = "") {
+    static AudioPortConfig custom(std::string_view name, uint32_t channels, std::string_view type = "") {
         return {
-            .name = name,
+            .name = std::string(name),
             .channel_count = channels,
-            .port_type = type
+            .port_type = std::string(type)
         };
     }
 };

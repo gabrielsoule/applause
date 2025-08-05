@@ -1,37 +1,38 @@
 #include "NotePortsExtension.h"
 #include "applause/core/PluginBase.h"
 #include <cstring>
+#include <string_view>
 
 namespace applause {
 
 // NotePortConfig static methods
-NotePortConfig NotePortConfig::midi(const std::string& name) {
+NotePortConfig NotePortConfig::midi(std::string_view name) {
     return {
-        .name = name,
+        .name = std::string(name),
         .supported_dialects = CLAP_NOTE_DIALECT_MIDI,
         .preferred_dialect = CLAP_NOTE_DIALECT_MIDI
     };
 }
 
-NotePortConfig NotePortConfig::clap(const std::string& name) {
+NotePortConfig NotePortConfig::clap(std::string_view name) {
     return {
-        .name = name,
+        .name = std::string(name),
         .supported_dialects = CLAP_NOTE_DIALECT_CLAP,
         .preferred_dialect = CLAP_NOTE_DIALECT_CLAP
     };
 }
 
-NotePortConfig NotePortConfig::midiMPE(const std::string& name) {
+NotePortConfig NotePortConfig::midiMPE(std::string_view name) {
     return {
-        .name = name,
+        .name = std::string(name),
         .supported_dialects = CLAP_NOTE_DIALECT_MIDI | CLAP_NOTE_DIALECT_MIDI_MPE,
         .preferred_dialect = CLAP_NOTE_DIALECT_MIDI_MPE
     };
 }
 
-NotePortConfig NotePortConfig::universal(const std::string& name) {
+NotePortConfig NotePortConfig::universal(std::string_view name) {
     return {
-        .name = name,
+        .name = std::string(name),
         .supported_dialects = CLAP_NOTE_DIALECT_CLAP | CLAP_NOTE_DIALECT_MIDI | 
                               CLAP_NOTE_DIALECT_MIDI_MPE | CLAP_NOTE_DIALECT_MIDI2,
         .preferred_dialect = CLAP_NOTE_DIALECT_CLAP

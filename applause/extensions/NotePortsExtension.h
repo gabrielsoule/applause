@@ -4,6 +4,7 @@
 #include <clap/ext/note-ports.h>
 #include <vector>
 #include <string>
+#include <string_view>
 
 namespace applause {
 
@@ -24,28 +25,28 @@ struct NotePortConfig {
      * @param name Display name for the port
      * @return Configuration for a standard MIDI port
      */
-    static NotePortConfig midi(const std::string& name);
+    static NotePortConfig midi(std::string_view name);
     
     /**
      * @brief Create a CLAP native port configuration.
      * @param name Display name for the port
      * @return Configuration for a CLAP native event port
      */
-    static NotePortConfig clap(const std::string& name);
+    static NotePortConfig clap(std::string_view name);
     
     /**
      * @brief Create a MIDI MPE port configuration.
      * @param name Display name for the port
      * @return Configuration for a MIDI MPE (Multidimensional Polyphonic Expression) port
      */
-    static NotePortConfig midiMPE(const std::string& name);
+    static NotePortConfig midiMPE(std::string_view name);
     
     /**
      * @brief Create a universal port configuration supporting all dialects.
      * @param name Display name for the port
      * @return Configuration supporting CLAP, MIDI, MIDI2, and MPE
      */
-    static NotePortConfig universal(const std::string& name);
+    static NotePortConfig universal(std::string_view name);
 };
 
 /**

@@ -402,7 +402,7 @@ namespace applause
         clap_id_to_index_[info.clapId] = index;
         string_id_to_index_[config.string_id] = index;
 
-        // Track external parameters for host enumeration
+    // Track external parameters for host enumeration
         if (!info.internal)
         {
             external_to_internal_index_.push_back(index);
