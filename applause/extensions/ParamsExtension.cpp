@@ -5,13 +5,108 @@
 #include "ParamsExtension.h"
 #include "applause/core/PluginBase.h"
 #include <cstring>
-#include <regex>
+#include <cerrno>
+#include <cctype>
 #include <clap/events.h>
+#include <sstream>
+#include <iomanip>
+#include <cmath>
 
 #include "applause/util/DebugHelpers.h"
 
 namespace applause
 {
+    // Default converter functions
+    std::string ParamsExtension::defaultValueToText(float value, const ParamInfo& info)
+    {
+        std::ostringstream stream;
+        
+        if (info.stepped)
+        {
+            stream << static_cast<int>(value);
+        }
+        else
+        {
+            // Adaptive precision algorithm (from ParamValueTextBox)
+            const int maxChars = 5;
+            const int maxDecimals = 2;
+            
+            float absValue = std::abs(value);
+            int integerDigits = (absValue >= 1.0f) ? static_cast<int>(std::log10(absValue)) + 1 : 1;
+            int signChars = (value < 0) ? 1 : 0;
+            int usedChars = integerDigits + signChars;
+            
+            if (usedChars >= maxChars)
+            {
+                stream << std::fixed << std::setprecision(0) << value;
+            }
+            else
+            {
+                int availableForDecimal = maxChars - usedChars;
+                if (availableForDecimal >= 2)
+                {
+                    int decimalsToShow = std::min(maxDecimals, availableForDecimal - 1);
+                    stream << std::fixed << std::setprecision(decimalsToShow) << value;
+                }
+                else
+                {
+                    stream << std::fixed << std::setprecision(0) << value;
+                }
+            }
+        }
+        
+        // Append unit if present
+        if (!info.unit.empty())
+        {
+            stream << " " << info.unit;
+        }
+        
+        return stream.str();
+    }
+    
+    std::optional<float> ParamsExtension::defaultTextToValue(const std::string& text, const ParamInfo& info)
+    {
+        if (text.empty())
+        {
+            return std::nullopt;
+        }
+
+        const char* str = text.c_str();
+        
+        // Skip leading non-numeric characters (except sign and decimal point)
+        while (*str && !std::isdigit(*str) && *str != '-' && *str != '+' && *str != '.')
+        {
+            ++str;
+        }
+        
+        if (!*str)
+        {
+            return std::nullopt;
+        }
+        
+        // Use strtof for efficient parsing
+        char* endptr;
+        errno = 0;  // Clear errno before conversion
+        float value = std::strtof(str, &endptr);
+        
+        // Check if any conversion happened
+        if (endptr == str || errno == ERANGE)
+        {
+            return std::nullopt;
+        }
+        
+        // Clamp to parameter range
+        value = std::clamp(value, info.minValue, info.maxValue);
+        
+        // For stepped parameters, truncate to integer
+        if (info.stepped)
+        {
+            value = static_cast<float>(static_cast<int>(value));
+        }
+        
+        return value;
+    }
+
     // ParamInfo implementation
     float ParamInfo::getValue() const noexcept
     {
@@ -73,43 +168,14 @@ namespace applause
         }
     }
 
-    std::optional<float> ParamInfo::parseText(const std::string& text) const noexcept
+    std::string ParamInfo::valueToText(float value) const noexcept
     {
-        if (text.empty())
-        {
-            return std::nullopt;
-        }
-
-        // Regular expression to find the first number in the string
-        // Matches optional sign, digits, optional decimal part
-        static const std::regex numberRegex(R"([-+]?(?:\d+\.?\d*|\.\d+))");
-
-        std::smatch match;
-        if (std::regex_search(text, match, numberRegex))
-        {
-            try
-            {
-                float value = std::stof(match.str());
-
-                // Clamp to parameter range
-                value = std::clamp(value, minValue, maxValue);
-
-                // For stepped parameters, truncate to integer
-                if (stepped)
-                {
-                    value = static_cast<float>(static_cast<int>(value));
-                }
-
-                return value;
-            }
-            catch (...)
-            {
-                // If conversion fails (shouldn't happen with our regex), return nullopt
-                return std::nullopt;
-            }
-        }
-
-        return std::nullopt;
+        return value_to_text_(value, *this);
+    }
+    
+    std::optional<float> ParamInfo::textToValue(const std::string& text) const noexcept
+    {
+        return text_to_value_(text, *this);
     }
 
     uint32_t ParamsExtension::clap_params_count(const clap_plugin_t* plugin) noexcept
@@ -196,33 +262,8 @@ namespace applause
 
         const ParamInfo& info = ext->infos_[it->second];
 
-        // Format the value
-        std::string text;
-        if (info.stepped)
-        {
-            // For stepped parameters, show as integer
-            int int_value = static_cast<int>(value);
-            if (!info.unit.empty())
-            {
-                text = std::format("{} {}", int_value, info.unit);
-            }
-            else
-            {
-                text = std::format("{}", int_value);
-            }
-        }
-        else
-        {
-            // For continuous parameters, show with appropriate precision
-            if (!info.unit.empty())
-            {
-                text = std::format("{:.2f} {}", value, info.unit);
-            }
-            else
-            {
-                text = std::format("{:.2f}", value);
-            }
-        }
+        // Use the converter to format the value
+        std::string text = info.valueToText(static_cast<float>(value));
 
         // Copy to output buffer
         std::strncpy(out_buffer, text.c_str(), out_buffer_capacity - 1);
@@ -246,8 +287,8 @@ namespace applause
 
         const ParamInfo& info = ext->infos_[it->second];
 
-        // Use ParamInfo's parseText method
-        auto parsed = info.parseText(param_value_text);
+        // Use the converter to parse the text
+        auto parsed = info.textToValue(param_value_text);
         if (!parsed.has_value())
             return false;
 
@@ -357,6 +398,10 @@ namespace applause
         info.handle_ = &handles_[index];
         infos_[index] = info;
         infos_[index].registry_ = this;
+        
+        // Use custom converters if provided, otherwise use defaults
+        infos_[index].value_to_text_ = config.value_to_text ? config.value_to_text : defaultValueToText;
+        infos_[index].text_to_value_ = config.text_to_value ? config.text_to_value : defaultTextToValue;
 
         // Update lookup structures
         clap_id_to_index_[info.clapId] = index;

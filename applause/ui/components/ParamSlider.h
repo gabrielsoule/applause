@@ -23,7 +23,7 @@ public:
 
 private:
     static constexpr int kLabelWidth = 80;
-    static constexpr int kLabelPadding = 10;
+    static constexpr int kLabelPadding = 5;
 
     ParamInfo& param_info_;
     std::unique_ptr<Slider> slider_;

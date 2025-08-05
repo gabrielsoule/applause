@@ -10,6 +10,7 @@
 #include <memory>
 #include <atomic>
 #include <optional>
+#include <functional>
 #include "applause/util/DebugHelpers.h"
 #include "applause/core/Extension.h"
 #include "applause/util/thirdparty/rocket.hpp"
@@ -19,6 +20,7 @@ namespace applause
 {
     // Forward declaration
     class ParamsExtension;
+    class ParamInfo;
     
     /**
      * @brief Configuration structure for a parameter.
@@ -36,6 +38,10 @@ namespace applause
         float default_value = 0.5f;               ///< Default value
         bool is_stepped = false;                  ///< Whether parameter uses discrete integer values
         bool is_internal = false;                 ///< Whether parameter is internal (not exposed to DAW)
+        
+        // Optional custom converters (default to nullptr)
+        std::function<std::string(float value, const ParamInfo& info)> value_to_text;
+        std::function<std::optional<float>(const std::string& text, const ParamInfo& info)> text_to_value;
     };
     
     /**
@@ -153,9 +159,19 @@ namespace applause
         void endGesture() const noexcept;
 
         /**
+         * Convert a parameter value to display text.
+         * Uses custom converter if provided, otherwise uses default formatting.
+         *
+         * @param value The parameter value to format
+         * @return Formatted text representation including unit if applicable
+         */
+        std::string valueToText(float value) const noexcept;
+        
+        /**
          * Parse user input text to extract a numeric value for this parameter.
          *
-         * Extracts the first number found in the text, ignoring non-numeric characters.
+         * Uses custom converter if provided, otherwise extracts the first number found
+         * in the text, ignoring non-numeric characters.
          * The extracted value is automatically clamped to [minValue, maxValue].
          * For stepped parameters, the value is truncated to an integer.
          *
@@ -170,7 +186,7 @@ namespace applause
          *   "abc" → std::nullopt
          *   "" → std::nullopt
          */
-        std::optional<float> parseText(const std::string& text) const noexcept;
+        std::optional<float> textToValue(const std::string& text) const noexcept;
 
     private:
         ParamHandle* handle_ = nullptr;
@@ -178,6 +194,12 @@ namespace applause
         // A pointer to the parent registry, so that the host can be notified about parameter changes.
         // In the future, we can and should use an event system for this.
         ParamsExtension* registry_ = nullptr;
+        
+        // Custom converters (following member naming convention)
+        std::function<std::string(float value, const ParamInfo& info)> value_to_text_;
+        std::function<std::optional<float>(const std::string& text, const ParamInfo& info)> text_to_value_;
+        
+        friend class ParamsExtension;  // Allow ParamsExtension to access converters
     };
 
     /**
@@ -260,6 +282,10 @@ namespace applause
          * @param host The CLAP host pointer
          */
          ParamsExtension(const clap_host_t* host, uint32_t max_params = 128);
+         
+        // Default converter functions (static members)
+        static std::string defaultValueToText(float value, const ParamInfo& info);
+        static std::optional<float> defaultTextToValue(const std::string& text, const ParamInfo& info);
 
         const char* id() const override { return ID; }
         const void* getClapExtensionStruct() const override { return &clap_struct_; }

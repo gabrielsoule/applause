@@ -24,6 +24,7 @@ ExampleGenericParameterUIPlugin::ExampleGenericParameterUIPlugin(const clap_plug
         .string_id = "param2",
         .name = "Parameter 2",
         .short_name = "Param 2",
+        .unit = "Hz",
         .min_value = 10.0f,
         .max_value = 20000.0f,
         .default_value = 400.0f

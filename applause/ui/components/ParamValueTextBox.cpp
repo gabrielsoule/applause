@@ -37,7 +37,7 @@ namespace applause
                 return;
 
             // Try to parse the entered text
-            auto parsed_value = param_info_.parseText(text_editor_->text().toUtf8());
+            auto parsed_value = param_info_.textToValue(text_editor_->text().toUtf8());
 
             if (parsed_value.has_value())
             {
@@ -126,53 +126,9 @@ namespace applause
 
     void ParamValueTextBox::updateTextDisplay()
     {
-        float currentValue = param_info_.getValue();
-
-        // Format the value as a string
-        std::ostringstream valueStream;
-        if (param_info_.stepped)
-        {
-            valueStream << static_cast<int>(currentValue);
-        }
-        else
-        {
-            // Adaptive precision to fit within character limit
-            const int maxChars = 5; // Maximum characters to display
-            const int maxDecimals = 2; // Never show more than 2 decimal places
-
-            // Calculate how many characters we need for the integer part and sign
-            float absValue = std::abs(currentValue);
-            int integerDigits = (absValue >= 1.0f) ? static_cast<int>(std::log10(absValue)) + 1 : 1;
-            int signChars = (currentValue < 0) ? 1 : 0;
-
-            // Check if we can fit any decimals
-            int usedChars = integerDigits + signChars;
-            if (usedChars >= maxChars)
-            {
-                // Number is too large for any decimals
-                valueStream << std::fixed << std::setprecision(0) << currentValue;
-            }
-            else
-            {
-                // Calculate available space for decimal point + decimal digits
-                int availableForDecimal = maxChars - usedChars;
-
-                // We need at least 2 characters for decimal point + 1 digit
-                if (availableForDecimal >= 2)
-                {
-                    // Use up to maxDecimals, but no more than what fits
-                    int decimalsToShow = std::min(maxDecimals, availableForDecimal - 1);
-                    valueStream << std::fixed << std::setprecision(decimalsToShow) << currentValue;
-                }
-                else
-                {
-                    // No room for decimals
-                    valueStream << std::fixed << std::setprecision(0) << currentValue;
-                }
-            }
-        }
-
-        text_editor_->setText(valueStream.str());
+        // Get formatted text from parameter's converter (includes unit)
+        std::string formatted = param_info_.valueToText(param_info_.getValue());
+        text_editor_->setText(formatted);
     }
 
     void ParamValueTextBox::resized()
