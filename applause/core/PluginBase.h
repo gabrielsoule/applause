@@ -4,6 +4,8 @@
 #include <unordered_map>
 #include <string>
 #include "Extension.h"
+#include <applause/util/MemoryArena.h>
+#include <applause/util/AudioBuffer.h>
 
 namespace applause
 {

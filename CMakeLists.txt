@@ -56,6 +56,16 @@ if(yas_ADDED)
     target_include_directories(yas INTERFACE ${yas_SOURCE_DIR}/include)
 endif()
 
+# xsimd (header-only SIMD library)
+CPMAddPackage(
+    NAME xsimd
+    GITHUB_REPOSITORY xtensor-stack/xsimd
+    GIT_TAG 13.0.0
+    OPTIONS
+        "BUILD_TESTS OFF"
+        "BUILD_BENCHMARK OFF"
+)
+
 # Visage
 CPMAddPackage(
     NAME visage
@@ -122,6 +132,7 @@ target_link_libraries(applause
         VisageEmbeddedFonts
         ApplauseEmbeddedFonts
         yas
+        xsimd
 )
 
 if(APPLAUSE_USE_FMT)
