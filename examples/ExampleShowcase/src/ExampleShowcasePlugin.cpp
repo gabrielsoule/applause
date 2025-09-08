@@ -1,5 +1,6 @@
 #include "ExampleShowcasePlugin.h"
 #include "applause/util/DebugHelpers.h"
+#include <nlohmann/json.hpp>
 #include <map>
 #include <vector>
 ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
@@ -55,43 +56,35 @@ ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* des
         .is_stepped = true
     });
 
-    // Configure state extension callbacks for parameter persistence
-    state_.setSaveCallback([this](auto& ar)
+    // Configure state extension callbacks - plugin manages its own versioning
+    state_.setSaveCallback([this](nlohmann::json& j)
     {
-        // You can save arbitrary data to and from the state extension. This is how it can be done!
-        int demo_value = 42;
-        std::string demo_string = "hello, Applause!";
+        // Save plugin state
+        j["demo_value"] = 42;
+        j["demo_string"] = "hello, Applause!";
+        j["preset_values"] = std::vector<float>{0.1f, 0.5f, 0.75f, 1.0f};
         
-        // Example: Save a vector of floats (e.g., preset values)
-        std::vector<float> demo_vector = {0.1f, 0.5f, 0.75f, 1.0f};
+        // Save parameters
+        params_.saveToJson(j["parameters"]);
         
-        // Example: Save a map (e.g., MIDI CC mappings)
-        std::map<int, std::string> demo_map = {
-            {1, "foo"},
-            {7, "bar"},
-            {10, "baz"},
-            {74, "qux"}
-        };
-        
-        // Save everything in order. This how to save arbitrary data to the stream.
-        ar & demo_value & demo_string & demo_vector & demo_map;
-
-        // Some extensions, like the params, have helper functions to save their state to a given stream.
-        params_.saveToStream(ar);
         return true;
     });
 
-    state_.setLoadCallback([this](auto& ar)
+    state_.setLoadCallback([this](const nlohmann::json& j)
     {
-        // Load in EXACT SAME ORDER as saved - it's a sequential stream!
-        int myValue;
-        std::string myString;
-        std::vector<float> myPresetValues;
-        std::map<int, std::string> midiCCMap;
-
-        ar & myValue & myString & myPresetValues & midiCCMap;
+        int demo_value = j.value("demo_value", 0);
+        std::string demo_string = j.value("demo_string", "default");
         
-        params_.loadFromStream(ar);
+        if (j.contains("preset_values") && j["preset_values"].is_array()) {
+            std::vector<float> preset_values = j["preset_values"];
+        }
+        
+        if (j.contains("parameters")) {
+            params_.loadFromJson(j["parameters"]);
+        }
+
+        LOG_INFO("Demo value: {}, string: {}", demo_value, demo_string);
+        
         return true;
     });
 

@@ -3,6 +3,7 @@
 #include <ExampleManualPluginEntryEditor.h>
 #include "applause/util/DebugHelpers.h"
 #include "applause/ui/ApplauseEditor.h"
+#include <nlohmann/json.hpp>
 
 ExampleManualPluginEntryPlugin::ExampleManualPluginEntryPlugin(const clap_plugin_descriptor_t* descriptor,
                                                                const clap_host_t* host)
@@ -57,14 +58,18 @@ ExampleManualPluginEntryPlugin::ExampleManualPluginEntryPlugin(const clap_plugin
     });
 
     // Configure state extension callbacks for parameter persistence
-    state_.setSaveCallback([this](auto& ar)
+    state_.setSaveCallback([this](nlohmann::json& j)
     {
-        return params_.saveToStream(ar);
+        params_.saveToJson(j["parameters"]);
+        return true;
     });
 
-    state_.setLoadCallback([this](auto& ar)
+    state_.setLoadCallback([this](const nlohmann::json& j)
     {
-        return params_.loadFromStream(ar);
+        if (j.contains("parameters")) {
+            params_.loadFromJson(j["parameters"]);
+        }
+        return true;
     });
 
     // Register extensions with the plugin

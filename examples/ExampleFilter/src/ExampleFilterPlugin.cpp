@@ -3,6 +3,7 @@
 #include <cstring>
 #include "applause/util/DebugHelpers.h"
 #include <clap/events.h>
+#include <nlohmann/json.hpp>
 
 ExampleFilterPlugin::ExampleFilterPlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
     : PluginBase(descriptor, host),
@@ -56,14 +57,18 @@ ExampleFilterPlugin::ExampleFilterPlugin(const clap_plugin_descriptor_t* descrip
     param_mode_ = &params_.getHandle("filter_mode");
 
 
-    state_.setSaveCallback([this](auto& ar)
+    state_.setSaveCallback([this](nlohmann::json& j)
     {
-        return params_.saveToStream(ar);
+        params_.saveToJson(j["parameters"]);
+        return true;
     });
 
-    state_.setLoadCallback([this](auto& ar)
+    state_.setLoadCallback([this](const nlohmann::json& j)
     {
-        return params_.loadFromStream(ar);
+        if (j.contains("parameters")) {
+            params_.loadFromJson(j["parameters"]);
+        }
+        return true;
     });
 
     // Register extensions

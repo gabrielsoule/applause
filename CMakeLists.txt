@@ -44,17 +44,13 @@ CPMAddPackage(
     OPTIONS "CLAP_HELPERS_BUILD_TESTS OFF"
 )
 
-# YAS (header-only)
+# nlohmann/json for state serialization
 CPMAddPackage(
-    NAME yas
-    GITHUB_REPOSITORY niXman/yas
-    GIT_TAG master
-    DOWNLOAD_ONLY YES
+    NAME nlohmann_json
+    VERSION 3.11.3
+    GITHUB_REPOSITORY nlohmann/json
+    OPTIONS "JSON_BuildTests OFF"
 )
-if(yas_ADDED)
-    add_library(yas INTERFACE)
-    target_include_directories(yas INTERFACE ${yas_SOURCE_DIR}/include)
-endif()
 
 # xsimd (header-only SIMD library)
 CPMAddPackage(
@@ -131,7 +127,7 @@ target_link_libraries(applause
         visage
         VisageEmbeddedFonts
         ApplauseEmbeddedFonts
-        yas
+        nlohmann_json::nlohmann_json
         xsimd
 )
 

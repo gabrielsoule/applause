@@ -11,6 +11,7 @@
 #include <atomic>
 #include <optional>
 #include <functional>
+#include <nlohmann/json.hpp>
 #include "applause/util/DebugHelpers.h"
 #include "applause/core/Extension.h"
 #include "applause/util/thirdparty/rocket.hpp"
@@ -369,93 +370,120 @@ namespace applause
         void processEvents(const clap_input_events_t* in, const clap_output_events_t* out);
         
         /**
-         * @brief Save all parameter values to a YAS archive.
-         * @tparam Archive YAS archive type (typically binary output archive)
-         * @param ar The YAS archive to save to
+         * @brief Save all parameter values to a JSON object.
+         * 
+         * Saves parameters in a format that supports versioning and forward/backward compatibility.
+         * Each parameter is saved with its ID, value, and optionally its name for debugging.
+         * 
+         * @param json The JSON object to save parameters into (typically json["params"])
          * @return true on success, false on error
          * @note Call this from your StateExtension save callback
          */
-        template<typename Archive>
-        bool saveToStream(Archive& ar) noexcept;
+        bool saveToJson(nlohmann::json& json) noexcept;
         
         /**
-         * @brief Load parameter values from a YAS archive.
-         * @tparam Archive YAS archive type (typically binary input archive)
-         * @param ar The YAS archive to load from
+         * @brief Load parameter values from a JSON object.
+         * 
+         * Loads parameters from JSON, gracefully handling missing parameters
+         * (useful when loading older states or states from different plugin versions).
+         * 
+         * @param json The JSON object containing parameter data
          * @return true on success, false on error
          * @note Call this from your StateExtension load callback
          */
-        template<typename Archive>
-        bool loadFromStream(Archive& ar) noexcept;
+        bool loadFromJson(const nlohmann::json& json) noexcept;
     };
     
-    // Template implementations
-    template<typename Archive>
-    bool ParamsExtension::saveToStream(Archive& ar) noexcept {
+    // Inline implementations for JSON serialization
+    inline bool ParamsExtension::saveToJson(nlohmann::json& json) noexcept {
         try {
-            // Create a vector of parameter ID to value pairs
-            std::vector<std::pair<clap_id, float>> param_values;
-            param_values.reserve(param_count_);
+            // Create array of parameter objects
+            auto params = nlohmann::json::array();
             
-            // Collect all parameter values (including internal ones)
+            // Save all parameter values (including internal ones)
             for (uint32_t i = 0; i < param_count_; ++i) {
                 const auto& param_info = infos_[i];
-                param_values.emplace_back(param_info.clapId, param_info.getValue());
+                
+                // Save each parameter as an object for better readability and debugging
+                nlohmann::json param_obj;
+                param_obj["id"] = param_info.clapId;
+                param_obj["value"] = param_info.getValue();
+                param_obj["name"] = param_info.name;  // Include name for debugging
+                
+                params.push_back(param_obj);
             }
             
-            // Serialize to the archive
-            ar & param_values;
+            json = params;
             
-            LOG_DBG("Saved", param_values.size(), "parameter values to state");
+            LOG_DBG("Saved {} parameter values to JSON state", params.size());
             return true;
         }
         catch (const std::exception& e) {
-            LOG_ERR("Failed to save state:", e.what());
+            LOG_ERR("Failed to save parameters to JSON: {}", e.what());
             return false;
         }
         catch (...) {
-            LOG_ERR("Failed to save state: unknown exception");
+            LOG_ERR("Failed to save parameters to JSON: unknown exception");
             return false;
         }
     }
     
-    template<typename Archive>
-    bool ParamsExtension::loadFromStream(Archive& ar) noexcept {
+    inline bool ParamsExtension::loadFromJson(const nlohmann::json& json) noexcept {
         try {
-            // Deserialize parameter values
-            std::vector<std::pair<clap_id, float>> param_values;
-            ar & param_values;
+            if (!json.is_array()) {
+                LOG_WARN("Parameters JSON is not an array, skipping parameter load");
+                return true;  // Not a fatal error - might be an old format or empty state
+            }
             
-            LOG_DBG("Loading", param_values.size(), "parameter values from state");
+            size_t loaded_count = 0;
+            size_t missing_count = 0;
             
-            // Apply loaded values
-            for (const auto& [clap_id, value] : param_values) {
-                auto it = clap_id_to_index_.find(clap_id);
+            // Load each parameter
+            for (const auto& param_obj : json) {
+                // Support both old format (just ID/value pairs) and new format (objects)
+                clap_id param_id;
+                float value;
+                
+                if (param_obj.is_object()) {
+                    // New format: {"id": 123, "value": 0.5, "name": "..."}
+                    param_id = param_obj.value("id", CLAP_INVALID_ID);
+                    value = param_obj.value("value", 0.0f);
+                } else if (param_obj.is_array() && param_obj.size() >= 2) {
+                    // Potential legacy format: [id, value]
+                    param_id = param_obj[0];
+                    value = param_obj[1];
+                } else {
+                    LOG_WARN("Skipping invalid parameter entry in state");
+                    continue;
+                }
+                
+                // Apply the value if we have this parameter
+                auto it = clap_id_to_index_.find(param_id);
                 if (it != clap_id_to_index_.end()) {
                     uint32_t index = it->second;
                     values_[index].store(value, std::memory_order_relaxed);
                     
                     // Notify UI of parameter change if message queue exists
                     if (message_queue_) {
-                        message_queue_->toUi().enqueue({ParamMessageQueue::PARAM_VALUE, clap_id, value});
-
+                        message_queue_->toUi().enqueue({ParamMessageQueue::PARAM_VALUE, param_id, value});
                     }
                     
-                    LOG_DBG("Loaded parameter ID", clap_id, "with value", value);
-                }
-                else {
-                    LOG_WARN("Parameter with CLAP ID", clap_id, "not found in current plugin");
+                    loaded_count++;
+                } else {
+                    missing_count++;
+                    LOG_DBG("Parameter with ID {} not found in current plugin (might be from different version)", param_id);
                 }
             }
             
+            LOG_DBG("Loaded {} parameters from JSON state ({} missing/removed)", loaded_count, missing_count);
             return true;
         }
         catch (const std::exception& e) {
-            LOG_ERR("Failed to load state:", e.what());
+            LOG_ERR("Failed to load parameters from JSON: {}", e.what());
             return false;
         }
         catch (...) {
-            LOG_ERR("Failed to load state: unknown exception");
+            LOG_ERR("Failed to load parameters from JSON: unknown exception");
             return false;
         }
     }
