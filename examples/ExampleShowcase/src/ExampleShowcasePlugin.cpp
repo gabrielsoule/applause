@@ -1,6 +1,7 @@
 #include "ExampleShowcasePlugin.h"
-#include <cstring>
 #include "applause/util/DebugHelpers.h"
+#include <map>
+#include <vector>
 ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
     : PluginBase(descriptor, host),
       note_ports_(host),
@@ -57,12 +58,41 @@ ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* des
     // Configure state extension callbacks for parameter persistence
     state_.setSaveCallback([this](auto& ar)
     {
-        return params_.saveToStream(ar);
+        // You can save arbitrary data to and from the state extension. This is how it can be done!
+        int demo_value = 42;
+        std::string demo_string = "hello, Applause!";
+        
+        // Example: Save a vector of floats (e.g., preset values)
+        std::vector<float> demo_vector = {0.1f, 0.5f, 0.75f, 1.0f};
+        
+        // Example: Save a map (e.g., MIDI CC mappings)
+        std::map<int, std::string> demo_map = {
+            {1, "foo"},
+            {7, "bar"},
+            {10, "baz"},
+            {74, "qux"}
+        };
+        
+        // Save everything in order. This how to save arbitrary data to the stream.
+        ar & demo_value & demo_string & demo_vector & demo_map;
+
+        // Some extensions, like the params, have helper functions to save their state to a given stream.
+        params_.saveToStream(ar);
+        return true;
     });
 
     state_.setLoadCallback([this](auto& ar)
     {
-        return params_.loadFromStream(ar);
+        // Load in EXACT SAME ORDER as saved - it's a sequential stream!
+        int myValue;
+        std::string myString;
+        std::vector<float> myPresetValues;
+        std::map<int, std::string> midiCCMap;
+
+        ar & myValue & myString & myPresetValues & midiCCMap;
+        
+        params_.loadFromStream(ar);
+        return true;
     });
 
     // Register extensions with the plugin
