@@ -80,7 +80,6 @@ namespace applause
             return std::nullopt;
         }
 
-        // Use strtof for efficient parsing
         char* endptr;
         errno = 0;
         float value = std::strtof(str, &endptr);
@@ -101,7 +100,6 @@ namespace applause
         return value;
     }
 
-    // ParamInfo implementation
     float ParamInfo::getValue() const noexcept
     {
         return handle_->getValue();
@@ -187,7 +185,6 @@ namespace applause
         auto* ext = PluginBase::findExtension<ParamsExtension>(plugin);
         if (!ext || !param_info) return false;
 
-        // Check if index is valid
         if (param_index >= ext->external_to_internal_index_.size())
             return false;
 
@@ -195,23 +192,19 @@ namespace applause
         uint32_t internal_index = ext->external_to_internal_index_[param_index];
         const ParamInfo& info = ext->infos_[internal_index];
 
-        // Fill clap_param_info_t structure
         param_info->id = info.clapId;
         param_info->cookie = nullptr; // We don't use cookies
 
-        // Copy name (ensure null termination)
         std::strncpy(param_info->name, info.name.c_str(), CLAP_NAME_SIZE - 1);
         param_info->name[CLAP_NAME_SIZE - 1] = '\0';
 
         std::strncpy(param_info->module, info.module.c_str(), CLAP_PATH_SIZE - 1);
         param_info->module[CLAP_PATH_SIZE - 1] = '\0';
 
-        // Set value ranges
         param_info->min_value = info.minValue;
         param_info->max_value = info.maxValue;
         param_info->default_value = info.defaultValue;
 
-        // Set flags
         param_info->flags = 0;
         if (info.stepped)
             param_info->flags |= CLAP_PARAM_IS_STEPPED;
@@ -249,17 +242,12 @@ namespace applause
         auto* ext = PluginBase::findExtension<ParamsExtension>(plugin);
         if (!ext || !out_buffer || out_buffer_capacity == 0) return false;
 
-        // Look up parameter info
         auto it = ext->clap_id_to_index_.find(param_id);
         if (it == ext->clap_id_to_index_.end())
             return false;
 
         const ParamInfo& info = ext->infos_[it->second];
-
-        // Use the converter to format the value
         std::string text = info.valueToText(static_cast<float>(value));
-
-        // Copy to output buffer
         std::strncpy(out_buffer, text.c_str(), out_buffer_capacity - 1);
         out_buffer[out_buffer_capacity - 1] = '\0';
 
@@ -274,14 +262,11 @@ namespace applause
         auto* ext = PluginBase::findExtension<ParamsExtension>(plugin);
         if (!ext || !param_value_text || !out_value) return false;
 
-        // Look up parameter info
         auto it = ext->clap_id_to_index_.find(param_id);
         if (it == ext->clap_id_to_index_.end())
             return false;
 
         const ParamInfo& info = ext->infos_[it->second];
-
-        // Use the converter to parse the text
         auto parsed = info.textToValue(param_value_text);
         if (!parsed.has_value())
             return false;
@@ -361,9 +346,19 @@ namespace applause
         info.stepped = config.is_stepped;
         info.internal = config.is_internal;
 
+        std::string id;
+
+        if (config.module.empty())
+        {
+            id = config.string_id;
+        } else
+        {
+            id = config.module + "/" + config.string_id;
+        }
+
         // Generate stable CLAP ID using FNV-1a hash
         {
-            const char* str = config.string_id.c_str();
+            const char* str = id.c_str();
             uint32_t hash = 2166136261u;
             while (*str)
             {
@@ -402,7 +397,7 @@ namespace applause
         clap_id_to_index_[info.clapId] = index;
         string_id_to_index_[config.string_id] = index;
 
-    // Track external parameters for host enumeration
+        // Track external parameters for host enumeration
         if (!info.internal)
         {
             external_to_internal_index_.push_back(index);
