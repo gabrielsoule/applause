@@ -10,9 +10,8 @@ namespace applause {
 
 /**
  * @brief Configuration structure for an audio port.
- * 
- * This struct uses C++20 designated initializers for clear, declarative configuration.
- * Common configurations can be created using the static helper functions.
+ *
+ *
  */
 struct AudioPortConfig {
     std::string name;                       ///< Display name for the port
@@ -109,10 +108,9 @@ struct AudioPortConfig {
 
 /**
  * @brief Extension for defining audio input and output ports in CLAP plugins.
- * 
- * This extension uses configuration structs for declaring audio ports with support
- * for common configurations (mono, stereo) and advanced features like 64-bit audio
- * and in-place processing.
+ *
+ * If your plugin is an audio effect, you must use this extension to define
+ * input and output ports. If your plugin is a MIDI processor/instrument, you only need to define output ports.
  */
 class AudioPortsExtension : public IExtension {
 private:

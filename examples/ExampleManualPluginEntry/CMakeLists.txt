@@ -62,12 +62,12 @@ make_clapfirst_plugins(
     AUV2_INSTRUMENT_TYPE "aumu"
 )
 
-# On macOS re-sign the VST3 bundle
+# On macOS re-sign the VST3 bundle AFTER installation
 if(APPLE)
     add_custom_command(TARGET ${PROJECT_NAME}_vst3 POST_BUILD
-        COMMAND codesign --force --sign - --timestamp=none
-        "$<TARGET_FILE_DIR:${PROJECT_NAME}_vst3>/../.."
-        COMMENT "Ad-hoc signing build directory VST3 bundle"
+        COMMAND codesign --force --deep --sign - --timestamp=none
+        "$ENV{HOME}/Library/Audio/Plug-Ins/VST3/$<TARGET_PROPERTY:${PROJECT_NAME}_vst3,LIBRARY_OUTPUT_NAME>.vst3"
+        COMMENT "Ad-hoc signing installed VST3 bundle"
     )
 endif()
 

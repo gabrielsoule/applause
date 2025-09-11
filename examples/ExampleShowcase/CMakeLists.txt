@@ -35,7 +35,7 @@ add_applause_plugin(
     # Plugin descriptor
     PLUGIN_ID "fm.gns.applause.example.showcase"
     PLUGIN_NAME "Example Showcase"
-    PLUGIN_VENDOR "Showcase Framework"
+    PLUGIN_VENDOR "Applause Framework"
     PLUGIN_URL "example.com"
     PLUGIN_VERSION ${PROJECT_VERSION}
     PLUGIN_DESCRIPTION "Example plugin showcasing the Applause framework with CMake API"

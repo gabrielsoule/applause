@@ -37,7 +37,7 @@ add_applause_plugin(
     PLUGIN_URL "example.com"
     PLUGIN_VERSION ${PROJECT_VERSION}
     PLUGIN_DESCRIPTION "Example plugin showcasing the GenericParameterUIEditor"
-    PLUGIN_FEATURES INSTRUMENT
+    PLUGIN_FEATURES AUDIO_EFFECT
     
     SOURCES ${EXAMPLE_GENERICPARAMETERUI_SOURCES}
     

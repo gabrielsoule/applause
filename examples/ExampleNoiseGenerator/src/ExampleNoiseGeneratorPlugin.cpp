@@ -8,10 +8,14 @@ ExampleNoiseGeneratorPlugin::ExampleNoiseGeneratorPlugin(const clap_plugin_descr
 {
     LOG_INFO("ExampleNoiseGenerator constructor");
 
+    // Provide a MIDI/Event input bus to satisfy VST3 Instrument expectations in strict hosts
+    note_ports_.addInput(applause::NotePortConfig::midi("MIDI In"));
+
     // Configure audio ports - stereo output only, no input
     audio_ports_.addOutput(applause::AudioPortConfig::mainStereo("Main Out"));
     
     // Register extensions with the plugin
+    registerExtension(note_ports_);
     registerExtension(audio_ports_);
 
     // The state extension doesn't do anything since we have no parameters,

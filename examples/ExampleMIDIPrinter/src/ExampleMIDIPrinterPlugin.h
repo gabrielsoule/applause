@@ -2,6 +2,7 @@
 
 #include "applause/core/PluginBase.h"
 #include "applause/extensions/NotePortsExtension.h"
+#include "applause/extensions/AudioPortsExtension.h"
 #include "applause/extensions/StateExtension.h"
 #include <string>
 
@@ -30,6 +31,7 @@ public:
 private:
     // Extensions
     applause::NotePortsExtension note_ports_;
+    applause::AudioPortsExtension audio_ports_;
     applause::StateExtension state_;
     
     void printNoteEvent(const clap_event_note_t* event, const char* event_name);

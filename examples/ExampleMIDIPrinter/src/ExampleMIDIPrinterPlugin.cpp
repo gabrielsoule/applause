@@ -24,8 +24,12 @@ ExampleMIDIPrinterPlugin::ExampleMIDIPrinterPlugin(const clap_plugin_descriptor_
     if (host_dialects & CLAP_NOTE_DIALECT_MIDI2)
         LOG_INFO("  - MIDI 2.0");
 
+    // Provide a simple stereo audio output so VST3 hosts can configure buses
+    audio_ports_.addOutput(applause::AudioPortConfig::mainStereo("Main Out"));
+
     // Register extensions
     registerExtension(note_ports_);
+    registerExtension(audio_ports_);
     registerExtension(state_);
 }
 
@@ -55,6 +59,17 @@ void ExampleMIDIPrinterPlugin::deactivate() noexcept
 
 clap_process_status ExampleMIDIPrinterPlugin::process(const clap_process_t* process) noexcept
 {
+    // Emit silence if we have an audio output bus to keep hosts happy
+    if (process->audio_outputs_count > 0)
+    {
+        const clap_audio_buffer_t* out = &process->audio_outputs[0];
+        for (uint32_t ch = 0; ch < out->channel_count; ++ch)
+        {
+            if (out->data32[ch])
+                std::memset(out->data32[ch], 0, sizeof(float) * process->frames_count);
+        }
+    }
+
     if (process->in_events)
     {
         uint32_t event_count = process->in_events->size(process->in_events);

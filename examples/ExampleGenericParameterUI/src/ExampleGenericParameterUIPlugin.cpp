@@ -1,15 +1,22 @@
 #include "ExampleGenericParameterUIPlugin.h"
 #include "applause/util/DebugHelpers.h"
 #include <nlohmann/json.hpp>
+#include <cstring>
 
 ExampleGenericParameterUIPlugin::ExampleGenericParameterUIPlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
     : PluginBase(descriptor, host),
+      note_ports_(host),
       params_(host),
       gui_ext_(host, 
                [this]() { return std::make_unique<applause::GenericParameterUIEditor>(&params_); },
                400, 600)
 {
     LOG_INFO("ExampleGenericParameterUI constructor");
+
+    note_ports_.addInput(applause::NotePortConfig::midi("MIDI In"));
+    // Add stereo audio input and output to satisfy VST3 Fx bus expectations
+    audio_ports_.addInput(applause::AudioPortConfig::mainStereo("Main In"));
+    audio_ports_.addOutput(applause::AudioPortConfig::mainStereo("Main Out"));
 
     // Register parameters using struct-based configuration (same as ExampleShowcase)
     params_.registerParam(applause::ParamConfig{
@@ -57,6 +64,8 @@ ExampleGenericParameterUIPlugin::ExampleGenericParameterUIPlugin(const clap_plug
     });
 
     // Register extensions with the plugin
+    registerExtension(note_ports_);
+    registerExtension(audio_ports_);
     registerExtension(state_);
     registerExtension(params_);
     registerExtension(gui_ext_);

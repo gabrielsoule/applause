@@ -39,7 +39,7 @@ add_applause_plugin(
     PLUGIN_URL "example.com"
     PLUGIN_VERSION ${PROJECT_VERSION}
     PLUGIN_DESCRIPTION "MIDI event printer for analyzing different note input formats (MIDI, MPE, MIDI2, CLAP)"
-    PLUGIN_FEATURES NOTE_EFFECT ANALYZER UTILITY
+    PLUGIN_FEATURES INSTRUMENT SYNTHESIZER
     
     SOURCES ${EXAMPLE_MIDI_PRINTER_SOURCES}
     

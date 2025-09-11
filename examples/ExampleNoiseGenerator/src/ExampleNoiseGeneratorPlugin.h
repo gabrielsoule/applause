@@ -4,6 +4,7 @@
 
 #include "applause/core/PluginBase.h"
 #include "applause/extensions/AudioPortsExtension.h"
+#include "applause/extensions/NotePortsExtension.h"
 #include "applause/util/DebugHelpers.h"
 
 class ExampleNoiseGeneratorPlugin : public applause::PluginBase {
@@ -22,6 +23,7 @@ public:
     
 private:
     // Extensions
+    applause::NotePortsExtension note_ports_;
     applause::AudioPortsExtension audio_ports_;
     applause::StateExtension state_;
     

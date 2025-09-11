@@ -6,7 +6,7 @@
 #       OUTPUT_NAME "My Plugin"
 #       PLUGIN_CLASS MyPluginClass
 #       PLUGIN_HEADER "MyPluginClass.h"
-#       
+#
 #       # Plugin descriptor
 #       PLUGIN_ID "com.example.myplugin"
 #       PLUGIN_NAME "My Plugin"
@@ -17,27 +17,38 @@
 #       PLUGIN_VERSION "1.0.0"
 #       PLUGIN_DESCRIPTION "A great plugin"
 #       PLUGIN_FEATURES INSTRUMENT SYNTHESIZER  # List of CLAP features without CLAP_PLUGIN_FEATURE_ prefix
-#       
+#
 #       # Implementation sources
 #       SOURCES src/MyPlugin.cpp src/MyPlugin.h src/MyEditor.cpp src/MyEditor.h
-#       
+#
 #       # Plugin formats to generate
 #       PLUGIN_FORMATS CLAP VST3 AUV2
-#       
+#
 #       # Bundle information
 #       BUNDLE_IDENTIFIER "com.example.myplugin"
 #       BUNDLE_VERSION "1.0.0"
-#       
+#
 #       # AUV2 specific (required if AUV2 is in PLUGIN_FORMATS)
 #       AUV2_MANUFACTURER_NAME "MyCo"
 #       AUV2_MANUFACTURER_CODE "MyC1"
 #       AUV2_SUBTYPE_CODE "MyPl"
 #       AUV2_INSTRUMENT_TYPE "aumu"
-#       
+#
 #       # Optional
 #       COPY_AFTER_BUILD TRUE
 #   )
-
+#
+# IMPORTANT: Some (not all) hosts are very picky about PLUGIN_FEATURES matching registered extensions. For example:
+# - Plugins with INSTRUMENT feature (which consume MIDI and produce audio) MUST implement:
+#   - NotePortsExtension with at least one input port (for MIDI/events)
+#   - AudioPortsExtension with at least one output port (for audio)
+# - Plugins with AUDIO_EFFECT feature (which consume and produce audio) MUST implement:
+#   - AudioPortsExtension with both input and output ports
+# And so on.
+#
+# Failure to meet these requirements may cause plugins to fail to load, depending on how strict the host is.
+# For example, Ableton Live will not load VST3 plugins that don't implement the ports that it expects based on the
+# feature tags; however, Bitwig and JUCE's AudioPluginHost seem to handle this discrepancy gracefully.
 function(add_applause_plugin)
     # Parse arguments
     cmake_parse_arguments(
@@ -47,7 +58,7 @@ function(add_applause_plugin)
         "PLUGIN_FEATURES;SOURCES;PLUGIN_FORMATS"  # Multi-value args
         ${ARGN}
     )
-    
+
     # Validate required arguments
     if(NOT APPL_TARGET_NAME)
         message(FATAL_ERROR "applause_plugin: TARGET_NAME is required")
@@ -64,7 +75,7 @@ function(add_applause_plugin)
     if(NOT APPL_SOURCES)
         message(FATAL_ERROR "applause_plugin: SOURCES is required")
     endif()
-    
+
     # Set defaults
     if(NOT APPL_OUTPUT_NAME)
         set(APPL_OUTPUT_NAME "${APPL_TARGET_NAME}")
@@ -87,36 +98,36 @@ function(add_applause_plugin)
     if(NOT APPL_PLUGIN_FORMATS)
         set(APPL_PLUGIN_FORMATS CLAP)
     endif()
-    
+
     # Generate the plugin entry C++ file
     set(ENTRY_FILE "${CMAKE_CURRENT_BINARY_DIR}/${APPL_TARGET_NAME}_generated_entry.cpp")
-    
+
     # Build the features array
     set(FEATURES_ARRAY "")
     foreach(feature ${APPL_PLUGIN_FEATURES})
         string(APPEND FEATURES_ARRAY "    CLAP_PLUGIN_FEATURE_${feature},\n")
     endforeach()
     string(APPEND FEATURES_ARRAY "    nullptr")
-    
+
     # Handle optional URLs
     if(APPL_PLUGIN_URL)
         set(URL_VALUE "\"${APPL_PLUGIN_URL}\"")
     else()
         set(URL_VALUE "nullptr")
     endif()
-    
+
     if(APPL_PLUGIN_MANUAL_URL)
         set(MANUAL_URL_VALUE "\"${APPL_PLUGIN_MANUAL_URL}\"")
     else()
         set(MANUAL_URL_VALUE "nullptr")
     endif()
-    
+
     if(APPL_PLUGIN_SUPPORT_URL)
         set(SUPPORT_URL_VALUE "\"${APPL_PLUGIN_SUPPORT_URL}\"")
     else()
         set(SUPPORT_URL_VALUE "nullptr")
     endif()
-    
+
     # Generate the entry file content
     set(ENTRY_CONTENT "#include \"${APPL_PLUGIN_HEADER}\"
 #include <clap/clap.h>
@@ -147,11 +158,11 @@ static const clap_plugin_t* factory_create_plugin(
     const clap_plugin_factory_t* factory,
     const clap_host_t* host,
     const char* plugin_id) {
-    
+
     if (!plugin_id || std::strcmp(plugin_id, descriptor.id) != 0) {
         return nullptr;
     }
-    
+
     auto* plugin = new ${APPL_PLUGIN_CLASS}(&descriptor, host);
     return plugin->clapPlugin();
 }
@@ -163,7 +174,7 @@ static uint32_t factory_get_plugin_count(const clap_plugin_factory_t* factory) {
 static const clap_plugin_descriptor_t* factory_get_plugin_descriptor(
     const clap_plugin_factory_t* factory,
     uint32_t index) {
-    
+
     if (index == 0) {
         return &descriptor;
     }
@@ -199,26 +210,26 @@ extern \"C\" CLAP_EXPORT const clap_plugin_entry_t clap_entry = {
     .get_factory = clap_get_factory
 };
 ")
-    
+
     # Write the generated entry file
     file(WRITE "${ENTRY_FILE}" "${ENTRY_CONTENT}")
-    
+
     # Create the implementation library
     add_library(${APPL_TARGET_NAME}-impl STATIC ${APPL_SOURCES})
-    
+
     # Link with Applause
     target_link_libraries(${APPL_TARGET_NAME}-impl PUBLIC Applause::Applause)
-    
+
     # Include directories
     target_include_directories(${APPL_TARGET_NAME}-impl PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
     )
-    
+
     # Platform specific definitions
     if(WIN32)
         target_compile_definitions(${APPL_TARGET_NAME}-impl PUBLIC _CRT_SECURE_NO_WARNINGS)
     endif()
-    
+
     # Call make_clapfirst_plugins with all the arguments
     set(MAKE_CLAPFIRST_ARGS
         TARGET_NAME ${APPL_TARGET_NAME}
@@ -229,18 +240,18 @@ extern \"C\" CLAP_EXPORT const clap_plugin_entry_t clap_entry = {
         BUNDLE_VERSION ${APPL_BUNDLE_VERSION}
         PLUGIN_FORMATS ${APPL_PLUGIN_FORMATS}
     )
-    
+
     # Add optional arguments
     if(APPL_COPY_AFTER_BUILD)
         list(APPEND MAKE_CLAPFIRST_ARGS COPY_AFTER_BUILD TRUE)
     endif()
-    
+
     # Add AUV2 specific arguments if AUV2 is in formats
     if("AUV2" IN_LIST APPL_PLUGIN_FORMATS)
         if(NOT APPL_AUV2_MANUFACTURER_NAME OR NOT APPL_AUV2_MANUFACTURER_CODE OR NOT APPL_AUV2_SUBTYPE_CODE OR NOT APPL_AUV2_INSTRUMENT_TYPE)
             message(FATAL_ERROR "applause_plugin: When AUV2 is in PLUGIN_FORMATS, all AUV2_* parameters are required")
         endif()
-        
+
         list(APPEND MAKE_CLAPFIRST_ARGS
             AUV2_MANUFACTURER_NAME "${APPL_AUV2_MANUFACTURER_NAME}"
             AUV2_MANUFACTURER_CODE "${APPL_AUV2_MANUFACTURER_CODE}"
@@ -248,19 +259,20 @@ extern \"C\" CLAP_EXPORT const clap_plugin_entry_t clap_entry = {
             AUV2_INSTRUMENT_TYPE "${APPL_AUV2_INSTRUMENT_TYPE}"
         )
     endif()
-    
+
     # Call the underlying function
     make_clapfirst_plugins(${MAKE_CLAPFIRST_ARGS})
-    
+
     # Add macOS post-build signing for VST3 if applicable
-    if(APPLE AND "VST3" IN_LIST APPL_PLUGIN_FORMATS)
+    # Note: This must sign the INSTALLED bundle, not the build directory bundle
+    if(APPLE AND "VST3" IN_LIST APPL_PLUGIN_FORMATS AND APPL_COPY_AFTER_BUILD)
         add_custom_command(TARGET ${APPL_TARGET_NAME}_vst3 POST_BUILD
-            COMMAND codesign --force --sign - --timestamp=none
-            "$<TARGET_FILE_DIR:${APPL_TARGET_NAME}_vst3>/../.."
-            COMMENT "Ad-hoc signing build directory VST3 bundle"
+            COMMAND codesign --force --deep --sign - --timestamp=none
+            "$ENV{HOME}/Library/Audio/Plug-Ins/VST3/$<TARGET_PROPERTY:${APPL_TARGET_NAME}_vst3,LIBRARY_OUTPUT_NAME>.vst3"
+            COMMENT "Ad-hoc signing installed VST3 bundle"
         )
     endif()
-    
+
     # Add to parent target if it exists
     if(TARGET applause-examples)
         message(STATUS "Applause: Adding ${APPL_TARGET_NAME}_all to applause-examples dependencies")
@@ -268,5 +280,5 @@ extern \"C\" CLAP_EXPORT const clap_plugin_entry_t clap_entry = {
     else()
         message(STATUS "Applause: applause-examples target doesn't exist yet for ${APPL_TARGET_NAME}")
     endif()
-    
+
 endfunction()

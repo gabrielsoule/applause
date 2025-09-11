@@ -10,9 +10,7 @@ namespace applause {
 
 /**
  * @brief Configuration structure for a note port.
- * 
- * This struct uses C++20 designated initializers for clear, declarative configuration.
- * Common configurations can be created using the static helper functions.
+ *
  */
 struct NotePortConfig {
     std::string name;                    ///< Display name for the port
@@ -51,6 +49,9 @@ struct NotePortConfig {
 
 /**
  * @brief This Applause extension lets plugins define MIDI input and output channels.
+ *
+ * If your plugin consumes MIDI, i.e. is an instrument or MIDI effect, you must use this extension to define
+ * MIDI input ports
  */
 class NotePortsExtension : public IExtension {
 private:
