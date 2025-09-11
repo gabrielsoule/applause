@@ -397,7 +397,6 @@ namespace applause
     // Inline implementations for JSON serialization
     inline bool ParamsExtension::saveToJson(nlohmann::json& json) noexcept {
         try {
-            // Create array of parameter objects
             auto params = nlohmann::json::array();
             
             // Save all parameter values (including internal ones)
@@ -408,7 +407,7 @@ namespace applause
                 nlohmann::json param_obj;
                 param_obj["id"] = param_info.clapId;
                 param_obj["value"] = param_info.getValue();
-                param_obj["name"] = param_info.name;  // Include name for debugging
+                param_obj["name"] = param_info.name;  // Include name for readability and debugging
                 
                 params.push_back(param_obj);
             }
@@ -431,31 +430,23 @@ namespace applause
     inline bool ParamsExtension::loadFromJson(const nlohmann::json& json) noexcept {
         try {
             if (!json.is_array()) {
-                LOG_WARN("Parameters JSON is not an array, skipping parameter load");
-                return true;  // Not a fatal error - might be an old format or empty state
+                LOG_WARN("Parameters JSON is not an array; skipping parameter load");
+                return true;  // Not a fatal error — ignore unexpected shapes
             }
             
             size_t loaded_count = 0;
             size_t missing_count = 0;
             
-            // Load each parameter
+            // Load each parameter (expects object entries: {"id", "value", ...})
             for (const auto& param_obj : json) {
-                // Support both old format (just ID/value pairs) and new format (objects)
-                clap_id param_id;
-                float value;
-                
-                if (param_obj.is_object()) {
-                    // New format: {"id": 123, "value": 0.5, "name": "..."}
-                    param_id = param_obj.value("id", CLAP_INVALID_ID);
-                    value = param_obj.value("value", 0.0f);
-                } else if (param_obj.is_array() && param_obj.size() >= 2) {
-                    // Potential legacy format: [id, value]
-                    param_id = param_obj[0];
-                    value = param_obj[1];
-                } else {
-                    LOG_WARN("Skipping invalid parameter entry in state");
+                if (!param_obj.is_object()) {
+                    LOG_WARN("Skipping invalid parameter entry (expected object)");
                     continue;
                 }
+
+                // Expected format: {"id": 123, "value": 0.5, "name": "..."}
+                const clap_id param_id = param_obj.value("id", CLAP_INVALID_ID);
+                const float value = param_obj.value("value", 0.0f);
                 
                 // Apply the value if we have this parameter
                 auto it = clap_id_to_index_.find(param_id);
@@ -471,7 +462,7 @@ namespace applause
                     loaded_count++;
                 } else {
                     missing_count++;
-                    LOG_DBG("Parameter with ID {} not found in current plugin (might be from different version)", param_id);
+                    LOG_DBG("Parameter with ID {} not found in current plugin", param_id);
                 }
             }
             
