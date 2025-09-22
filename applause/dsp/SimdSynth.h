@@ -1,25 +1,12 @@
 #pragma once
 
-namespace applause
-{
+namespace applause {
 
-    struct VoiceInfo
-    {
-        enum KeyState
-        {
-            Idle,
-            Pressed,
-            Released
-        };
-    };
+struct VoiceInfo {
+    enum KeyState { Idle, Pressed, Released };
+};
 
-    class AggregateVoice
-    {
+class AggregateVoice {};
 
-    };
-
-    class SIMDSynth
-    {
-
-    };
-}
+class SIMDSynth {};
+}  // namespace applause

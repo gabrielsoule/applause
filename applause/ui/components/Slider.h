@@ -1,18 +1,17 @@
 #pragma once
 
-#include <visage_ui/frame.h>
 #include <visage_graphics/animation.h>
+#include <visage_ui/frame.h>
 
 namespace applause {
 
 /**
-* A simple slider widget.
-*/
-class Slider : public visage::Frame
-{
-public:
+ * A simple slider widget.
+ */
+class Slider : public visage::Frame {
+   public:
     Slider();
-    
+
     void draw(visage::Canvas& canvas) override;
     void resized() override;
     void mouseDown(const visage::MouseEvent& event) override;
@@ -27,15 +26,15 @@ public:
     visage::CallbackList<void(float)> on_value_changed;
     visage::CallbackList<void()> on_drag_started;
     visage::CallbackList<void()> on_drag_ended;
-private:
+
+   private:
     void processDrag(float rawDragPos);
     bool dragging_ = false;
     bool hovering_ = false;
-    float value_ = 0; // [0, 1]
+    float value_ = 0;  // [0, 1]
     visage::Animation<float> hover_amount_;
 
     static constexpr float kWheelSensitivity = 0.01f;
-
 };
 
-} // namespace applause
+}  // namespace applause

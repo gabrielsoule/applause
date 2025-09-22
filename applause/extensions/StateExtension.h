@@ -1,45 +1,49 @@
 #pragma once
 
-#include "applause/core/Extension.h"
 #include <clap/ext/state.h>
 #include <clap/stream.h>
+
 #include <functional>
-#include <vector>
 #include <nlohmann/json.hpp>
+#include <vector>
 
-namespace applause
-{
-    /**
-     * @brief Simple JSON transport for CLAP state extension.
-     *
-     * Converts between CLAP streams and JSON. Nothing more.
-     */
-    class StateExtension : public IExtension
-    {
-    public:
-        using SaveCallback = std::function<bool(nlohmann::json& json)>;
-        using LoadCallback = std::function<bool(const nlohmann::json& json)>;
+#include "applause/core/Extension.h"
 
-    private:
-        mutable clap_plugin_state_t clap_struct_{};
-        SaveCallback save_callback_;
-        LoadCallback load_callback_;
-        
-        static bool clap_state_save(const clap_plugin_t* plugin, const clap_ostream_t* stream) noexcept;
-        static bool clap_state_load(const clap_plugin_t* plugin, const clap_istream_t* stream) noexcept;
+namespace applause {
+/**
+ * @brief Simple JSON transport for CLAP state extension.
+ *
+ * Converts between CLAP streams and JSON. Nothing more.
+ */
+class StateExtension : public IExtension {
+   public:
+    using SaveCallback = std::function<bool(nlohmann::json& json)>;
+    using LoadCallback = std::function<bool(const nlohmann::json& json)>;
 
-    public:
-        static constexpr const char* ID = CLAP_EXT_STATE;
+   private:
+    mutable clap_plugin_state_t clap_struct_{};
+    SaveCallback save_callback_;
+    LoadCallback load_callback_;
 
-        StateExtension();
+    static bool clap_state_save(const clap_plugin_t* plugin,
+                                const clap_ostream_t* stream) noexcept;
+    static bool clap_state_load(const clap_plugin_t* plugin,
+                                const clap_istream_t* stream) noexcept;
 
-        const char* id() const override { return ID; }
-        const void* getClapExtensionStruct() const override { return &clap_struct_; }
+   public:
+    static constexpr const char* ID = CLAP_EXT_STATE;
 
-        void setSaveCallback(SaveCallback callback) { save_callback_ = callback; }
-        void setLoadCallback(LoadCallback callback) { load_callback_ = callback; }
-        
-        bool isConfigured() const { return save_callback_ && load_callback_; }
-    };
+    StateExtension();
 
-} // namespace applause
+    const char* id() const override { return ID; }
+    const void* getClapExtensionStruct() const override {
+        return &clap_struct_;
+    }
+
+    void setSaveCallback(SaveCallback callback) { save_callback_ = callback; }
+    void setLoadCallback(LoadCallback callback) { load_callback_ = callback; }
+
+    bool isConfigured() const { return save_callback_ && load_callback_; }
+};
+
+}  // namespace applause

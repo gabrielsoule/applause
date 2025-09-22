@@ -2,9 +2,11 @@
 
 #include <visage_ui/frame.h>
 #include <visage_ui/scroll_bar.h>
-#include "ParamSlider.h"
-#include <vector>
+
 #include <memory>
+#include <vector>
+
+#include "ParamSlider.h"
 
 namespace applause {
 
@@ -16,15 +18,15 @@ namespace applause {
  * The ParamSlider inherits the full height of the GenericParameterEntry.
  */
 class GenericParameterEntry : public visage::Frame {
-public:
+   public:
     GenericParameterEntry(ParamInfo& paramInfo);
 
     void draw(visage::Canvas& canvas) override;
     void resized() override;
-    
+
     void setLabelWidth(float labelWidth);
 
-private:
+   private:
     static constexpr int kLabelPadding = 10;
 
     ParamInfo& paramInfo_;
@@ -32,16 +34,14 @@ private:
     float labelWidth_ = 100.0;
 };
 
-
 class GenericParameterUI : public visage::ScrollableFrame {
-
-public:
+   public:
     GenericParameterUI();
     void draw(visage::Canvas& canvas) override;
     void resized() override;
     void addParameter(ParamInfo& paramInfo);
 
-private:
+   private:
     static constexpr float kPadding = 16.0f;
     static constexpr float kEntryGap = 16.0f;
     static constexpr float kEntryHeight = 26.0f;
@@ -49,4 +49,4 @@ private:
     std::vector<std::unique_ptr<GenericParameterEntry>> entries_;
 };
 
-} // namespace applause
+}  // namespace applause

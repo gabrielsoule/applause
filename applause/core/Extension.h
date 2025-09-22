@@ -3,28 +3,31 @@
 namespace applause {
 
 /**
- * @brief Base interface for all CLAP plugin extensions in the applause framework.
+ * @brief Base interface for all CLAP plugin extensions in the applause
+ * framework.
  *
  * This interface provides the foundation for the extension-based architecture,
  * allowing modular plugin features (parameters, GUI, state, audio ports, etc.)
  * to be composed without dealing with C function pointers or manual wiring.
  *
- * Any collection of code that implements one of CLAP's built-in extensions should
- * implement this interface.
+ * Any collection of code that implements one of CLAP's built-in extensions
+ * should implement this interface.
  *
  * One awkward requirement is that applause::Extensions MUST declare a
  *
  * "static constexpr const char* ID'
  *
- * which is set to the corresponding CLAP extension ID that the applause::Extension intends to implement.
+ * which is set to the corresponding CLAP extension ID that the
+ * applause::Extension intends to implement.
  *
  * @see PluginBase::registerExtension()
  * @see PluginBase::findExtension()
  */
 class IExtension {
-public:
+   public:
     /**
-     * @brief Virtual destructor for proper cleanup of derived extension classes.
+     * @brief Virtual destructor for proper cleanup of derived extension
+     * classes.
      */
     virtual ~IExtension() = default;
 
@@ -44,12 +47,13 @@ public:
     virtual const char* id() const = 0;
 
     /**
-     * @brief Returns a pointer to the CLAP C struct containing function pointers.
+     * @brief Returns a pointer to the CLAP C struct containing function
+     * pointers.
      *
      * This method provides the C interface that CLAP hosts expect. The returned
-     * pointer should be to a struct like clap_plugin_params_t, clap_plugin_gui_t,
-     * etc., populated with static C function pointers that dispatch back to this
-     * extension instance.
+     * pointer should be to a struct like clap_plugin_params_t,
+     * clap_plugin_gui_t, etc., populated with static C function pointers that
+     * dispatch back to this extension instance.
      *
      * @return Pointer to the CLAP extension C struct, or nullptr on error
      */
@@ -58,22 +62,14 @@ public:
 
 template <typename CExt>
 struct CExtensionWrapper : IExtension {
-    const char* _ext_id {};
-    CExt _ext {};
+    const char* _ext_id{};
+    CExt _ext{};
 
-    constexpr CExtensionWrapper (const char* ext_id, CExt&& ext)
-        : _ext_id { ext_id },
-          _ext { ext } {
-    }
+    constexpr CExtensionWrapper(const char* ext_id, CExt&& ext)
+        : _ext_id{ext_id}, _ext{ext} {}
 
-    const char* id() const override
-    {
-        return _ext_id;
-    }
+    const char* id() const override { return _ext_id; }
 
-    const void* getClapExtensionStruct() const override
-    {
-        return &_ext;
-    }
+    const void* getClapExtensionStruct() const override { return &_ext; }
 };
-} // namespace applause
+}  // namespace applause
