@@ -178,27 +178,22 @@ bool GUIExtension::clap_gui_adjust_size(const clap_plugin_t* plugin,
     auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
     if (!ext) return false;
 
-    // Check if we should enforce aspect ratio
     bool shouldEnforceAspectRatio = false;
     float aspectRatio = ext->aspectRatio_;
 
     if (ext->editor_) {
-        // Query editor's actual state
         shouldEnforceAspectRatio = ext->editor_->isFixedAspectRatio();
         if (shouldEnforceAspectRatio) {
             aspectRatio = ext->editor_->getAspectRatio();
         }
     } else {
-        // Fall back to stored values
         shouldEnforceAspectRatio = ext->fixedAspectRatio_;
     }
 
     if (!shouldEnforceAspectRatio) {
-        // No adjustment needed if not fixed aspect ratio
         return true;
     }
 
-    // Enforce aspect ratio - same logic as ClapPlugin example
     float current_ratio =
         static_cast<float>(*width) / static_cast<float>(*height);
 

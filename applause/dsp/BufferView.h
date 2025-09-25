@@ -24,13 +24,13 @@ namespace applause {
  * memory is allocated and freed in a way that is compatible with the lifetime
  * of the BufferView.
  */
-template <SampleConcept S, std::size_t Channels = 2>
+template <SampleConcept S, std::size_t MaxChannels = 8>
 class BufferView {
    public:
     using Sample = S;
     using Scalar = scalar_t<S>;
 
-    static constexpr std::size_t channel_count = Channels;
+    static constexpr std::size_t max_channel_count = MaxChannels;
     static constexpr std::size_t sample_width = sampleWidth<Sample>();
     static constexpr bool is_simd = SimdBatch<Sample>;
 
@@ -80,12 +80,18 @@ class BufferView {
     constexpr BufferView() noexcept = default;
 
     /**
-     * Constructor for contiguous memory layout (interleaved channel planes).
+     * Constructor for contiguous memory layout (sequential channel planes)
      * Channels are stored sequentially: all of channel 0, then all of channel
      * 1, etc.
      */
-    constexpr BufferView(Scalar* base_ptr, std::size_t frame_count) noexcept
-        : base_ptr_{base_ptr}, frame_count_{frame_count}, is_contiguous_{true} {
+    constexpr BufferView(Scalar* base_ptr,
+                         std::size_t channel_count,
+                         std::size_t frame_count) noexcept
+        : base_ptr_{base_ptr},
+          frame_count_{frame_count},
+          active_channels_{channel_count},
+          is_contiguous_{true} {
+        ASSERT(channel_count <= MaxChannels, "Channel count {} exceeds maximum {}", channel_count, MaxChannels);
         ASSERT(base_ptr_ != nullptr || frame_count_ == 0,
                "BufferView: null base pointer with nonzero frame count");
         if (base_ptr_ != nullptr) {
@@ -95,12 +101,22 @@ class BufferView {
                 "BufferView: base pointer not aligned for sample type");
 
             // Pre-calculate channel pointers for contiguous layout
-            for (std::size_t ch = 0; ch < channel_count; ++ch) {
+            for (std::size_t ch = 0; ch < active_channels_; ++ch) {
                 channel_ptrs_[ch] =
                     base_ptr_ + ch * frame_count_ * sample_width;
             }
+            // Zero remaining pointers for safety
+            for (std::size_t ch = active_channels_; ch < MaxChannels; ++ch) {
+                channel_ptrs_[ch] = nullptr;
+            }
         }
     }
+
+    /**
+     * Compatibility overload that assumes all template channels are active.
+     */
+    constexpr BufferView(Scalar* base_ptr, std::size_t frame_count) noexcept
+        : BufferView(base_ptr, MaxChannels, frame_count) {}
 
     /**
      * Convenience constructor for hosts that expose CLAP-style `float**`
@@ -115,17 +131,23 @@ class BufferView {
     template <typename T = Scalar,
               std::enable_if_t<std::is_same_v<T, float>, int> = 0>
     constexpr BufferView(Scalar** channels_ptr,
+                         std::size_t channel_count,
                          std::size_t frame_count) noexcept
-        : base_ptr_{nullptr}, frame_count_{frame_count}, is_contiguous_{false} {
+        : base_ptr_{nullptr}, frame_count_{frame_count}, active_channels_{channel_count}, is_contiguous_{false} {
+        ASSERT(channel_count <= MaxChannels, "Channel count {} exceeds maximum {}", channel_count, MaxChannels);
         ASSERT(frame_count > 0, "frame count must be greater than zero");
         ASSERT(channels_ptr != nullptr, "null channel pointer array");
-        for (std::size_t c = 0; c < channel_count; ++c) {
+        for (std::size_t c = 0; c < active_channels_; ++c) {
             ASSERT(channels_ptr[c] != nullptr, "null channel pointer");
         }
 
         // Copy channel pointers supplied by the host
-        for (std::size_t ch = 0; ch < channel_count; ++ch) {
+        for (std::size_t ch = 0; ch < active_channels_; ++ch) {
             channel_ptrs_[ch] = channels_ptr[ch];
+        }
+        // Zero remaining pointers for safety
+        for (std::size_t ch = active_channels_; ch < MaxChannels; ++ch) {
+            channel_ptrs_[ch] = nullptr;
         }
 
         verifyContiguity();
@@ -141,7 +163,7 @@ class BufferView {
         return frame_count_;
     }
     [[nodiscard]] constexpr std::size_t numChannels() const noexcept {
-        return channel_count;
+        return active_channels_;
     }
 
     [[nodiscard]] constexpr bool isValid() const noexcept {
@@ -157,14 +179,14 @@ class BufferView {
     [[nodiscard]] const Scalar* rawData() const noexcept { return base_ptr_; }
 
     [[nodiscard]] Scalar* channelScalars(std::size_t channel) noexcept {
-        ASSERT(channel < channel_count,
+        ASSERT(channel < active_channels_,
                "BufferView: channel index out of range");
         return channel_ptrs_[channel];
     }
 
     [[nodiscard]] const Scalar* channelScalars(
         std::size_t channel) const noexcept {
-        ASSERT(channel < channel_count,
+        ASSERT(channel < active_channels_,
                "BufferView: channel index out of range");
         return channel_ptrs_[channel];
     }
@@ -214,6 +236,7 @@ class BufferView {
         BufferView sub{};
         const std::size_t sub_frames = end_frame - start_frame;
         sub.frame_count_ = sub_frames;
+        sub.active_channels_ = active_channels_;
 
         // Fast return: full-range slice => identical view.
         if (start_frame == 0 && sub_frames == frame_count_) return *this;
@@ -229,7 +252,7 @@ class BufferView {
             // Cheap copy when we're slicing only at the tail (start==0).
             sub.channel_ptrs_ = channel_ptrs_;
         } else {
-            for (std::size_t ch = 0; ch < channel_count; ++ch) {
+            for (std::size_t ch = 0; ch < active_channels_; ++ch) {
                 Scalar* src = channel_ptrs_[ch];
                 sub.channel_ptrs_[ch] =
                     src ? src + frame_scalar_offset : nullptr;
@@ -237,7 +260,7 @@ class BufferView {
         }
 
         // Decide contiguity & base pointer.
-        if constexpr (channel_count == 1) {
+        if (active_channels_ == 1) {
             // One plane: any slice is contiguous.
             sub.is_contiguous_ = (sub.channel_ptrs_[0] != nullptr);
             sub.base_ptr_ = sub.channel_ptrs_[0];
@@ -288,11 +311,11 @@ class BufferView {
         if (is_contiguous_ && base_ptr_ != nullptr) {
             // Fast path: single memset for contiguous memory
             const std::size_t total_scalars =
-                channel_count * scalarsPerChannel();
+                active_channels_ * scalarsPerChannel();
             std::memset(base_ptr_, 0, total_scalars * sizeof(Scalar));
         } else {
             // Non-contiguous: clear each channel separately
-            for (std::size_t ch = 0; ch < channel_count; ++ch) {
+            for (std::size_t ch = 0; ch < active_channels_; ++ch) {
                 if (channel_ptrs_[ch] != nullptr) {
                     std::memset(channel_ptrs_[ch], 0,
                                 scalarsPerChannel() * sizeof(Scalar));
@@ -305,7 +328,7 @@ class BufferView {
      * Clears (zeros) a single channel.
      */
     void clearChannel(std::size_t channel) noexcept {
-        ASSERT(channel < channel_count,
+        ASSERT(channel < active_channels_,
                "BufferView: channel index out of range");
         Scalar* channel_ptr = channelScalars(channel);
         if (channel_ptr == nullptr) return;
@@ -325,7 +348,8 @@ class BufferView {
    private:
     Scalar* base_ptr_ = nullptr;
     std::size_t frame_count_ = 0;
-    std::array<Scalar*, Channels> channel_ptrs_{};
+    std::size_t active_channels_ = 0;
+    std::array<Scalar*, MaxChannels> channel_ptrs_{};
     bool is_contiguous_ = true;
 
     bool verifyContiguity() noexcept {
@@ -345,7 +369,7 @@ class BufferView {
 
         // Verify every subsequent channel starts exactly at the expected
         // address.
-        for (std::size_t ch = 1; ch < channel_count; ++ch) {
+        for (std::size_t ch = 1; ch < active_channels_; ++ch) {
             const std::uintptr_t p =
                 reinterpret_cast<std::uintptr_t>(channel_ptrs_[ch]);
             if (p != expected) return false;
@@ -359,4 +383,10 @@ class BufferView {
         return true;
     }
 };
+// Common buffer type aliases for convenience
+using MonoBuffer = BufferView<float, 1>;
+using StereoBuffer = BufferView<float, 2>;
+using SurroundBuffer = BufferView<float, 8>;
+using FlexBuffer = BufferView<float, 8>;  // Flexible up to 7.1 surround
+
 }  // namespace applause

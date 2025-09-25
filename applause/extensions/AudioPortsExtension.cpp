@@ -47,9 +47,6 @@ bool AudioPortsExtension::clap_audio_ports_get(
     } else if (port.port_type == CLAP_PORT_MONO) {
         info->port_type = CLAP_PORT_MONO;
     } else {
-        // For custom port types, we need to ensure the string remains valid
-        // In a real implementation, you might want to store these as static
-        // strings
         info->port_type = port.port_type.c_str();
     }
 

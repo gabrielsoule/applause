@@ -7,7 +7,6 @@
 
 namespace applause {
 
-// NotePortConfig static methods
 NotePortConfig NotePortConfig::midi(std::string_view name) {
     return {.name = std::string(name),
             .supported_dialects = CLAP_NOTE_DIALECT_MIDI,
@@ -35,7 +34,6 @@ NotePortConfig NotePortConfig::universal(std::string_view name) {
             .preferred_dialect = CLAP_NOTE_DIALECT_CLAP};
 }
 
-// NotePortsExtension constructor
 NotePortsExtension::NotePortsExtension(const clap_host_t* host) : host_(host) {
     if (host_) {
         host_note_ports_ = static_cast<const clap_host_note_ports_t*>(
@@ -43,7 +41,6 @@ NotePortsExtension::NotePortsExtension(const clap_host_t* host) : host_(host) {
     }
 }
 
-// NotePortsExtension methods
 NotePortsExtension& NotePortsExtension::addInput(const NotePortConfig& config) {
     clap_id id = (config.id == CLAP_INVALID_ID) ? next_id_++ : config.id;
     uint32_t preferred =

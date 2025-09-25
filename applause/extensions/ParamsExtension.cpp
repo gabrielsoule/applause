@@ -372,11 +372,11 @@ void ParamsExtension::registerParam(const ParamConfig& config) {
 ParamHandle& ParamsExtension::getHandle(clap_id paramId) {
     auto it = clap_id_to_index_.find(paramId);
     ASSERT(it != clap_id_to_index_.end(),
-           "Parameter with CLAP ID " + std::to_string(paramId) + " not found");
+           "Parameter with CLAP ID {} not found", paramId);
     uint32_t index = it->second;
     ASSERT(
         handles_[index].value_ != nullptr,
-        "Parameter handle not initialized for ID: " + std::to_string(paramId));
+        "Parameter handle not initialized for ID: {}", paramId);
     return handles_[index];
 }
 
@@ -386,18 +386,17 @@ ParamHandle& ParamsExtension::getHandle(std::string_view stringId) {
     auto it = string_id_to_index_.find(std::string(stringId));
     ASSERT(
         it != string_id_to_index_.end(),
-        "Parameter with string ID '" + std::string(stringId) + "' not found");
+        "Parameter with string ID '{}' not found", stringId);
     uint32_t index = it->second;
     ASSERT(handles_[index].value_ != nullptr,
-           "Parameter handle not initialized for string ID: " +
-               std::string(stringId));
+           "Parameter handle not initialized for string ID: {}", stringId);
     return handles_[index];
 }
 
 ParamInfo& ParamsExtension::getInfo(clap_id paramId) {
     auto it = clap_id_to_index_.find(paramId);
     ASSERT(it != clap_id_to_index_.end(),
-           "Parameter with CLAP ID " + std::to_string(paramId) + " not found");
+           "Parameter with CLAP ID {} not found", paramId);
     return infos_[it->second];
 }
 
@@ -407,7 +406,7 @@ ParamInfo& ParamsExtension::getInfo(std::string_view stringId) {
     auto it = string_id_to_index_.find(std::string(stringId));
     ASSERT(
         it != string_id_to_index_.end(),
-        "Parameter with string ID '" + std::string(stringId) + "' not found");
+        "Parameter with string ID '{}' not found", stringId);
     return infos_[it->second];
 }
 
@@ -432,24 +431,19 @@ void ParamsExtension::processEvents(const clap_input_events_t* in,
                 // Look up the parameter
                 auto it = clap_id_to_index_.find(param_id);
                 ASSERT(it != clap_id_to_index_.end(),
-                       "Parameter ID " + std::to_string(param_id) +
-                           " not found in registry");
+                       "Parameter ID {} not found in registry", param_id);
 
                 uint32_t index = it->second;
                 const auto& param_info = infos_[index];
                 ASSERT(!param_info.internal,
-                       "Received parameter event for internal parameter '" +
-                           param_info.name + "' (ID " +
-                           std::to_string(param_id) + ")");
+                       "Received parameter event for internal parameter '{}' (ID {})",
+                       param_info.name, param_id);
 
                 float new_value = static_cast<float>(param_event->value);
                 ASSERT(new_value >= param_info.minValue &&
                            new_value <= param_info.maxValue,
-                       "Parameter value " + std::to_string(new_value) +
-                           " out of range [" +
-                           std::to_string(param_info.minValue) + ", " +
-                           std::to_string(param_info.maxValue) +
-                           "] for parameter '" + param_info.name + "'");
+                       "Parameter value {} out of range [{}, {}] for parameter '{}'",
+                       new_value, param_info.minValue, param_info.maxValue, param_info.name);
 
                 if (param_info.stepped) {
                     new_value = static_cast<float>(static_cast<int>(new_value));
