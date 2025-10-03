@@ -307,7 +307,7 @@ APPLAUSE_FORCEINLINE void fence(memory_order order) APPLAUSE_NO_TSAN {
 namespace applause {
 template <typename T>
 class weak_atomic {
-   public:
+public:
     APPLAUSE_NO_TSAN weak_atomic() : value() {}
 #ifdef APPLAUSE_VCPP
 #pragma warning(push)
@@ -405,7 +405,7 @@ class weak_atomic {
     }
 #endif
 
-   private:
+private:
 #ifndef APPLAUSE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
     // No std::atomic support, but still need to circumvent compiler
     // optimizations. `volatile` will make memory access slow, but is guaranteed
@@ -473,13 +473,13 @@ namespace applause {
 namespace spsc_sema {
 #if defined(_WIN32)
 class Semaphore {
-   private:
+private:
     void* m_hSema;
 
     Semaphore(const Semaphore& other);
     Semaphore& operator=(const Semaphore& other);
 
-   public:
+public:
     APPLAUSE_NO_TSAN Semaphore(int initialCount = 0) : m_hSema() {
         assert(initialCount >= 0);
         const long maxLong = 0x7fffffff;
@@ -513,13 +513,13 @@ class Semaphore {
 // http://lists.apple.com/archives/darwin-kernel/2009/Apr/msg00010.html
 //---------------------------------------------------------
 class Semaphore {
-   private:
+private:
     semaphore_t m_sema;
 
     Semaphore(const Semaphore& other);
     Semaphore& operator=(const Semaphore& other);
 
-   public:
+public:
     APPLAUSE_NO_TSAN Semaphore(int initialCount = 0) : m_sema() {
         assert(initialCount >= 0);
         kern_return_t rc = semaphore_create(mach_task_self(), &m_sema,
@@ -564,13 +564,13 @@ class Semaphore {
 // Semaphore (POSIX, Linux)
 //---------------------------------------------------------
 class Semaphore {
-   private:
+private:
     sem_t m_sema;
 
     Semaphore(const Semaphore& other);
     Semaphore& operator=(const Semaphore& other);
 
-   public:
+public:
     APPLAUSE_NO_TSAN Semaphore(int initialCount = 0) : m_sema() {
         assert(initialCount >= 0);
         int rc = sem_init(&m_sema, 0, static_cast<unsigned int>(initialCount));
@@ -631,13 +631,13 @@ class Semaphore {
 // Semaphore (FreeRTOS)
 //---------------------------------------------------------
 class Semaphore {
-   private:
+private:
     SemaphoreHandle_t m_sema;
 
     Semaphore(const Semaphore& other);
     Semaphore& operator=(const Semaphore& other);
 
-   public:
+public:
     APPLAUSE_NO_TSAN Semaphore(int initialCount = 0) : m_sema() {
         assert(initialCount >= 0);
         m_sema =
@@ -691,10 +691,10 @@ class Semaphore {
 // LightweightSemaphore
 //---------------------------------------------------------
 class LightweightSemaphore {
-   public:
+public:
     typedef std::make_signed<std::size_t>::type ssize_t;
 
-   private:
+private:
     weak_atomic<ssize_t> m_count;
     Semaphore m_sema;
 
@@ -738,7 +738,7 @@ class LightweightSemaphore {
         }
     }
 
-   public:
+public:
     APPLAUSE_NO_TSAN LightweightSemaphore(ssize_t initialCount = 0)
         : m_count(initialCount), m_sema() {
         assert(initialCount >= 0);

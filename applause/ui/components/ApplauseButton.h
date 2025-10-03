@@ -32,7 +32,7 @@
 
 namespace applause {
 class Button : public visage::Frame {
-   public:
+public:
     VISAGE_THEME_DEFINE_COLOR(ApplauseButtonShadow);
 
     Button() {
@@ -81,7 +81,7 @@ class Button : public visage::Frame {
     std::function<void()> undoSetupFunction() { return undo_setup_function_; }
     bool wasAltClicked() const { return alt_clicked_; }
 
-   private:
+private:
     visage::CallbackList<void(Button*, bool)> on_toggle_;
     visage::Animation<float> hover_amount_;
     std::function<void()> undo_setup_function_ = nullptr;
@@ -96,7 +96,7 @@ class Button : public visage::Frame {
 };
 
 class UiButton : public Button {
-   public:
+public:
     // Regular button colors - Normal, Hover, Pressed
     VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackground);
     VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackgroundHover);
@@ -156,14 +156,14 @@ class UiButton : public Button {
 
     void drawBorderWhenInactive(bool border) { border_when_inactive_ = border; }
 
-   private:
+private:
     visage::Text text_;
     bool action_ = false;
     bool border_when_inactive_ = true;
 };
 
 class IconButton : public Button {
-   public:
+public:
     static constexpr float kDefaultShadowProportion = 0.1f;
 
     IconButton() = default;
@@ -231,7 +231,7 @@ class IconButton : public Button {
         setIconSizes();
     }
 
-   private:
+private:
     visage::Svg icon_;
     visage::Svg shadow_;
 
@@ -242,7 +242,7 @@ class IconButton : public Button {
 class ButtonChangeAction;
 
 class ToggleButton : public Button {
-   public:
+public:
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleButtonDisabled);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleButtonOff);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleButtonOffHover);
@@ -274,7 +274,7 @@ class ToggleButton : public Button {
     bool toggled() const { return toggled_; }
     void setUndoable(bool undoable) { undoable_ = undoable; }
 
-   private:
+private:
     bool toggled_ = false;
     bool undoable_ = true;
 
@@ -282,20 +282,20 @@ class ToggleButton : public Button {
 };
 
 class ButtonChangeAction : public visage::UndoableAction {
-   public:
+public:
     ButtonChangeAction(ToggleButton* button, bool toggled_on)
         : button_(button), toggled_on_(toggled_on) {}
 
     void undo() override { button_->setToggledAndNotify(!toggled_on_); }
     void redo() override { button_->setToggledAndNotify(toggled_on_); }
 
-   private:
+private:
     ToggleButton* button_ = nullptr;
     bool toggled_on_ = false;
 };
 
 class ToggleIconButton : public ToggleButton {
-   public:
+public:
     static constexpr float kDefaultShadowRatio = 0.1f;
 
     explicit ToggleIconButton(const visage::Svg& icon, bool shadow = false)
@@ -365,7 +365,7 @@ class ToggleIconButton : public ToggleButton {
         setIconSizes();
     }
 
-   private:
+private:
     visage::Svg icon_;
     visage::Svg shadow_;
 
@@ -374,7 +374,7 @@ class ToggleIconButton : public ToggleButton {
 };
 
 class ToggleTextButton : public ToggleButton {
-   public:
+public:
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOff);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOffHover);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOffPressed);
@@ -417,7 +417,7 @@ class ToggleTextButton : public ToggleButton {
         draw_background_ = draw_background;
     }
 
-   private:
+private:
     bool draw_background_ = true;
     visage::Text text_;
 };

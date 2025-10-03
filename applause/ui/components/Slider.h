@@ -9,7 +9,7 @@ namespace applause {
  * A simple slider widget.
  */
 class Slider : public visage::Frame {
-   public:
+public:
     Slider();
 
     void draw(visage::Canvas& canvas) override;
@@ -27,7 +27,7 @@ class Slider : public visage::Frame {
     visage::CallbackList<void()> on_drag_started;
     visage::CallbackList<void()> on_drag_ended;
 
-   private:
+private:
     void processDrag(float rawDragPos);
     bool dragging_ = false;
     bool hovering_ = false;

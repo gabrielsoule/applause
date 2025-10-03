@@ -371,22 +371,18 @@ void ParamsExtension::registerParam(const ParamConfig& config) {
 
 ParamHandle& ParamsExtension::getHandle(clap_id paramId) {
     auto it = clap_id_to_index_.find(paramId);
-    ASSERT(it != clap_id_to_index_.end(),
-           "Parameter with CLAP ID {} not found", paramId);
+    ASSERT(it != clap_id_to_index_.end(), "Parameter with CLAP ID {} not found",
+           paramId);
     uint32_t index = it->second;
-    ASSERT(
-        handles_[index].value_ != nullptr,
-        "Parameter handle not initialized for ID: {}", paramId);
+    ASSERT(handles_[index].value_ != nullptr,
+           "Parameter handle not initialized for ID: {}", paramId);
     return handles_[index];
 }
 
 ParamHandle& ParamsExtension::getHandle(std::string_view stringId) {
-    // Note: std::unordered_map doesn't directly support string_view lookup in
-    // C++17 We need to convert to std::string for the lookup
     auto it = string_id_to_index_.find(std::string(stringId));
-    ASSERT(
-        it != string_id_to_index_.end(),
-        "Parameter with string ID '{}' not found", stringId);
+    ASSERT(it != string_id_to_index_.end(),
+           "Parameter with string ID '{}' not found", stringId);
     uint32_t index = it->second;
     ASSERT(handles_[index].value_ != nullptr,
            "Parameter handle not initialized for string ID: {}", stringId);
@@ -395,18 +391,15 @@ ParamHandle& ParamsExtension::getHandle(std::string_view stringId) {
 
 ParamInfo& ParamsExtension::getInfo(clap_id paramId) {
     auto it = clap_id_to_index_.find(paramId);
-    ASSERT(it != clap_id_to_index_.end(),
-           "Parameter with CLAP ID {} not found", paramId);
+    ASSERT(it != clap_id_to_index_.end(), "Parameter with CLAP ID {} not found",
+           paramId);
     return infos_[it->second];
 }
 
 ParamInfo& ParamsExtension::getInfo(std::string_view stringId) {
-    // Note: std::unordered_map doesn't directly support string_view lookup in
-    // C++17 We need to convert to std::string for the lookup
     auto it = string_id_to_index_.find(std::string(stringId));
-    ASSERT(
-        it != string_id_to_index_.end(),
-        "Parameter with string ID '{}' not found", stringId);
+    ASSERT(it != string_id_to_index_.end(),
+           "Parameter with string ID '{}' not found", stringId);
     return infos_[it->second];
 }
 
@@ -436,20 +429,22 @@ void ParamsExtension::processEvents(const clap_input_events_t* in,
                 uint32_t index = it->second;
                 const auto& param_info = infos_[index];
                 ASSERT(!param_info.internal,
-                       "Received parameter event for internal parameter '{}' (ID {})",
+                       "Received parameter event for internal parameter '{}' "
+                       "(ID {})",
                        param_info.name, param_id);
 
                 float new_value = static_cast<float>(param_event->value);
                 ASSERT(new_value >= param_info.minValue &&
                            new_value <= param_info.maxValue,
-                       "Parameter value {} out of range [{}, {}] for parameter '{}'",
-                       new_value, param_info.minValue, param_info.maxValue, param_info.name);
+                       "Parameter value {} out of range [{}, {}] for parameter "
+                       "'{}'",
+                       new_value, param_info.minValue, param_info.maxValue,
+                       param_info.name);
 
                 if (param_info.stepped) {
                     new_value = static_cast<float>(static_cast<int>(new_value));
                 }
 
-                // Update the atomic value
                 values_[index].store(new_value, std::memory_order_relaxed);
 
                 // Notify UI of parameter change from host

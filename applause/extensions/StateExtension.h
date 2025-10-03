@@ -16,11 +16,11 @@ namespace applause {
  * Converts between CLAP streams and JSON. Nothing more.
  */
 class StateExtension : public IExtension {
-   public:
+public:
     using SaveCallback = std::function<bool(nlohmann::json& json)>;
     using LoadCallback = std::function<bool(const nlohmann::json& json)>;
 
-   private:
+private:
     mutable clap_plugin_state_t clap_struct_{};
     SaveCallback save_callback_;
     LoadCallback load_callback_;
@@ -30,7 +30,7 @@ class StateExtension : public IExtension {
     static bool clap_state_load(const clap_plugin_t* plugin,
                                 const clap_istream_t* stream) noexcept;
 
-   public:
+public:
     static constexpr const char* ID = CLAP_EXT_STATE;
 
     StateExtension();

@@ -6,7 +6,7 @@
 namespace applause {
 
 class Knob : public visage::Frame {
-   public:
+public:
     Knob();
     ~Knob() override = default;
 
@@ -18,7 +18,7 @@ class Knob : public visage::Frame {
     visage::CallbackList<void()> onDragStarted;
     visage::CallbackList<void()> onDragEnded;
 
-   protected:
+protected:
     void draw(visage::Canvas& canvas) override;
     void mouseDown(const visage::MouseEvent& e) override;
     void mouseDrag(const visage::MouseEvent& e) override;
@@ -27,7 +27,7 @@ class Knob : public visage::Frame {
     void mouseExit(const visage::MouseEvent& e) override;
     bool mouseWheel(const visage::MouseEvent& e) override;
 
-   private:
+private:
     void processDrag(float mouseY);
 
     float value_ = 0.0f;  // Normalized value [0, 1]

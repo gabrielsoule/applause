@@ -16,13 +16,13 @@ namespace applause {
  * connects to parameter changes via rocket signal system.
  */
 class ParamSlider : public visage::Frame {
-   public:
+public:
     ParamSlider(ParamInfo& paramInfo);
 
     void resized() override;
     void draw(visage::Canvas& canvas) override;
 
-   private:
+private:
     static constexpr int kLabelWidth = 80;
     static constexpr int kLabelPadding = 5;
 

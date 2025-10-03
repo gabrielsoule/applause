@@ -13,13 +13,13 @@ class ParamMessageQueue;
  * framework-agnostic.
  *
  * Implementations can be created using any GUI framework: JUCE,
- * Dear ImGui, vst-gui, e0or custom solutions.
+ * Dear ImGui, vst-gui, or custom solutions.
  *
  * That said, we enthusiastically recommend our bespoke
  * Applause::ApplauseEditor!
  */
 class IEditor {
-   public:
+public:
     virtual ~IEditor() = default;
 
     // Thread-safe parameter communication

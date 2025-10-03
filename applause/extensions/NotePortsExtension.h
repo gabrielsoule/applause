@@ -60,7 +60,7 @@ struct NotePortConfig {
  * use this extension to define MIDI input ports
  */
 class NotePortsExtension : public IExtension {
-   private:
+private:
     /**
      * @brief Internal storage for a configured note port.
      */
@@ -88,7 +88,7 @@ class NotePortsExtension : public IExtension {
     // CLAP C callbacks
     static uint32_t clap_note_ports_count(const clap_plugin_t* plugin,
                                           bool is_input) noexcept;
-    static bool clap_note_ports_get(const clap_plugin_t* plugin,uint32_t index,
+    static bool clap_note_ports_get(const clap_plugin_t* plugin, uint32_t index,
                                     bool is_input,
                                     clap_note_port_info_t* info) noexcept;
 
@@ -99,7 +99,7 @@ class NotePortsExtension : public IExtension {
     static constexpr clap_plugin_note_ports_t clap_struct_ = {
         .count = clap_note_ports_count, .get = clap_note_ports_get};
 
-   public:
+public:
     static constexpr const char* ID = CLAP_EXT_NOTE_PORTS;
 
     /**

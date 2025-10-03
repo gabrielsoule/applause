@@ -15,13 +15,13 @@ namespace applause {
  * Displays the parameter's shortName below the knob.
  */
 class ParamKnob : public visage::Frame {
-   public:
+public:
     ParamKnob(ParamInfo& paramInfo);
 
     void draw(visage::Canvas& canvas) override;
     void resized() override;
 
-   private:
+private:
     static constexpr float kLabelHeight = 20.0f;
     static constexpr float kLabelPadding = 2.0f;
 

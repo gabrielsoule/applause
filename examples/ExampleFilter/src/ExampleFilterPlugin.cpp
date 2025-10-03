@@ -15,10 +15,8 @@ ExampleFilterPlugin::ExampleFilterPlugin(const clap_plugin_descriptor_t* descrip
     LOG_INFO("ExampleFilter constructor");
 
     // Configure audio ports for stereo effect processing
-    // Input port - stereo input to be processed
     audio_ports_.addInput(applause::AudioPortConfig::mainStereo("Audio In"));
 
-    // Output port - processed stereo output
     audio_ports_.addOutput(applause::AudioPortConfig::mainStereo("Audio Out"));
 
     // Register filter cutoff parameter
@@ -93,16 +91,14 @@ bool ExampleFilterPlugin::activate(double sample_rate, uint32_t min_frames, uint
 {
     sample_rate_ = sample_rate;
 
-    // Prepare the filter for the given sample rate
     juce::dsp::ProcessSpec spec{};
     spec.sampleRate = sample_rate;
     spec.maximumBlockSize = max_frames;
-    spec.numChannels = 2; // Stereo
+    spec.numChannels = 2;
 
     filter_.prepare(spec);
     filter_.reset();
 
-    // Set initial parameters
     const float initial_cutoff = param_cutoff_->getValue();
     const float initial_resonance = param_res_->getValue();
     const float initial_mode = param_mode_->getValue();
@@ -183,7 +179,6 @@ clap_process_status ExampleFilterPlugin::process(const clap_process_t* process) 
         chowdsp::BufferView<float> buffer_view(output->data32, static_cast<int>(channel_count),
                                                static_cast<int>(frame_count));
 
-        // Apply the filter
         filter_.processBlock(buffer_view);
     }
 

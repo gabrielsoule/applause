@@ -17,19 +17,19 @@ concept SimdBatch = requires {
 };
 
 template <typename T>
-concept ScalarType = (!SimdBatch<T>) && std::floating_point<T>;
+concept Scalar = (!SimdBatch<T>) && std::floating_point<T>;
 
 /**
  * A concept for a sample type. This can either be a scalar type, e.g. a float
  * or a double, or a SIMD batch type, e.g. a xsimd::batch<float/double>.
  */
 template <typename T>
-concept SampleConcept = ScalarType<T> || SimdBatch<T>;
+concept Sample = Scalar<T> || SimdBatch<T>;
 
-template <SampleConcept S>
+template <Sample S>
 class StereoSample;
 
-template <SampleConcept S>
+template <Sample S>
 struct scalar_of {
     using type = S;
 };
@@ -39,22 +39,25 @@ struct scalar_of<S> {
     using type = typename S::value_type;
 };
 
-template <SampleConcept S>
+template <Sample S>
 struct scalar_of<StereoSample<S>> {
     using type = typename scalar_of<S>::type;
 };
 
-template <SampleConcept S>
+template <Sample S>
 using scalar_t = typename scalar_of<S>::type;
 
-template <SampleConcept S>
-inline constexpr std::size_t sample_width_v =
-    SimdBatch<S> ? S::size : std::size_t{1};
-
-template <SampleConcept S>
+template <Sample S>
 constexpr std::size_t sampleWidth() noexcept {
-    return sample_width_v<S>;
+    if constexpr (SimdBatch<S>) {
+        return S::size;
+    } else {
+        return std::size_t{1};
+    }
 }
+
+template <Sample S>
+inline constexpr std::size_t sample_width_v = sampleWidth<S>();
 
 template <typename T>
 using mask_t =
@@ -63,9 +66,9 @@ using mask_t =
 template <class T, bool UseSIMD>
 using SampleType = std::conditional_t<UseSIMD, xsimd::batch<T>, T>;
 
-template <SampleConcept S>
+template <Sample S>
 class StereoSample {
-   public:
+public:
     using sample_type = S;
     using scalar_type = scalar_t<S>;
 
@@ -280,7 +283,7 @@ class StereoSample {
         return StereoSample{-value.left_, -value.right_};
     }
 
-   private:
+private:
     template <typename V>
     static constexpr S toSample(V&& value) noexcept {
         if constexpr (std::same_as<std::remove_cvref_t<V>, S>) {
@@ -304,7 +307,7 @@ class StereoSample {
     S right_{};
 };
 
-template <SampleConcept S>
+template <Sample S>
 inline S set1(scalar_t<S> v) noexcept {
     if constexpr (SimdBatch<S>)
         return S(v);
@@ -312,7 +315,7 @@ inline S set1(scalar_t<S> v) noexcept {
         return v;
 }
 
-template <SampleConcept S>
+template <Sample S>
 inline S load_unaligned(const scalar_t<S>* p) noexcept {
     if constexpr (SimdBatch<S>)
         return S{}.load_unaligned(p);
@@ -320,7 +323,7 @@ inline S load_unaligned(const scalar_t<S>* p) noexcept {
         return *p;
 }
 
-template <SampleConcept S>
+template <Sample S>
 inline void store_unaligned(const S& v, scalar_t<S>* p) noexcept {
     if constexpr (SimdBatch<S>)
         v.store_unaligned(p);
@@ -328,7 +331,7 @@ inline void store_unaligned(const S& v, scalar_t<S>* p) noexcept {
         *p = v;
 }
 
-template <SampleConcept S>
+template <Sample S>
 inline S load_aligned(const scalar_t<S>* p) noexcept {
     if constexpr (SimdBatch<S>)
         return S{}.load_aligned(p);
@@ -336,7 +339,7 @@ inline S load_aligned(const scalar_t<S>* p) noexcept {
         return *p;
 }
 
-template <SampleConcept S>
+template <Sample S>
 inline void store_aligned(const S& v, scalar_t<S>* p) noexcept {
     if constexpr (SimdBatch<S>)
         v.store_aligned(p);
@@ -344,7 +347,7 @@ inline void store_aligned(const S& v, scalar_t<S>* p) noexcept {
         *p = v;
 }
 
-template <SampleConcept S>
+template <Sample S>
 inline S fma(const S& a, const S& b, const S& c) noexcept {
     if constexpr (SimdBatch<S>)
         return xsimd::fma(a, b, c);
@@ -352,7 +355,7 @@ inline S fma(const S& a, const S& b, const S& c) noexcept {
         return std::fma(a, b, c);
 }
 
-template <SampleConcept S>
+template <Sample S>
 inline S min(const S& a, const S& b) noexcept {
     if constexpr (SimdBatch<S>)
         return xsimd::min(a, b);
@@ -360,7 +363,7 @@ inline S min(const S& a, const S& b) noexcept {
         return std::min(a, b);
 }
 
-template <SampleConcept S>
+template <Sample S>
 inline S max(const S& a, const S& b) noexcept {
     if constexpr (SimdBatch<S>)
         return xsimd::max(a, b);
@@ -368,7 +371,7 @@ inline S max(const S& a, const S& b) noexcept {
         return std::max(a, b);
 }
 
-template <SampleConcept S>
+template <Sample S>
 inline S abs(const S& a) noexcept {
     if constexpr (SimdBatch<S>)
         return xsimd::abs(a);
@@ -376,7 +379,7 @@ inline S abs(const S& a) noexcept {
         return std::abs(a);
 }
 
-template <SampleConcept S>
+template <Sample S>
 inline S sqrt(const S& a) noexcept {
     if constexpr (SimdBatch<S>)
         return xsimd::sqrt(a);

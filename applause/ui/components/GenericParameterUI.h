@@ -18,7 +18,7 @@ namespace applause {
  * The ParamSlider inherits the full height of the GenericParameterEntry.
  */
 class GenericParameterEntry : public visage::Frame {
-   public:
+public:
     GenericParameterEntry(ParamInfo& paramInfo);
 
     void draw(visage::Canvas& canvas) override;
@@ -26,7 +26,7 @@ class GenericParameterEntry : public visage::Frame {
 
     void setLabelWidth(float labelWidth);
 
-   private:
+private:
     static constexpr int kLabelPadding = 10;
 
     ParamInfo& paramInfo_;
@@ -35,13 +35,13 @@ class GenericParameterEntry : public visage::Frame {
 };
 
 class GenericParameterUI : public visage::ScrollableFrame {
-   public:
+public:
     GenericParameterUI();
     void draw(visage::Canvas& canvas) override;
     void resized() override;
     void addParameter(ParamInfo& paramInfo);
 
-   private:
+private:
     static constexpr float kPadding = 16.0f;
     static constexpr float kEntryGap = 16.0f;
     static constexpr float kEntryHeight = 26.0f;

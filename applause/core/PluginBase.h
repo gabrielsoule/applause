@@ -19,7 +19,7 @@ namespace applause {
  * virtual methods.
  */
 class PluginBase {
-   private:
+private:
     clap_plugin_t _plugin;
     const clap_host_t* _host;
     std::unordered_map<std::string, IExtension*> _extensions;
@@ -83,7 +83,7 @@ class PluginBase {
         self->onMainThread();
     }
 
-   protected:
+protected:
     PluginBase(const clap_plugin_descriptor_t* desc, const clap_host_t* host)
         : _host(host) {
         // Initialize the C struct with our static dispatchers
@@ -110,7 +110,7 @@ class PluginBase {
     // Access to host
     const clap_host_t* host() const { return _host; }
 
-   public:
+public:
     // Helper for extensions to find themselves from C callbacks
     template <typename ExtType>
     static ExtType* findExtension(const clap_plugin_t* plugin) {

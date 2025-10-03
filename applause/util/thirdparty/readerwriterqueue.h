@@ -102,7 +102,7 @@ class MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE ReaderWriterQueue {
     // If there is no room to enqueue an object, an additional block (of
     // equal size to the last block) is added. Blocks are never removed.
 
-   public:
+public:
     typedef T value_type;
 
     // Constructs a queue that can hold at least `size` elements without further
@@ -541,7 +541,7 @@ class MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE ReaderWriterQueue {
         return result;
     }
 
-   private:
+private:
     enum AllocationMode { CanAlloc, CannotAlloc };
 
 #if MOODYCAMEL_HAS_EMPLACE
@@ -693,7 +693,7 @@ class MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE ReaderWriterQueue {
                          alignment;
     }
 
-   private:
+private:
 #ifndef NDEBUG
     struct ReentrantGuard {
         APPLAUSE_NO_TSAN ReentrantGuard(weak_atomic<bool>& _inSection)
@@ -707,10 +707,10 @@ class MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE ReaderWriterQueue {
 
         APPLAUSE_NO_TSAN ~ReentrantGuard() { inSection = false; }
 
-       private:
+    private:
         ReentrantGuard& operator=(ReentrantGuard const&);
 
-       private:
+    private:
         weak_atomic<bool>& inSection;
     };
 #endif
@@ -748,11 +748,11 @@ class MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE ReaderWriterQueue {
               sizeMask(_size - 1),
               rawThis(_rawThis) {}
 
-       private:
+    private:
         // C4512 - Assignment operator could not be generated
         Block& operator=(Block const&);
 
-       public:
+    public:
         char* rawThis;
     };
 
@@ -771,7 +771,7 @@ class MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE ReaderWriterQueue {
         return new (newBlockAligned) Block(capacity, newBlockRaw, newBlockData);
     }
 
-   private:
+private:
     weak_atomic<Block*>
         frontBlock;  // (Atomic) Elements are dequeued from this block
 
@@ -791,10 +791,10 @@ class MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE ReaderWriterQueue {
 // Like ReaderWriterQueue, but also providees blocking operations
 template <typename T, size_t MAX_BLOCK_SIZE = 512>
 class BlockingReaderWriterQueue {
-   private:
+private:
     typedef ReaderWriterQueue<T, MAX_BLOCK_SIZE> ReaderWriterQueue;
 
-   public:
+public:
     explicit BlockingReaderWriterQueue(size_t size = 15) APPLAUSE_NO_TSAN
         : inner(size),
           sema(new spsc_sema::LightweightSemaphore()) {}
@@ -982,12 +982,12 @@ class BlockingReaderWriterQueue {
         return inner.max_capacity();
     }
 
-   private:
+private:
     // Disable copying & assignment
     BlockingReaderWriterQueue(BlockingReaderWriterQueue const&) {}
     BlockingReaderWriterQueue& operator=(BlockingReaderWriterQueue const&) {}
 
-   private:
+private:
     ReaderWriterQueue inner;
     std::unique_ptr<spsc_sema::LightweightSemaphore> sema;
 };

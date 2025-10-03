@@ -21,7 +21,7 @@ namespace applause {
 class ApplauseEditor : public IEditor,
                        public visage::ApplicationWindow,
                        public visage::EventTimer {
-   public:
+public:
     /**
      * @brief Construct an ApplauseEditor with parameter extension support.
      */
@@ -52,7 +52,7 @@ class ApplauseEditor : public IEditor,
 
     void timerCallback() override;
 
-   private:
+private:
     ParamMessageQueue message_queue_;  // Owned by the editor
     ParamsExtension* params_ = nullptr;
 };

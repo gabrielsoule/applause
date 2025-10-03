@@ -104,22 +104,22 @@ struct MemoryArena {
     }
 
     /** Allocates contiguous channel planes and returns a BufferView wrapper. */
-    template <SampleConcept Sample, std::size_t Channels>
-    [[nodiscard]] BufferView<Sample, Channels> allocateAudioBuffer(
+    template <Sample SampleT, std::size_t Channels>
+    [[nodiscard]] BufferView<SampleT, Channels> allocateAudioBuffer(
         std::size_t frame_count, std::size_t alignment = defaultByteAlignment) {
         ASSERT(Channels > 0, "Channel count must be positive");
 
         if (frame_count == 0) {
-            return BufferView<Sample, Channels>{nullptr, 0};
+            return BufferView<SampleT, Channels>{nullptr, 0};
         }
 
-        using Scalar = scalar_t<Sample>;
+        using Scalar = scalar_t<SampleT>;
 
-        constexpr std::size_t sample_alignment = alignof(Sample);
+        constexpr std::size_t sample_alignment = alignof(SampleT);
         const std::size_t effective_alignment =
             std::max(alignment, sample_alignment);
 
-        constexpr std::size_t width = sampleWidth<Sample>();
+        constexpr std::size_t width = sampleWidth<SampleT>();
 
         ASSERT(frame_count <= std::numeric_limits<std::size_t>::max() / width,
                "Frame count overflow!");
@@ -133,7 +133,7 @@ struct MemoryArena {
         ASSERT(storage != nullptr,
                "Storage allocation failed! This should never happen.");
 
-        return BufferView<Sample, Channels>{storage, frame_count};
+        return BufferView<SampleT, Channels>{storage, frame_count};
     }
 
     /** Returns a pointer to the internal buffer with a given offset in bytes */

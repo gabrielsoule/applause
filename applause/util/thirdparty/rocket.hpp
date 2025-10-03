@@ -181,7 +181,7 @@ struct minimum {
 
     ROCKET_NODISCARD result_type result() { return std::move(current); }
 
-   private:
+private:
     value_type current{};
     bool has_value{false};
 };
@@ -201,7 +201,7 @@ struct maximum {
 
     ROCKET_NODISCARD result_type result() { return std::move(current); }
 
-   private:
+private:
     value_type current{};
     bool has_value{false};
 };
@@ -221,7 +221,7 @@ struct first {
 
     ROCKET_NODISCARD result_type result() { return std::move(current); }
 
-   private:
+private:
     value_type current{};
     bool has_value{false};
 };
@@ -238,7 +238,7 @@ struct last {
 
     ROCKET_NODISCARD result_type result() { return std::move(current); }
 
-   private:
+private:
     value_type current{};
 };
 
@@ -254,7 +254,7 @@ struct range {
 
     ROCKET_NODISCARD result_type result() { return std::move(values); }
 
-   private:
+private:
     std::list<value_type> values;
 };
 
@@ -407,7 +407,7 @@ struct intrusive_ptr final {
 
     void swap(intrusive_ptr& p) noexcept { swap(&p.ptr); }
 
-   private:
+private:
     pointer ptr;
 };
 
@@ -579,7 +579,7 @@ struct ref_count final {
 
     ROCKET_NODISCARD unsigned long get() const noexcept { return count; }
 
-   private:
+private:
     unsigned long count{0};
 };
 
@@ -592,7 +592,7 @@ struct ref_count_atomic final {
         return count.load(std::memory_order_relaxed);
     }
 
-   private:
+private:
     std::atomic<unsigned long> count{0};
 };
 
@@ -612,10 +612,10 @@ struct ref_counted {
         }
     }
 
-   protected:
+protected:
     ~ref_counted() noexcept = default;
 
-   private:
+private:
     RefCount count{};
 };
 
@@ -652,7 +652,7 @@ class stable_list final {
 
     std::size_t elements;
 
-   public:
+public:
     template <class U>
     struct iterator_base final {
         using iterator_category = std::bidirectional_iterator_tag;
@@ -744,7 +744,7 @@ class stable_list final {
             return element != i.element;
         }
 
-       private:
+    private:
         intrusive_ptr<link_element> element;
 
         iterator_base(link_element* p) noexcept : element{p} {}
@@ -1049,7 +1049,7 @@ class stable_list final {
         }
     }
 
-   private:
+private:
     void init() {
         head = new link_element;
         tail = new link_element;
@@ -1358,7 +1358,7 @@ struct weak_mem_fn final {
         }
     }
 
-   private:
+private:
     std::weak_ptr<Instance> weak;
     R (Class::*method)(Args...);
 };
@@ -1374,7 +1374,7 @@ struct shared_mem_fn final {
         return (shared.get()->*method)(std::forward<Args1>(args)...);
     }
 
-   private:
+private:
     std::shared_ptr<Instance> shared;
     R (Class::*method)(Args...);
 };
@@ -1553,7 +1553,7 @@ struct connection {
         }
     }
 
-   private:
+private:
     void* base;
     bool is_thread_safe;
 
@@ -1626,7 +1626,7 @@ struct scoped_connection final : connection {
         return *this;
     }
 
-   private:
+private:
     scoped_connection(scoped_connection const&) = delete;
 
     scoped_connection& operator=(scoped_connection const&) = delete;
@@ -1673,7 +1673,7 @@ struct scoped_connection_container final {
 
     void disconnect() noexcept { connections.clear(); }
 
-   private:
+private:
     scoped_connection_container(scoped_connection_container const&) = delete;
     scoped_connection_container& operator=(scoped_connection_container const&) =
         delete;
@@ -1688,7 +1688,7 @@ struct trackable {
 
     void disconnect_tracked_connections() noexcept { container.disconnect(); }
 
-   private:
+private:
     scoped_connection_container container;
 };
 
@@ -1709,7 +1709,7 @@ struct scoped_connection_blocker final {
 
     ~scoped_connection_blocker() noexcept { conn.unblock(); }
 
-   private:
+private:
     scoped_connection_blocker(scoped_connection_blocker const&) = delete;
     scoped_connection_blocker& operator=(scoped_connection_blocker const&) =
         delete;
@@ -1984,7 +1984,7 @@ struct timer_queue final {
         return not_enough_time;
     }
 
-   private:
+private:
     using connection_base = detail::connection_base<thread_unsafe_policy>;
 
     void init() {
@@ -2094,7 +2094,7 @@ struct call_queue final {
         return itr != end;
     }
 
-   private:
+private:
     std::mutex mutex;
     std::unordered_map<std::thread::id, std::deque<std::packaged_task<void()>>>
         queue;
@@ -2746,7 +2746,7 @@ struct signal<R(Args...), Collector, ThreadingPolicy> final {
 
     auto operator()(Args const&... args) const { return invoke(args...); }
 
-   private:
+private:
     using shared_lock_state = detail::shared_lock_state<threading_policy>;
     using connection_base = detail::connection_base<threading_policy>;
     using functional_connection =

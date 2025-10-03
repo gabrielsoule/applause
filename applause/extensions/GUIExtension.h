@@ -31,7 +31,7 @@ namespace applause {
  * building a GUI with parameter integration quick and easy.
  */
 class GUIExtension : public IExtension {
-   public:
+public:
     /**
      * @brief Factory function type for creating editor instances.
      */
@@ -74,7 +74,7 @@ class GUIExtension : public IExtension {
     bool requestShow();
     bool requestHide();
 
-   private:
+private:
     // Static CLAP callbacks
     static bool clap_gui_is_api_supported(const clap_plugin_t* plugin,
                                           const char* api,

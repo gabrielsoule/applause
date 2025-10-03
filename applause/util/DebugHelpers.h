@@ -80,16 +80,16 @@ std::string var_string(std::string_view name, const T& value) {
 
 #define LOG_VAR(x) debug::var_string(#x, x)
 
-#define ASSERT(condition, ...)                                           \
-    do {                                                                 \
+#define ASSERT(condition, ...)                                          \
+    do {                                                                \
         if (!(condition)) {                                             \
             LOG_ERR("Assertion failed ({}): " __VA_ARGS__, #condition); \
             assert(false);                                              \
         }                                                               \
     } while (0)
 
-#define ASSERT_FALSE(...)                            \
-    do {                                             \
+#define ASSERT_FALSE(...)                          \
+    do {                                           \
         LOG_ERR("Assertion failed: " __VA_ARGS__); \
         assert(false);                             \
     } while (0)

@@ -13,7 +13,7 @@ namespace applause {
  * a type, a parameter ID, and a value.
  */
 class ParamMessageQueue {
-   public:
+public:
     enum MessageType { PARAM_VALUE, BEGIN_GESTURE, END_GESTURE };
 
     struct Message {
@@ -25,7 +25,7 @@ class ParamMessageQueue {
     applause::ReaderWriterQueue<Message>& toAudio() { return ui2audio_; }
     applause::ReaderWriterQueue<Message>& toUi() { return audio2ui_; }
 
-   private:
+private:
     applause::ReaderWriterQueue<Message> ui2audio_;
     applause::ReaderWriterQueue<Message> audio2ui_;
 };

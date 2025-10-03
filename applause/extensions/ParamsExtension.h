@@ -65,10 +65,10 @@ struct ParamHandle {
     friend class ParamsExtension;
     friend class ParamInfo;
 
-   private:
+private:
     std::atomic<float>* value_ = nullptr;
 
-   public:
+public:
     [[nodiscard]] float getValue() const noexcept {
         return value_->load(std::memory_order_relaxed);
     }
@@ -86,7 +86,7 @@ class ParamInfo {
     friend class ParamsExtension;
     friend struct ParamHandle;
 
-   public:
+public:
     /**
      * The internal ID used by the CLAP host
      */
@@ -206,7 +206,7 @@ class ParamInfo {
      */
     std::optional<float> textToValue(const std::string& text) const noexcept;
 
-   private:
+private:
     ParamHandle* handle_ = nullptr;
 
     // A pointer to the parent registry, so that the host can be notified about
@@ -252,7 +252,7 @@ class ParamsExtension : public IExtension {
     friend struct ParamHandle;
     friend class ParamInfo;
 
-   private:
+private:
     mutable clap_plugin_params_t clap_struct_{};  ///< C struct for CLAP host
 
     static uint32_t clap_params_count(const clap_plugin_t* plugin) noexcept;
@@ -292,7 +292,7 @@ class ParamsExtension : public IExtension {
     uint32_t external_param_count_ = 0;
     uint32_t max_params_ = 0;
 
-   public:
+public:
     static constexpr const char* ID = CLAP_EXT_PARAMS;
 
     /**

@@ -109,7 +109,7 @@ struct AudioPortConfig {
  * only need to define output ports.
  */
 class AudioPortsExtension : public IExtension {
-   private:
+private:
     /**
      * @brief Internal storage for a configured audio port.
      */
@@ -145,7 +145,7 @@ class AudioPortsExtension : public IExtension {
     static constexpr clap_plugin_audio_ports_t clap_struct_ = {
         .count = clap_audio_ports_count, .get = clap_audio_ports_get};
 
-   public:
+public:
     static constexpr const char* ID = CLAP_EXT_AUDIO_PORTS;
 
     AudioPortsExtension() = default;

@@ -24,9 +24,9 @@ namespace applause {
  * memory is allocated and freed in a way that is compatible with the lifetime
  * of the BufferView.
  */
-template <SampleConcept S, std::size_t MaxChannels = 8>
+template <Sample S, std::size_t MaxChannels = 8>
 class BufferView {
-   public:
+public:
     using Sample = S;
     using Scalar = scalar_t<S>;
 
@@ -41,7 +41,7 @@ class BufferView {
      * compute the channel offset once.
      */
     class ChannelView {
-       public:
+    public:
         constexpr ChannelView(Scalar* base, std::size_t frames) noexcept
             : base_{base}, frame_count_{frames} {}
 
@@ -72,7 +72,7 @@ class BufferView {
             return frame_count_;
         }
 
-       private:
+    private:
         Scalar* base_;
         std::size_t frame_count_;
     };
@@ -84,14 +84,15 @@ class BufferView {
      * Channels are stored sequentially: all of channel 0, then all of channel
      * 1, etc.
      */
-    constexpr BufferView(Scalar* base_ptr,
-                         std::size_t channel_count,
+    constexpr BufferView(Scalar* base_ptr, std::size_t channel_count,
                          std::size_t frame_count) noexcept
         : base_ptr_{base_ptr},
           frame_count_{frame_count},
           active_channels_{channel_count},
           is_contiguous_{true} {
-        ASSERT(channel_count <= MaxChannels, "Channel count {} exceeds maximum {}", channel_count, MaxChannels);
+        ASSERT(channel_count <= MaxChannels,
+               "Channel count {} exceeds maximum {}", channel_count,
+               MaxChannels);
         ASSERT(base_ptr_ != nullptr || frame_count_ == 0,
                "BufferView: null base pointer with nonzero frame count");
         if (base_ptr_ != nullptr) {
@@ -119,7 +120,7 @@ class BufferView {
         : BufferView(base_ptr, MaxChannels, frame_count) {}
 
     /**
-     * Convenience constructor for hosts that expose CLAP-style `float**`
+     * Convenience constructor for hosts that expose raw`float**`
      * buffers. Each pointer represents one channel plane that may live at an
      * arbitrary location. If the planes are actually packed back-to-back, the
      * view will automatically upgrade to the contiguous fast path.
@@ -128,13 +129,15 @@ class BufferView {
      * by the host
      * @param frame_count  Number of frames available in each channel
      */
-    template <typename T = Scalar,
-              std::enable_if_t<std::is_same_v<T, float>, int> = 0>
-    constexpr BufferView(Scalar** channels_ptr,
-                         std::size_t channel_count,
+    constexpr BufferView(Scalar** channels_ptr, std::size_t channel_count,
                          std::size_t frame_count) noexcept
-        : base_ptr_{nullptr}, frame_count_{frame_count}, active_channels_{channel_count}, is_contiguous_{false} {
-        ASSERT(channel_count <= MaxChannels, "Channel count {} exceeds maximum {}", channel_count, MaxChannels);
+        : base_ptr_{nullptr},
+          frame_count_{frame_count},
+          active_channels_{channel_count},
+          is_contiguous_{false} {
+        ASSERT(channel_count <= MaxChannels,
+               "Channel count {} exceeds maximum {}", channel_count,
+               MaxChannels);
         ASSERT(frame_count > 0, "frame count must be greater than zero");
         ASSERT(channels_ptr != nullptr, "null channel pointer array");
         for (std::size_t c = 0; c < active_channels_; ++c) {
@@ -345,7 +348,7 @@ class BufferView {
                            frame_count_);
     }
 
-   private:
+private:
     Scalar* base_ptr_ = nullptr;
     std::size_t frame_count_ = 0;
     std::size_t active_channels_ = 0;

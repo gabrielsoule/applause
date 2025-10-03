@@ -24,7 +24,7 @@ namespace applause {
  * @see PluginBase::findExtension()
  */
 class IExtension {
-   public:
+public:
     /**
      * @brief Virtual destructor for proper cleanup of derived extension
      * classes.

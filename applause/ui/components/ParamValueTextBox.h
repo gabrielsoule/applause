@@ -20,7 +20,7 @@ namespace applause {
  * ParamInfo::parseText.
  */
 class ParamValueTextBox : public visage::Frame {
-   public:
+public:
     // Theme colors for customization
     VISAGE_THEME_DEFINE_COLOR(ApplauseTextEditorBackground);
     VISAGE_THEME_DEFINE_COLOR(ApplauseTextEditorBorder);
@@ -38,7 +38,7 @@ class ParamValueTextBox : public visage::Frame {
     /** Force update the displayed text to match the current parameter value */
     void updateTextDisplay();
 
-   private:
+private:
     ParamInfo& param_info_;
     std::unique_ptr<visage::TextEditor> text_editor_ =
         nullptr;  // Raw pointer, owned by parent

@@ -22,7 +22,7 @@ namespace applause {
  * GenericParameterUI automatically fills the window with appropriate padding.
  */
 class GenericParameterUIEditor : public ApplauseEditor {
-   public:
+public:
     /**
      * @brief Construct a GenericParameterUIEditor.
      * @param params The parameter extension containing all plugin parameters
@@ -39,7 +39,7 @@ class GenericParameterUIEditor : public ApplauseEditor {
      */
     void resized() override;
 
-   private:
+private:
     std::unique_ptr<GenericParameterUI> parameter_ui_;
 };
 
