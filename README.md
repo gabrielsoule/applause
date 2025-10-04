@@ -1,3 +1,5 @@
+
+
 # Applause
 
 A fast, flexible, and free C++20 framework for building CLAP, VST3, and AU audio plugins.
@@ -6,13 +8,13 @@ A fast, flexible, and free C++20 framework for building CLAP, VST3, and AU audio
 Applause is built upon and tightly integrates with CLAP, an open source and modern audio plugin standard/ABI. CLAP presents a notable improvement over the status quo (VST3, AU, AAX, etc). CLAP is free and open source; furthermore, it exposes powerful features such as polyphonic per-note modulation and host-supported preset discovery (among others). Comprehensive, plug-and-play implementations of these extensions are on our roadmap. 
  
 ### The easiest way is the fastest way is the default way
-Applause is built to squeeze every last cycle out of the CPU. All Applause extensions are designed to be cache friendly and blazing fast. Each line of audio thread code is written with this principle in mind.  Applause's UI system is built on top of Matt Tytel's Visage framework (which, in turn, wraps bgfx). It's fully GPU-accelerated, and supports shaders, complex path rendering, effects, and all other sorts of eye candy -- all at 60FPS. You don't have to worry about "doing things the right way" with Applause utilities: the default way _is_ the right way.
+Applause is designed to squeeze every last cycle out of the CPU. All Applause extensions are designed to be cache friendly and blazing fast. The UI system is built on top of Matt Tytel's Visage framework, which in turn wraps bgfx: it's GPU accelerated, runs at 60 FPS without breaking a sweat, and supports modern widgets like path rendering, shaders, effects, et cetera. 
 
 ###  Everything you need; nothing that you don't 
-Applause is fully modular. The underlying CLAP specification orbits a collection of "extensions" that plugins may or may not implement; Applause implements these extensions via a roughly one-to-one mapping and exposes them to the developer through easy-to-use C++ interfaces. As a plugin developer, you can instantiate the extensions you want and ignore the ones you don't. As such, you will _never_ pay a performance penalty for something you don't care about. And, if you're dissatisfied with Applause's implementation of a CLAP extension, you can just implement the extension yourself. Your custom extension will integrate seamlessly with the rest of the Applause ecosystem.
+Applause is fully modular. The underlying CLAP specification orbits a collection of "extensions" that plugins may or may not implement; Applause implements these extensions via a roughly one-to-one mapping and exposes them to the developer through easy-to-use C++ interfaces. As a plugin developer, you can instantiate the extensions you want and ignore the ones you don't. As such, you will _never_ pay a performance penalty for something you don't care about. If you're dissatisfied with Applause's implementation of a CLAP extension, you can implement the extension yourself. Your custom extension will integrate seamlessly with the rest of the Applause ecosystem.
 
 ### Best-in-class implementations of high-level plugin infrastructure
-(NYI) Applause will support common plugin infrastructure, such as a SIMD and cache friendly voice management system, along with a (SIMD) polyphonic modulation system. Applause will be furnished with all the tools required to build world-class, professional audio plugins whose performance is on par with the best premium synths on the market.
+(NYI) Applause will support common plugin infrastructure, such as a SIMD and cache friendly voice management system, along with a (SIMD) polyphonic parameter modulation system. Hopefully you'll never have to write your own modulation matrix system again. 
 
 ## Roadmap
 
@@ -22,11 +24,12 @@ Applause is currently (very) early in development. Here are some things that exi
 - CLAP, VST3, and AU support
 - Note and audio port extensions
 - State saving and loading
-- A blazing fast and thread safe plugin parameter extension
+- Fast and thread safe hosted parameter management
 - Knob and Slider UI widgets that automatically connect to parameters (plug and play; we handle all the cross-thread messaging for you)
 - FlexBox style layouts
 - A generic plug-and-play parameter UI with sliders and values (much like JUCE's GenericAudioProcessorEditor)
 - CMake utilities to spin up plugins quickly and reduce boilerplate glue code
+- A simple Synthesizer class 
 
 ### On the Roadmap
 - Polyphonic parameter modulation with SIMD support
@@ -42,29 +45,8 @@ Applause is currently (very) early in development. Here are some things that exi
 - CMake 3.19+
 
 ## Building
+There are several ready-to-deploy Applause examples in the 'examples' directory. They can be built with the `applause-examples` CMake target.
 
-```bash
-# Configure
-cmake -B build
-
-# Build everything (framework + all examples)
-cmake --build build
-
-# Build framework only
-cmake --build build --target applause
-
-# Build all examples
-cmake --build build --target applause-examples
-
-# Build specific example (all formats)
-cmake --build build --target ExampleShowcase_all
-cmake --build build --target ExampleManualPluginEntry_all
-
-# Build specific format
-cmake --build build --target ExampleShowcase_clap
-cmake --build build --target ExampleShowcase_vst3
-cmake --build build --target ExampleShowcase_auv2
-```
 ## License
 
 MIT

@@ -13,8 +13,6 @@ constexpr float kTwoPi = 2.0f * kPi;
 
 class SineWaveVoice : public applause::SynthesizerVoice<float, 2> {
 public:
-    static void setSampleRate(double sample_rate) { sample_rate_ = sample_rate; }
-
     void noteOn() override {
         const float frequency =
             440.0f * std::pow(2.0f, (midi_note_number_ - 69) / 12.0f);
@@ -73,7 +71,6 @@ public:
     }
 
 private:
-    static inline double sample_rate_ = 44100.0;
     float phase_ = 0.0f;
     float phase_increment_ = 0.0f;
     float envelope_ = 0.0f;

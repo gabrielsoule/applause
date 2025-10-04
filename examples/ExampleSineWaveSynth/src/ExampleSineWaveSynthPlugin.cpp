@@ -27,7 +27,7 @@ void ExampleSineWaveSynthPlugin::destroy() noexcept {
 bool ExampleSineWaveSynthPlugin::activate(const applause::ProcessInfo& info) noexcept {
     LOG_INFO("ExampleSineWaveSynth::activate() - sampleRate: {}", info.sample_rate);
     sample_rate_ = info.sample_rate;
-    SineWaveVoice::setSampleRate(info.sample_rate);
+    synth_.activate(info);
     return true;
 }
 

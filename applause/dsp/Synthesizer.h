@@ -1,5 +1,6 @@
 #pragma once
 #include <applause/util/SampleType.h>
+#include <applause/core/ProcessInfo.h>
 
 #include <algorithm>
 #include <array>
@@ -9,7 +10,6 @@
 
 #include "BufferView.h"
 
-// UNFINISHED DO NOT USE
 namespace applause {
 
 /**
@@ -71,6 +71,9 @@ public:
         state_ = State::Idle;
     }
 
+    double getSampleRate() const noexcept { return sample_rate_; }
+    void setSampleRate(double sample_rate) noexcept { sample_rate_ = sample_rate; }
+
     bool active_ = false;
     int midi_note_number_ = 0;
     int velocity_ = 0;
@@ -88,6 +91,9 @@ public:
     };
 
     State state_ = State::Idle;
+
+protected:
+    double sample_rate_ = 44100.0;
 };
 
 /**
@@ -112,6 +118,7 @@ class Synthesizer {
 public:
     [[nodiscard]] int getNumVoices() const noexcept { return NumVoices; }
 
+    void activate(ProcessInfo info);
     void noteOn(int midiNote, float velocity);
     void noteOff(int midiNote, float velocity);
     VoiceType& findFreeVoice();
@@ -123,6 +130,13 @@ private:
     int notes_played_ = 0;  // count the number of notes; used for finding the
                             // oldest voice during voice stealing
 };
+
+template <Scalar T, size_t MaxChannels, size_t NumVoices, typename VoiceType>
+void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::activate(ProcessInfo info) {
+    for (auto& voice : voices_) {
+        voice.setSampleRate(info.sample_rate);
+    }
+}
 
 template <Scalar T, size_t MaxChannels, size_t NumVoices, typename VoiceType>
 VoiceType& Synthesizer<T, MaxChannels, NumVoices, VoiceType>::findFreeVoice() {
