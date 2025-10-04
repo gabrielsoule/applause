@@ -43,11 +43,11 @@ void ExampleMIDIPrinterPlugin::destroy() noexcept
     LOG_INFO("Total events processed: {}", event_count_);
 }
 
-bool ExampleMIDIPrinterPlugin::activate(double sampleRate, uint32_t minFrameCount, uint32_t maxFrameCount) noexcept
+bool ExampleMIDIPrinterPlugin::activate(const applause::ProcessInfo& info) noexcept
 {
     LOG_INFO("Activating MIDI printer...");
-    LOG_INFO("  Sample rate: {} Hz", sampleRate);
-    LOG_INFO("  Frame count range: {} - {}", minFrameCount, maxFrameCount);
+    LOG_INFO("  Sample rate: {} Hz", info.sample_rate);
+    LOG_INFO("  Frame count range: {} - {}", info.min_frame_size, info.max_frame_size);
     event_count_ = 0;
     return true;
 }

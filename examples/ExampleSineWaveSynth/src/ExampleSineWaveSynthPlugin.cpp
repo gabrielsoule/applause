@@ -24,12 +24,10 @@ void ExampleSineWaveSynthPlugin::destroy() noexcept {
     LOG_INFO("ExampleSineWaveSynth::destroy()");
 }
 
-bool ExampleSineWaveSynthPlugin::activate(double sampleRate,
-                                           uint32_t minFrameCount,
-                                           uint32_t maxFrameCount) noexcept {
-    LOG_INFO("ExampleSineWaveSynth::activate() - sampleRate: {}", sampleRate);
-    sample_rate_ = sampleRate;
-    SineWaveVoice::setSampleRate(sampleRate);
+bool ExampleSineWaveSynthPlugin::activate(const applause::ProcessInfo& info) noexcept {
+    LOG_INFO("ExampleSineWaveSynth::activate() - sampleRate: {}", info.sample_rate);
+    sample_rate_ = info.sample_rate;
+    SineWaveVoice::setSampleRate(info.sample_rate);
     return true;
 }
 

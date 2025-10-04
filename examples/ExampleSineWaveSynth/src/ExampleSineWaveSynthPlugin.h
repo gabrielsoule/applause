@@ -88,8 +88,7 @@ public:
 
     bool init() noexcept override;
     void destroy() noexcept override;
-    bool activate(double sampleRate, uint32_t minFrameCount,
-                  uint32_t maxFrameCount) noexcept override;
+    bool activate(const applause::ProcessInfo& info) noexcept override;
     void deactivate() noexcept override;
 
     clap_process_status process(const clap_process_t* process) noexcept override;

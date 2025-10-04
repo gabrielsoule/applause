@@ -105,8 +105,8 @@ void ExampleShowcasePlugin::destroy() noexcept {
     LOG_INFO("ExampleShowcase::destroy()");
 }
 
-bool ExampleShowcasePlugin::activate(double sampleRate, uint32_t minFrameCount, uint32_t maxFrameCount) noexcept {
-    LOG_INFO("ExampleShowcase::activate() - sampleRate: {}", sampleRate);
+bool ExampleShowcasePlugin::activate(const applause::ProcessInfo& info) noexcept {
+    LOG_INFO("ExampleShowcase::activate() - sampleRate: {}", info.sample_rate);
     return true;
 }
 

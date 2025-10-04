@@ -15,9 +15,9 @@ namespace applause {
  *
  * One awkward requirement is that applause::Extensions MUST declare a
  *
- * "static constexpr const char* ID'
+ * "static constexpr const char* ID"
  *
- * which is set to the corresponding CLAP extension ID that the
+ * which MUST be set to the corresponding CLAP extension ID that the
  * applause::Extension intends to implement.
  *
  * @see PluginBase::registerExtension()

@@ -9,6 +9,17 @@
 #include "Extension.h"
 
 namespace applause {
+
+/**
+ * @brief Audio processing configuration struct passed through activate().
+ *
+ */
+struct ProcessInfo {
+    double sample_rate;
+    uint32_t min_frame_size;
+    uint32_t max_frame_size;
+};
+
 /**
  * @class PluginBase
  * @brief Base class for the implementation of an Applause plugin.
@@ -40,7 +51,12 @@ private:
                              uint32_t min_frames_count,
                              uint32_t max_frames_count) noexcept {
         auto* self = static_cast<PluginBase*>(plugin->plugin_data);
-        return self->activate(sample_rate, min_frames_count, max_frames_count);
+        const ProcessInfo info{
+            .sample_rate = sample_rate,
+            .min_frame_size = min_frames_count,
+            .max_frame_size = max_frames_count
+        };
+        return self->activate(info);
     }
 
     static void clapDeactivate(const clap_plugin_t* plugin) noexcept {
@@ -107,6 +123,43 @@ protected:
     // Extension registration - called by extension constructors
     void registerExtension(IExtension& ext) { _extensions[ext.id()] = &ext; }
 
+    /**
+     * @brief Find an extension by type
+     *
+     * This is a convenience wrapper around the static findExtension().
+     *
+     * If you need to access an extension regularly within audio processing code,
+     * e.g. every block, it is more efficient to call this once during
+     * preparation and then use the cached pointer during rendering.
+     *
+     * @tparam ExtType The extension type
+     * @return Pointer to extension if registered, nullptr otherwise
+     *
+     * @code
+     * auto* ports = getExtension<AudioPortsExtension>();
+     * if (ports) {
+     *     // Extension is present! Go wild!
+     * }
+     * @endcode
+     */
+    template <typename ExtType>
+    ExtType* getExtension() {
+        auto it = _extensions.find(ExtType::ID);
+        return it != _extensions.end() ? static_cast<ExtType*>(it->second)
+                                       : nullptr;
+    }
+
+    /**
+     * @brief Find an extension by type (const version).
+     */
+    template <typename ExtType>
+    const ExtType* getExtension() const {
+        auto it = _extensions.find(ExtType::ID);
+        return it != _extensions.end()
+                   ? static_cast<const ExtType*>(it->second)
+                   : nullptr;
+    }
+
     // Access to host
     const clap_host_t* host() const { return _host; }
 
@@ -130,8 +183,17 @@ public:
 
     virtual void destroy() {}
 
-    virtual bool activate(double sample_rate, uint32_t min_frames,
-                          uint32_t max_frames) {
+    /**
+     * @brief Activate the plugin for audio processing.
+     *
+     * Called by the host to prepare the plugin for audio processing.
+     * The plugin should allocate resources and prepare buffers based
+     * on the provided configuration.
+     *
+     * @param info Processing configuration from the host
+     * @return true if activation succeeded, false otherwise
+     */
+    virtual bool activate(const ProcessInfo& info) {
         return true;
     }
 

@@ -86,8 +86,8 @@ void ExampleGenericParameterUIPlugin::destroy() noexcept {
     }
 }
 
-bool ExampleGenericParameterUIPlugin::activate(double sampleRate, uint32_t minFrameCount, uint32_t maxFrameCount) noexcept {
-    LOG_INFO("ExampleGenericParameterUI::activate() - sampleRate: {}", sampleRate);
+bool ExampleGenericParameterUIPlugin::activate(const applause::ProcessInfo& info) noexcept {
+    LOG_INFO("ExampleGenericParameterUI::activate() - sampleRate: {}", info.sample_rate);
     return true;
 }
 

@@ -18,7 +18,7 @@ public:
     // Plugin lifecycle
     bool init() noexcept override;
     void destroy() noexcept override;
-    bool activate(double sampleRate, uint32_t minFrameCount, uint32_t maxFrameCount) noexcept override;
+    bool activate(const applause::ProcessInfo& info) noexcept override;
     void deactivate() noexcept override;
     
     // Audio processing

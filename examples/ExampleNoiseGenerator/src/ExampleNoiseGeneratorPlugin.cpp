@@ -33,8 +33,8 @@ void ExampleNoiseGeneratorPlugin::destroy() noexcept {
     LOG_INFO("ExampleNoiseGenerator::destroy()");
 }
 
-bool ExampleNoiseGeneratorPlugin::activate(double sampleRate, uint32_t minFrameCount, uint32_t maxFrameCount) noexcept {
-    LOG_INFO("ExampleNoiseGenerator::activate() - sampleRate: {}", sampleRate);
+bool ExampleNoiseGeneratorPlugin::activate(const applause::ProcessInfo& info) noexcept {
+    LOG_INFO("ExampleNoiseGenerator::activate() - sampleRate: {}", info.sample_rate);
     return true;
 }
 

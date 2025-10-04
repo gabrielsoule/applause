@@ -91,10 +91,9 @@ void ExampleManualPluginEntryPlugin::destroy() noexcept
     LOG_INFO("ExampleManualPluginEntry::destroy()");
 }
 
-bool ExampleManualPluginEntryPlugin::activate(double sampleRate, uint32_t minFrameCount,
-                                              uint32_t maxFrameCount) noexcept
+bool ExampleManualPluginEntryPlugin::activate(const applause::ProcessInfo& info) noexcept
 {
-    LOG_INFO("ExampleManualPluginEntry::activate() - sampleRate: {}", sampleRate);
+    LOG_INFO("ExampleManualPluginEntry::activate() - sampleRate: {}", info.sample_rate);
     return true;
 }
 

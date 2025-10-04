@@ -87,13 +87,13 @@ void ExampleFilterPlugin::destroy() noexcept
     LOG_INFO("ExampleFilter destroy");
 }
 
-bool ExampleFilterPlugin::activate(double sample_rate, uint32_t min_frames, uint32_t max_frames) noexcept
+bool ExampleFilterPlugin::activate(const applause::ProcessInfo& info) noexcept
 {
-    sample_rate_ = sample_rate;
+    sample_rate_ = info.sample_rate;
 
     juce::dsp::ProcessSpec spec{};
-    spec.sampleRate = sample_rate;
-    spec.maximumBlockSize = max_frames;
+    spec.sampleRate = info.sample_rate;
+    spec.maximumBlockSize = info.max_frame_size;
     spec.numChannels = 2;
 
     filter_.prepare(spec);
