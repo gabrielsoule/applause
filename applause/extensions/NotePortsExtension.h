@@ -155,6 +155,11 @@ public:
      * ports extension To use it, check individual dialects with bitwise AND
      * (&): bool supports_clap = (result & CLAP_NOTE_DIALECT_CLAP) != 0; bool
      * supports_mpe = (result & CLAP_NOTE_DIALECT_MIDI_MPE) != 0;
+     *
+     * Author's note: This hook is a little unreliable, and you probably shouldn't count on it. The VST3/AU wrapper
+     * doesn't seem to pass anything through (which will look, to your synth, like no dialects are supported at all),
+     * and I see inconsistent reporting even from a CLAP host in a CLAP plugin.
+     *
      */
     uint32_t getHostSupportedDialects() const;
 };

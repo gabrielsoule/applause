@@ -14,8 +14,7 @@ constexpr float kTwoPi = 2.0f * kPi;
 class SineWaveVoice : public applause::SynthesizerVoice<float, 2> {
 public:
     void noteOn() override {
-        const float frequency =
-            440.0f * std::pow(2.0f, (midi_note_number_ - 69) / 12.0f);
+        const float frequency = static_cast<float>(note_.getFrequency());
         phase_increment_ = kTwoPi * frequency / static_cast<float>(sample_rate_);
         phase_ = 0.0f;
         envelope_ = 0.0f;
@@ -30,9 +29,22 @@ public:
         }
     }
 
+    void onExpressionChange(applause::Note::Expression expression_id, double value) override {
+        // React to expression changes by recalculating cached values
+        if (expression_id == applause::Note::Expression::Tuning) {
+            const float frequency = static_cast<float>(note_.getFrequency());
+            phase_increment_ = kTwoPi * frequency / static_cast<float>(sample_rate_);
+        }
+        // This simple synth ignores other expressions, but you could handle:
+        // - Note::Expression::Volume: adjust envelope target
+        // - Note::Expression::Dynamic: modulate amplitude (MIDI CC 11)
+        // - Note::Expression::Timbre: modulate filter cutoff (MPE Y-axis)
+        // - Note::Expression::Pressure: modulate amplitude or vibrato (MPE Z-axis)
+    }
+
     void process(applause::BufferView<float, 2> buffer, int start_sample,
                  int num_samples) override {
-        const float velocity_scale = velocity_ / 127.0f;
+        const float velocity_scale = static_cast<float>(note_.note_on_velocity);
         const float attack_samples = static_cast<float>(sample_rate_ * 0.01);
 
         auto left_channel = buffer.channel(0);

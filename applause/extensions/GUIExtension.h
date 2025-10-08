@@ -13,7 +13,6 @@
 #include "applause/ui/IEditor.h"
 
 namespace applause {
-
 /**
  * @class GUIExtension
  * @brief CLAP GUI extension that manages editor lifecycle and host
@@ -59,6 +58,7 @@ public:
 
     static constexpr const char* ID = CLAP_EXT_GUI;
     const char* id() const override { return ID; }
+
     const void* getClapExtensionStruct() const override {
         return &clap_struct_;
     }
@@ -166,5 +166,4 @@ private:
     void onPosixFd(int fd, clap_posix_fd_flags_t flags) noexcept;
 #endif
 };
-
-}  // namespace applause
+} // namespace applause

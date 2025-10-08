@@ -7,7 +7,7 @@ ExampleSineWaveSynthPlugin::ExampleSineWaveSynthPlugin(
     : PluginBase(descriptor, host) {
     LOG_INFO("ExampleSineWaveSynth constructor");
 
-    note_ports_.addInput(applause::NotePortConfig::midi("MIDI In"));
+    note_ports_.addInput(applause::NotePortConfig::universal("MIDI In"));
     audio_ports_.addOutput(applause::AudioPortConfig::mainStereo("Main Out"));
 
     registerExtension(note_ports_);
@@ -43,8 +43,7 @@ clap_process_status ExampleSineWaveSynthPlugin::process(
 
     const clap_audio_buffer_t* output = &process->audio_outputs[0];
 
-    applause::BufferView<float, 2> buffer(output->data32, output->channel_count,
-                                          process->frames_count);
+    applause::BufferView<float, 2> buffer(output->data32, output->channel_count, process->frames_count);
 
     synth_.process(buffer, process->in_events);
 

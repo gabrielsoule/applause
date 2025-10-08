@@ -9,22 +9,8 @@ ExampleMIDIPrinterPlugin::ExampleMIDIPrinterPlugin(const clap_plugin_descriptor_
 {
     LOG_INFO("ExampleMIDIPrinter constructor");
 
-    // Configure note ports - universal input that accepts all dialects
     note_ports_.addInput(applause::NotePortConfig::universal("Note Input"));
 
-    // Query what the host supports
-    uint32_t host_dialects = note_ports_.getHostSupportedDialects();
-    LOG_INFO("Host supported note dialects:");
-    if (host_dialects & CLAP_NOTE_DIALECT_CLAP)
-        LOG_INFO("  - CLAP (native)");
-    if (host_dialects & CLAP_NOTE_DIALECT_MIDI)
-        LOG_INFO("  - MIDI 1.0");
-    if (host_dialects & CLAP_NOTE_DIALECT_MIDI_MPE)
-        LOG_INFO("  - MIDI MPE");
-    if (host_dialects & CLAP_NOTE_DIALECT_MIDI2)
-        LOG_INFO("  - MIDI 2.0");
-
-    // Provide a simple stereo audio output so VST3 hosts can configure buses
     audio_ports_.addOutput(applause::AudioPortConfig::mainStereo("Main Out"));
 
     // Register extensions
@@ -49,6 +35,18 @@ bool ExampleMIDIPrinterPlugin::activate(const applause::ProcessInfo& info) noexc
     LOG_INFO("  Sample rate: {} Hz", info.sample_rate);
     LOG_INFO("  Frame count range: {} - {}", info.min_frame_size, info.max_frame_size);
     event_count_ = 0;
+
+    uint32_t host_dialects = note_ports_.getHostSupportedDialects();
+    LOG_INFO("Host supported note dialects:");
+    if (host_dialects & CLAP_NOTE_DIALECT_CLAP)
+        LOG_INFO("  - CLAP (native)");
+    if (host_dialects & CLAP_NOTE_DIALECT_MIDI)
+        LOG_INFO("  - MIDI 1.0");
+    if (host_dialects & CLAP_NOTE_DIALECT_MIDI_MPE)
+        LOG_INFO("  - MIDI MPE");
+    if (host_dialects & CLAP_NOTE_DIALECT_MIDI2)
+        LOG_INFO("  - MIDI 2.0");
+
     return true;
 }
 
@@ -82,10 +80,7 @@ clap_process_status ExampleMIDIPrinterPlugin::process(const clap_process_t* proc
             event_count_++;
 
             // Print common header info
-            LOG_INFO("=== Event #{} ===", event_count_);
-            LOG_INFO("  Time: sample {} (block offset)", header->time);
-            LOG_INFO("  Size: {} bytes", header->size);
-            LOG_INFO("  Space: {}", header->space_id);
+            LOG_INFO("Event #{}: t={} size={} space={}", event_count_, header->time, header->size, header->space_id);
 
             // Process based on event type
             if (header->space_id == CLAP_CORE_EVENT_SPACE_ID)
@@ -133,142 +128,105 @@ clap_process_status ExampleMIDIPrinterPlugin::process(const clap_process_t* proc
 
 void ExampleMIDIPrinterPlugin::printNoteEvent(const clap_event_note_t* event, const char* event_name)
 {
-    LOG_INFO("  Type: CLAP {} Event", event_name);
-    LOG_INFO("  Port: {}", event->port_index >= 0 ? std::to_string(event->port_index) : "wildcard");
-    LOG_INFO("  Channel: {}", event->channel >= 0 ? std::to_string(event->channel) : "wildcard");
-    LOG_INFO("  Key: {} {}",
-             event->key >= 0 ? std::to_string(event->key) : "wildcard",
-             event->key >= 0 ? "(" + getNoteNameFromKey(event->key) + ")" : "");
-    LOG_INFO("  Velocity: {:.3f}", event->velocity);
-    LOG_INFO("  Note ID: {}", event->note_id >= 0 ? std::to_string(event->note_id) : "unspecified");
+    auto port_str = event->port_index >= 0 ? std::to_string(event->port_index) : "wildcard";
+    auto chan_str = event->channel >= 0 ? std::to_string(event->channel) : "wildcard";
+    auto key_str = event->key >= 0 ? std::to_string(event->key) + " (" + getNoteNameFromKey(event->key) + ")" : "wildcard";
+    auto note_id_str = event->note_id >= 0 ? std::to_string(event->note_id) : "unspecified";
+    LOG_INFO("  {}: port={} ch={} key={} vel={:.3f} id={}", event_name, port_str, chan_str, key_str, event->velocity, note_id_str);
 }
 
 void ExampleMIDIPrinterPlugin::printNoteExpression(const clap_event_note_expression_t* event)
 {
-    LOG_INFO("  Type: CLAP NOTE_EXPRESSION Event");
-    LOG_INFO("  Expression: {} ({})", event->expression_id, getExpressionName(event->expression_id));
-    LOG_INFO("  Port: {}", event->port_index >= 0 ? std::to_string(event->port_index) : "wildcard");
-    LOG_INFO("  Channel: {}", event->channel >= 0 ? std::to_string(event->channel) : "wildcard");
-    LOG_INFO("  Key: {} {}",
-             event->key >= 0 ? std::to_string(event->key) : "wildcard",
-             event->key >= 0 ? "(" + getNoteNameFromKey(event->key) + ")" : "");
-    LOG_INFO("  Note ID: {}", event->note_id >= 0 ? std::to_string(event->note_id) : "wildcard");
-    LOG_INFO("  Value: {:.6f}", event->value);
+    auto port_str = event->port_index >= 0 ? std::to_string(event->port_index) : "wildcard";
+    auto chan_str = event->channel >= 0 ? std::to_string(event->channel) : "wildcard";
+    auto key_str = event->key >= 0 ? std::to_string(event->key) + " (" + getNoteNameFromKey(event->key) + ")" : "wildcard";
+    auto note_id_str = event->note_id >= 0 ? std::to_string(event->note_id) : "wildcard";
 
-    // Provide context-specific interpretation
+    std::string interpretation;
     switch (event->expression_id)
     {
     case CLAP_NOTE_EXPRESSION_VOLUME:
-        LOG_INFO("    (Volume: {:.1f} dB)", 20.0 * std::log10(event->value));
+        interpretation = std::format(" [{:.1f} dB]", 20.0 * std::log10(event->value));
         break;
     case CLAP_NOTE_EXPRESSION_PAN:
-        LOG_INFO("    (Pan: {:.0f}%% {})",
-                 std::abs(event->value - 0.5) * 200,
-                 event->value < 0.5 ? "Left" : (event->value > 0.5 ? "Right" : "Center"));
+        interpretation = std::format(" [{:.0f}% {}]",
+                                      std::abs(event->value - 0.5) * 200,
+                                      event->value < 0.5 ? "Left" : (event->value > 0.5 ? "Right" : "Center"));
         break;
     case CLAP_NOTE_EXPRESSION_TUNING:
-        LOG_INFO("    (Tuning: {:.2f} cents)", event->value * 100);
+        interpretation = std::format(" [{:.2f} cents]", event->value * 100);
         break;
     }
+
+    LOG_INFO("  NOTE_EXPRESSION: {} port={} ch={} key={} id={} val={:.6f}{}",
+             getExpressionName(event->expression_id), port_str, chan_str, key_str, note_id_str, event->value, interpretation);
 }
 
 void ExampleMIDIPrinterPlugin::printMidiEvent(const clap_event_midi_t* event)
 {
-    LOG_INFO("  Type: MIDI 1.0 Event");
-    LOG_INFO("  Port: {}", event->port_index);
-
-    // Print raw bytes
-    LOG_INFO("  Raw bytes: {:02X} {:02X} {:02X}",
-             event->data[0], event->data[1], event->data[2]);
-
-    // Decode the MIDI message
     uint8_t status = event->data[0] & 0xF0;
     uint8_t channel = event->data[0] & 0x0F;
 
-    LOG_INFO("  Channel: {}", channel + 1); // MIDI channels are 1-based for display
-    LOG_INFO("  Status: {}", decodeMidiStatus(status));
-
+    std::string details;
     switch (status)
     {
     case 0x80: // Note Off
     case 0x90: // Note On
-        LOG_INFO("  Key: {} ({})", event->data[1], getNoteNameFromKey(event->data[1]));
-        LOG_INFO("  Velocity: {}", event->data[2]);
+        details = std::format("key={} ({}) vel={}", event->data[1], getNoteNameFromKey(event->data[1]), event->data[2]);
         if (status == 0x90 && event->data[2] == 0)
-        {
-            LOG_INFO("  (Note: Velocity 0 - often treated as Note Off)");
-        }
+            details += " [vel=0 treated as Note Off]";
         break;
     case 0xA0: // Polyphonic Aftertouch
-        LOG_INFO("  Key: {} ({})", event->data[1], getNoteNameFromKey(event->data[1]));
-        LOG_INFO("  Pressure: {}", event->data[2]);
+        details = std::format("key={} ({}) pressure={}", event->data[1], getNoteNameFromKey(event->data[1]), event->data[2]);
         break;
     case 0xB0: // Control Change
-        LOG_INFO("  Controller: {}", event->data[1]);
-        LOG_INFO("  Value: {}", event->data[2]);
+        details = std::format("cc={} val={}", event->data[1], event->data[2]);
         break;
     case 0xC0: // Program Change
-        LOG_INFO("  Program: {}", event->data[1]);
+        details = std::format("program={}", event->data[1]);
         break;
     case 0xD0: // Channel Aftertouch
-        LOG_INFO("  Pressure: {}", event->data[1]);
+        details = std::format("pressure={}", event->data[1]);
         break;
     case 0xE0: // Pitch Bend
-        {
-            int bend = (event->data[2] << 7) | event->data[1];
-            LOG_INFO("  Bend: {} (centered at 8192)", bend);
-        }
+        details = std::format("bend={}", (event->data[2] << 7) | event->data[1]);
         break;
     }
+
+    LOG_INFO("  MIDI: [{:02X} {:02X} {:02X}] port={} ch={} {} {}",
+             event->data[0], event->data[1], event->data[2],
+             event->port_index, channel + 1, decodeMidiStatus(status), details);
 }
 
 void ExampleMIDIPrinterPlugin::printMidi2Event(const clap_event_midi2_t* event)
 {
-    LOG_INFO("  Type: MIDI 2.0 Event");
-    LOG_INFO("  Port: {}", event->port_index);
-
-    // Print raw data
-    LOG_INFO("  Raw data: {:08X} {:08X} {:08X} {:08X}",
-             event->data[0], event->data[1], event->data[2], event->data[3]);
-
-    // Decode message type (first 4 bits of first word)
     uint8_t message_type = (event->data[0] >> 28) & 0x0F;
     uint8_t group = (event->data[0] >> 24) & 0x0F;
 
-    LOG_INFO("  Message Type: 0x{:X}", message_type);
-    LOG_INFO("  Group: {}", group);
-
-    // Basic decoding of common MIDI 2.0 message types
+    std::string msg_type_str;
     switch (message_type)
     {
-    case 0x2: // MIDI 1.0 Channel Voice
-        LOG_INFO("  (MIDI 1.0 Channel Voice Message)");
-        break;
-    case 0x3: // 64-bit Data Message
-        LOG_INFO("  (64-bit Data Message)");
-        break;
-    case 0x4: // MIDI 2.0 Channel Voice
-        LOG_INFO("  (MIDI 2.0 Channel Voice Message)");
+    case 0x2: msg_type_str = "MIDI1.0 Chan Voice"; break;
+    case 0x3: msg_type_str = "64-bit Data"; break;
+    case 0x4:
         {
             uint8_t status = (event->data[0] >> 16) & 0xFF;
             uint8_t channel = (event->data[0] >> 8) & 0x0F;
-            LOG_INFO("  Channel: {}", channel + 1);
-            LOG_INFO("  Status: 0x{:02X}", status);
+            msg_type_str = std::format("MIDI2.0 Chan Voice ch={} status={:02X}", channel + 1, status);
         }
         break;
-    case 0x5: // 128-bit Data Message
-        LOG_INFO("  (128-bit Data Message)");
-        break;
+    case 0x5: msg_type_str = "128-bit Data"; break;
+    default: msg_type_str = std::format("type={:X}", message_type); break;
     }
+
+    LOG_INFO("  MIDI2: [{:08X} {:08X} {:08X} {:08X}] port={} group={} {}",
+             event->data[0], event->data[1], event->data[2], event->data[3],
+             event->port_index, group, msg_type_str);
 }
 
 void ExampleMIDIPrinterPlugin::printMidiSysexEvent(const clap_event_midi_sysex_t* event)
 {
-    LOG_INFO("  Type: MIDI SysEx Event");
-    LOG_INFO("  Port: {}", event->port_index);
-    LOG_INFO("  Size: {} bytes", event->size);
-
-    // Print first few bytes of sysex data
+    std::string data_str;
     if (event->buffer && event->size > 0)
     {
         std::stringstream ss;
@@ -279,11 +237,11 @@ void ExampleMIDIPrinterPlugin::printMidiSysexEvent(const clap_event_midi_sysex_t
                 << static_cast<int>(event->buffer[i]) << " ";
         }
         if (event->size > 16)
-        {
-            ss << "... (" << (event->size - 16) << " more bytes)";
-        }
-        LOG_INFO("  Data: {}", ss.str());
+            ss << "... (+" << (event->size - 16) << " more)";
+        data_str = ss.str();
     }
+
+    LOG_INFO("  SYSEX: port={} size={} bytes [{}]", event->port_index, event->size, data_str);
 }
 
 std::string ExampleMIDIPrinterPlugin::decodeMidiStatus(uint8_t status)
