@@ -26,4 +26,7 @@ private:
     // Test buttons
     std::unique_ptr<applause::UiButton> ui_button_;
     std::unique_ptr<applause::ToggleTextButton> toggle_button_;
+    std::unique_ptr<applause::UiButton> load_file_button_;
+
+    void onLoadFileClicked();
 };

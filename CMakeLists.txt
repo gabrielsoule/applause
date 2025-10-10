@@ -100,6 +100,18 @@ set(CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE)
 list(APPEND CMAKE_MODULE_PATH "${clap-wrapper_SOURCE_DIR}/cmake")
 include(make_clapfirst)
 
+# Native File Dialog Extended
+CPMAddPackage(
+    NAME nativefiledialog_extended
+    GITHUB_REPOSITORY btzy/nativefiledialog-extended
+    GIT_TAG v1.2.1
+    OPTIONS
+        "BUILD_SHARED_LIBS OFF"
+        "NFD_BUILD_TESTS OFF"
+        "NFD_BUILD_SDL2_TESTS OFF"
+        "NFD_INSTALL OFF"
+)
+
 # === Applause Library ===
 
 # Embed font resources
@@ -125,6 +137,7 @@ target_link_libraries(applause
         clap
         clap-helpers
         visage
+        nfd
         VisageEmbeddedFonts
         ApplauseEmbeddedFonts
         nlohmann_json::nlohmann_json
