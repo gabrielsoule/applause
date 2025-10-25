@@ -4,7 +4,7 @@
 
 ExampleMIDIPrinterPlugin::ExampleMIDIPrinterPlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
     : PluginBase(descriptor, host),
-      note_ports_(host),
+      note_ports_(),
       event_count_(0)
 {
     LOG_INFO("ExampleMIDIPrinter constructor");

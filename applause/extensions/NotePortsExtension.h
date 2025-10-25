@@ -9,18 +9,14 @@
 #include "applause/core/Extension.h"
 
 namespace applause {
-
 /**
  * @brief Configuration structure for a note port.
- *
  */
 struct NotePortConfig {
-    std::string name;             ///< Display name for the port
-    uint32_t supported_dialects;  ///< Bitfield of supported note dialects
-    uint32_t preferred_dialect =
-        0;  ///< Preferred dialect (0 = auto-choose based on supported)
-    clap_id id =
-        CLAP_INVALID_ID;  ///< Port ID (CLAP_INVALID_ID = auto-generate)
+    std::string name;                ///< Display name for the port
+    uint32_t supported_dialects;     ///< Bitfield of supported note dialects
+    uint32_t preferred_dialect = 0;  ///< Preferred dialect (0 = auto-choose based on supported)
+    clap_id id = CLAP_INVALID_ID;    ///< Port ID (CLAP_INVALID_ID = auto-generate)
 
     /**
      * @brief Create a MIDI port configuration.
@@ -81,59 +77,54 @@ private:
     std::vector<PortInfo> output_ports_;  ///< Configured output ports
     clap_id next_id_ = 0;                 ///< Auto-incrementing ID generator
 
-    // Host connection
-    const clap_host_t* host_ = nullptr;
     const clap_host_note_ports_t* host_note_ports_ = nullptr;
 
     // CLAP C callbacks
-    static uint32_t clap_note_ports_count(const clap_plugin_t* plugin,
-                                          bool is_input) noexcept;
-    static bool clap_note_ports_get(const clap_plugin_t* plugin, uint32_t index,
-                                    bool is_input,
+    static uint32_t clap_note_ports_count(const clap_plugin_t* plugin, bool is_input) noexcept;
+    static bool clap_note_ports_get(const clap_plugin_t* plugin, uint32_t index, bool is_input,
                                     clap_note_port_info_t* info) noexcept;
 
     // Helper to choose appropriate preferred dialect from supported dialects
     static uint32_t choose_preferred_dialect(uint32_t supported_dialects);
 
     // CLAP struct
-    static constexpr clap_plugin_note_ports_t clap_struct_ = {
-        .count = clap_note_ports_count, .get = clap_note_ports_get};
+    static constexpr clap_plugin_note_ports_t clap_struct_ = {.count = clap_note_ports_count,
+                                                              .get = clap_note_ports_get};
 
 public:
     static constexpr const char* ID = CLAP_EXT_NOTE_PORTS;
 
+    void onHostReady() noexcept override;
+
     /**
-     * @brief Constructor with host connection for dialect querying.
-     * @param host CLAP host interface (can be nullptr for basic functionality)
+     * @brief Construct the note ports extension.
      */
-    explicit NotePortsExtension(const clap_host_t* host = nullptr);
+    NotePortsExtension();
 
     const char* id() const override;
     const void* getClapExtensionStruct() const override;
 
     /**
-     * @brief Add an input port using configuration struct.
+     * @brief Add an input port using a configuration struct.
      * @param config Port configuration
      * @return Reference to this extension for chaining
      */
     NotePortsExtension& addInput(const NotePortConfig& config);
 
     /**
-     * @brief Add an output port using configuration struct.
+     * @brief Add an output port using a configuration struct.
      * @param config Port configuration
      * @return Reference to this extension for chaining
      */
     NotePortsExtension& addOutput(const NotePortConfig& config);
 
     /**
-     * @brief Get the number of configured input ports.
-     * @return Number of input ports
+     * @return The number of configured input ports
      */
     size_t inputCount() const;
 
     /**
-     * @brief Get the number of configured output ports.
-     * @return Number of output ports
+     * @return The number of configured output ports
      */
     size_t outputCount() const;
 
@@ -152,7 +143,7 @@ public:
     /**
      * @brief Query which note dialects the host supports.
      * @return Bitfield of supported dialects, or 0 if host doesn't support note
-     * ports extension To use it, check individual dialects with bitwise AND
+     * ports extension. To use it, check individual dialects with bitwise AND
      * (&): bool supports_clap = (result & CLAP_NOTE_DIALECT_CLAP) != 0; bool
      * supports_mpe = (result & CLAP_NOTE_DIALECT_MIDI_MPE) != 0;
      *
@@ -160,8 +151,9 @@ public:
      * doesn't seem to pass anything through (which will look, to your synth, like no dialects are supported at all),
      * and I see inconsistent reporting even from a CLAP host in a CLAP plugin.
      *
+     * Not much I can do about this. If the hosts don't want to play nice, we just have to work around it.
+     *
      */
     uint32_t getHostSupportedDialects() const;
 };
-
 }  // namespace applause

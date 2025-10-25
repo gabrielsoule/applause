@@ -22,7 +22,6 @@ class IEditor {
 public:
     virtual ~IEditor() = default;
 
-    // Thread-safe parameter communication
     /**
      * @brief Get the message queue for thread-safe parameter updates.
      *

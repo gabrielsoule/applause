@@ -7,7 +7,6 @@
 #include <atomic>
 #include <functional>
 #include <memory>
-#include <nlohmann/json.hpp>
 #include <optional>
 #include <span>
 #include <string>
@@ -16,42 +15,34 @@
 
 #include "applause/core/Extension.h"
 #include "applause/util/DebugHelpers.h"
+#include "applause/util/Json.h"
 #include "applause/util/ParamMessageQueue.h"
 #include "applause/util/thirdparty/rocket.hpp"
 
 namespace applause {
-// Forward declaration
 class ParamsExtension;
 class ParamInfo;
 
 /**
  * @brief Configuration structure for a parameter.
- *
- * This struct uses C++20 designated initializers for clear, declarative
- * configuration. All fields have sensible defaults, allowing you to specify
- * only what you need.
  */
 struct ParamConfig {
     std::string string_id;  ///< String identifier for the parameter (required)
-    std::string name = "";  ///< Display name (if empty, uses string_id)
-    std::string module = "";  ///< Module path for hierarchical grouping (e.g.,
-                              ///< "Filter/Envelope")
-    std::string short_name = "";  ///< Short display name (e.g., "Cutoff")
-    std::string unit = "";        ///< Unit string (e.g., "Hz", "dB")
-    float min_value = 0.0f;       ///< Minimum value
-    float max_value = 1.0f;       ///< Maximum value
-    float default_value = 0.5f;   ///< Default value
-    bool is_stepped =
-        false;  ///< Whether parameter uses discrete integer values
-    bool is_internal =
-        false;  ///< Whether parameter is internal (not exposed to DAW)
+    std::string name;       ///< Display name (if empty, uses string_id)
+    std::string module;
+    ///< Module path for hierarchical grouping (e.g.,
+    ///< "Filter/Envelope")
+    std::string short_name;      ///< Short display name (e.g., "Cutoff")
+    std::string unit;            ///< Unit string (e.g., "Hz", "dB")
+    float min_value = 0.0f;      ///< Minimum value
+    float max_value = 1.0f;      ///< Maximum value
+    float default_value = 0.5f;  ///< Default value
+    bool is_stepped = false;     ///< Whether parameter uses discrete integer values
+    bool is_internal = false;    ///< Whether parameter is internal (not exposed to DAW)
 
     // Optional custom converters (default to nullptr)
-    std::function<std::string(float value, const ParamInfo& info)>
-        value_to_text;
-    std::function<std::optional<float>(const std::string& text,
-                                       const ParamInfo& info)>
-        text_to_value;
+    std::function<std::string(float value, const ParamInfo& info)> value_to_text;
+    std::function<std::optional<float>(const std::string& text, const ParamInfo& info)> text_to_value;
 };
 
 /**
@@ -69,9 +60,7 @@ private:
     std::atomic<float>* value_ = nullptr;
 
 public:
-    [[nodiscard]] float getValue() const noexcept {
-        return value_->load(std::memory_order_relaxed);
-    }
+    [[nodiscard]] float getValue() const noexcept { return value_->load(std::memory_order_relaxed); }
 };
 
 /**
@@ -215,11 +204,8 @@ private:
     ParamsExtension* registry_ = nullptr;
 
     // Custom converters (following member naming convention)
-    std::function<std::string(float value, const ParamInfo& info)>
-        value_to_text_;
-    std::function<std::optional<float>(const std::string& text,
-                                       const ParamInfo& info)>
-        text_to_value_;
+    std::function<std::string(float value, const ParamInfo& info)> value_to_text_;
+    std::function<std::optional<float>(const std::string& text, const ParamInfo& info)> text_to_value_;
 
     friend class ParamsExtension;  // Allow ParamsExtension to access converters
 };
@@ -256,28 +242,19 @@ private:
     mutable clap_plugin_params_t clap_struct_{};  ///< C struct for CLAP host
 
     static uint32_t clap_params_count(const clap_plugin_t* plugin) noexcept;
-    static bool clap_params_get_info(const clap_plugin_t* plugin,
-                                     uint32_t param_index,
+    static bool clap_params_get_info(const clap_plugin_t* plugin, uint32_t param_index,
                                      clap_param_info_t* param_info) noexcept;
-    static bool clap_params_get_value(const clap_plugin_t* plugin,
-                                      clap_id param_id,
-                                      double* out_value) noexcept;
-    static bool clap_params_value_to_text(
-        const clap_plugin_t* plugin, clap_id param_id, double value,
-        char* out_buffer, uint32_t out_buffer_capacity) noexcept;
-    static bool clap_params_text_to_value(const clap_plugin_t* plugin,
-                                          clap_id param_id,
-                                          const char* param_value_text,
+    static bool clap_params_get_value(const clap_plugin_t* plugin, clap_id param_id, double* out_value) noexcept;
+    static bool clap_params_value_to_text(const clap_plugin_t* plugin, clap_id param_id, double value, char* out_buffer,
+                                          uint32_t out_buffer_capacity) noexcept;
+    static bool clap_params_text_to_value(const clap_plugin_t* plugin, clap_id param_id, const char* param_value_text,
                                           double* out_value) noexcept;
-    static void clap_params_flush(const clap_plugin_t* plugin,
-                                  const clap_input_events_t* in,
+    static void clap_params_flush(const clap_plugin_t* plugin, const clap_input_events_t* in,
                                   const clap_output_events_t* out) noexcept;
 
-    void flush(const clap_input_events_t* in,
-               const clap_output_events_t* out) noexcept;
+    void flush(const clap_input_events_t* in, const clap_output_events_t* out) noexcept;
 
     ParamMessageQueue* message_queue_;
-    const clap_host_t* host_ = nullptr;
     const clap_host_params_t* host_params_ = nullptr;
     std::unique_ptr<std::atomic<float>[]> values_;
     std::unique_ptr<ParamHandle[]> handles_;
@@ -295,31 +272,21 @@ private:
 public:
     static constexpr const char* ID = CLAP_EXT_PARAMS;
 
+    void onHostReady() noexcept override;
+
     /**
-     * @brief Construct the parameters extension. You'll have to pass a pointer
-     * to the host struct, since the parameters extension needs to occasionally
-     * communicate with the host directly (e.g. when a parameter is changed by
-     * the user, and the plugin is dormant/not processing)
-     *
-     * You'll also need to tell the extension the maximum number of params your
-     * plugin may support. For efficiency, parameters are allocated as a
-     * cache-aligned memory block; there is no dynamic allocation. This does not
-     * need to equal the exact number of parameters you register; you can round
-     * to the nearest power of 2 that is greater than your registered parameter
-     * count.
-     * @param host The CLAP host pointer
+     * @brief Construct the parameters extension with space for up to
+     * @p max_params parameters.
      */
-    ParamsExtension(const clap_host_t* host, uint32_t max_params = 128);
+    ParamsExtension(uint32_t max_params = 128);
 
     // Default converter functions (static members)
     static std::string defaultValueToText(float value, const ParamInfo& info);
-    static std::optional<float> defaultTextToValue(const std::string& text,
-                                                   const ParamInfo& info);
+    static std::optional<float> defaultTextToValue(const std::string& text, const ParamInfo& info);
 
     const char* id() const override { return ID; }
-    const void* getClapExtensionStruct() const override {
-        return &clap_struct_;
-    }
+
+    const void* getClapExtensionStruct() const override { return &clap_struct_; }
 
     /**
      * @brief Set the message queue for thread-safe UI<->audio communication.
@@ -397,8 +364,7 @@ public:
      * @param in The CLAP input event struct from process()
      * @param out the CLAP output event struct from process()
      */
-    void processEvents(const clap_input_events_t* in,
-                       const clap_output_events_t* out);
+    void processEvents(const clap_input_events_t* in, const clap_output_events_t* out);
 
     /**
      * @brief Save all parameter values to a JSON object.
@@ -412,7 +378,7 @@ public:
      * @return true on success, false on error
      * @note Call this from your StateExtension save callback
      */
-    bool saveToJson(nlohmann::json& json) noexcept;
+    bool saveToJson(applause::json& json) noexcept;
 
     /**
      * @brief Load parameter values from a JSON object.
@@ -425,13 +391,13 @@ public:
      * @return true on success, false on error
      * @note Call this from your StateExtension load callback
      */
-    bool loadFromJson(const nlohmann::json& json) noexcept;
+    bool loadFromJson(const applause::json& json) noexcept;
 };
 
 // Inline implementations for JSON serialization
-inline bool ParamsExtension::saveToJson(nlohmann::json& json) noexcept {
+inline bool ParamsExtension::saveToJson(applause::json& json) noexcept {
     try {
-        auto params = nlohmann::json::array();
+        auto params = applause::json::array();
 
         // Save all parameter values (including internal ones)
         for (uint32_t i = 0; i < param_count_; ++i) {
@@ -439,11 +405,10 @@ inline bool ParamsExtension::saveToJson(nlohmann::json& json) noexcept {
 
             // Save each parameter as an object for better readability and
             // debugging
-            nlohmann::json param_obj;
+            applause::json param_obj;
             param_obj["id"] = param_info.clapId;
             param_obj["value"] = param_info.getValue();
-            param_obj["name"] =
-                param_info.name;  // Include name for readability and debugging
+            param_obj["name"] = param_info.name;  // Include name for readability and debugging
 
             params.push_back(param_obj);
         }
@@ -461,11 +426,10 @@ inline bool ParamsExtension::saveToJson(nlohmann::json& json) noexcept {
     }
 }
 
-inline bool ParamsExtension::loadFromJson(const nlohmann::json& json) noexcept {
+inline bool ParamsExtension::loadFromJson(const applause::json& json) noexcept {
     try {
         if (!json.is_array()) {
-            LOG_WARN(
-                "Parameters JSON is not an array; skipping parameter load");
+            LOG_WARN("Parameters JSON is not an array; skipping parameter load");
             return true;  // Not a fatal error — ignore unexpected shapes
         }
 
@@ -491,20 +455,17 @@ inline bool ParamsExtension::loadFromJson(const nlohmann::json& json) noexcept {
 
                 // Notify UI of parameter change if message queue exists
                 if (message_queue_) {
-                    message_queue_->toUi().enqueue(
-                        {ParamMessageQueue::PARAM_VALUE, param_id, value});
+                    message_queue_->toUi().enqueue({ParamMessageQueue::PARAM_VALUE, param_id, value});
                 }
 
                 loaded_count++;
             } else {
                 missing_count++;
-                LOG_DBG("Parameter with ID {} not found in current plugin",
-                        param_id);
+                LOG_DBG("Parameter with ID {} not found in current plugin", param_id);
             }
         }
 
-        LOG_DBG("Loaded {} parameters from JSON state ({} missing/removed)",
-                loaded_count, missing_count);
+        LOG_DBG("Loaded {} parameters from JSON state ({} missing/removed)", loaded_count, missing_count);
         return true;
     } catch (const std::exception& e) {
         LOG_ERR("Failed to load parameters from JSON: {}", e.what());

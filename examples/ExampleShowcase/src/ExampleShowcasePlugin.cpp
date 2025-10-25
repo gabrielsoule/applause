@@ -1,14 +1,13 @@
 #include "ExampleShowcasePlugin.h"
 #include "applause/util/DebugHelpers.h"
-#include <nlohmann/json.hpp>
+#include "applause/util/Json.h"
 #include <map>
 #include <vector>
 ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
     : PluginBase(descriptor, host),
-      note_ports_(host),
-      params_(host),
-      gui_ext_(host, 
-               [this]() { return std::make_unique<ExampleShowcaseEditor>(&params_); },
+      note_ports_(),
+      params_(),
+      gui_ext_([this]() { return std::make_unique<ExampleShowcaseEditor>(&params_); },
                800, 600)
 {
     LOG_INFO("ExampleShowcase constructor");
@@ -57,20 +56,20 @@ ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* des
     });
 
     // Configure state extension callbacks - plugin manages its own versioning
-    state_.setSaveCallback([this](nlohmann::json& j)
+    state_.setSaveCallback([this](applause::json& j)
     {
         // Save plugin state
         j["demo_value"] = 42;
         j["demo_string"] = "hello, Applause!";
         j["preset_values"] = std::vector<float>{0.1f, 0.5f, 0.75f, 1.0f};
-        
+
         // Save parameters
         params_.saveToJson(j["parameters"]);
-        
+
         return true;
     });
 
-    state_.setLoadCallback([this](const nlohmann::json& j)
+    state_.setLoadCallback([this](const applause::json& j)
     {
         int demo_value = j.value("demo_value", 0);
         std::string demo_string = j.value("demo_string", "default");

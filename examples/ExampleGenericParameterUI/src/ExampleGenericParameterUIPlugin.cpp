@@ -1,14 +1,13 @@
 #include "ExampleGenericParameterUIPlugin.h"
 #include "applause/util/DebugHelpers.h"
-#include <nlohmann/json.hpp>
+#include "applause/util/Json.h"
 #include <cstring>
 
 ExampleGenericParameterUIPlugin::ExampleGenericParameterUIPlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
     : PluginBase(descriptor, host),
-      note_ports_(host),
-      params_(host),
-      gui_ext_(host, 
-               [this]() { return std::make_unique<applause::GenericParameterUIEditor>(&params_); },
+      note_ports_(),
+      params_(),
+      gui_ext_([this]() { return std::make_unique<applause::GenericParameterUIEditor>(&params_); },
                400, 600)
 {
     LOG_INFO("ExampleGenericParameterUI constructor");
@@ -49,13 +48,13 @@ ExampleGenericParameterUIPlugin::ExampleGenericParameterUIPlugin(const clap_plug
     });
 
     // Configure state extension callbacks for parameter persistence
-    state_.setSaveCallback([this](nlohmann::json& j)
+    state_.setSaveCallback([this](applause::json& j)
     {
         params_.saveToJson(j["parameters"]);
         return true;
     });
 
-    state_.setLoadCallback([this](const nlohmann::json& j)
+    state_.setLoadCallback([this](const applause::json& j)
     {
         if (j.contains("parameters")) {
             params_.loadFromJson(j["parameters"]);

@@ -1,10 +1,10 @@
 #pragma once
 
-#include "applause/core/PluginBase.h"
-#include "applause/dsp/Synthesizer.h"
-#include "applause/extensions/AudioPortsExtension.h"
-#include "applause/extensions/NotePortsExtension.h"
-#include "applause/extensions/StateExtension.h"
+#include <applause/core/PluginBase.h>
+#include <applause/dsp/Synthesizer.h>
+#include <applause/extensions/AudioPortsExtension.h>
+#include <applause/extensions/NotePortsExtension.h>
+#include <applause/extensions/StateExtension.h>
 
 #include <cmath>
 
@@ -36,14 +36,13 @@ public:
             phase_increment_ = kTwoPi * frequency / static_cast<float>(sample_rate_);
         }
         // This simple synth ignores other expressions, but you could handle:
-        // - Note::Expression::Volume: adjust envelope target
-        // - Note::Expression::Dynamic: modulate amplitude (MIDI CC 11)
-        // - Note::Expression::Timbre: modulate filter cutoff (MPE Y-axis)
-        // - Note::Expression::Pressure: modulate amplitude or vibrato (MPE Z-axis)
+        // Note::Expression::Volume: adjust envelope target
+        // Note::Expression::Dynamic: modulate amplitude (MIDI CC 11)
+        // Note::Expression::Timbre: modulate filter cutoff (MPE Y-axis)
+        // Note::Expression::Pressure: modulate amplitude or vibrato (MPE Z-axis)
     }
 
-    void process(applause::BufferView<float, 2> buffer, int start_sample,
-                 int num_samples) override {
+    void process(applause::BufferView<float, 2> buffer, int start_sample, int num_samples) override {
         const float velocity_scale = static_cast<float>(note_.note_on_velocity);
         const float attack_samples = static_cast<float>(sample_rate_ * 0.01);
 
@@ -70,10 +69,8 @@ public:
                 std::sin(phase_) * envelope_ * velocity_scale * 0.3f;
 
             const int frame_index = start_sample + i;
-            left_channel.store(frame_index,
-                               left_channel.load(frame_index) + sample);
-            right_channel.store(frame_index,
-                                right_channel.load(frame_index) + sample);
+            left_channel.add(frame_index, sample);
+            right_channel.add(frame_index, sample);
 
             phase_ += phase_increment_;
             if (phase_ >= kTwoPi) {

@@ -2,14 +2,13 @@
 #include "ExampleFilterEditor.h"
 #include <cstring>
 #include "applause/util/DebugHelpers.h"
+#include "applause/util/Json.h"
 #include <clap/events.h>
-#include <nlohmann/json.hpp>
 
 ExampleFilterPlugin::ExampleFilterPlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
     : PluginBase(descriptor, host),
-      params_(host),
-      gui_ext_(host,
-               [this]() { return std::make_unique<ExampleFilterEditor>(&params_); },
+      params_(),
+      gui_ext_([this]() { return std::make_unique<ExampleFilterEditor>(&params_); },
                340, 180)
 {
     LOG_INFO("ExampleFilter constructor");
@@ -55,13 +54,13 @@ ExampleFilterPlugin::ExampleFilterPlugin(const clap_plugin_descriptor_t* descrip
     param_mode_ = &params_.getHandle("filter_mode");
 
 
-    state_.setSaveCallback([this](nlohmann::json& j)
+    state_.setSaveCallback([this](applause::json& j)
     {
         params_.saveToJson(j["parameters"]);
         return true;
     });
 
-    state_.setLoadCallback([this](const nlohmann::json& j)
+    state_.setLoadCallback([this](const applause::json& j)
     {
         if (j.contains("parameters")) {
             params_.loadFromJson(j["parameters"]);

@@ -9,22 +9,18 @@
 #include "applause/core/Extension.h"
 
 namespace applause {
-
 /**
  * @brief Configuration structure for an audio port.
  *
  *
  */
 struct AudioPortConfig {
-    std::string name;        ///< Display name for the port
-    uint32_t channel_count;  ///< Number of audio channels
-    std::string port_type =
-        "";              ///< Port type (e.g., CLAP_PORT_STEREO, CLAP_PORT_MONO)
-    uint32_t flags = 0;  ///< Bitfield of CLAP_AUDIO_PORT_* flags
-    clap_id in_place_pair =
-        CLAP_INVALID_ID;  ///< ID of paired port for in-place processing
-    clap_id id =
-        CLAP_INVALID_ID;  ///< Port ID (CLAP_INVALID_ID = auto-generate)
+    std::string name;                         ///< Display name for the port
+    uint32_t channel_count;                   ///< Number of audio channels
+    std::string port_type = "";               ///< Port type (e.g., CLAP_PORT_STEREO, CLAP_PORT_MONO)
+    uint32_t flags = 0;                       ///< Bitfield of CLAP_AUDIO_PORT_* flags
+    clap_id in_place_pair = CLAP_INVALID_ID;  ///< ID of paired port for in-place processing
+    clap_id id = CLAP_INVALID_ID;             ///< Port ID (CLAP_INVALID_ID = auto-generate)
 
     /**
      * @brief Create a stereo port configuration.
@@ -32,9 +28,7 @@ struct AudioPortConfig {
      * @return Configuration for a stereo port
      */
     static AudioPortConfig stereo(std::string_view name) {
-        return {.name = std::string(name),
-                .channel_count = 2,
-                .port_type = CLAP_PORT_STEREO};
+        return {.name = std::string(name), .channel_count = 2, .port_type = CLAP_PORT_STEREO};
     }
 
     /**
@@ -55,9 +49,7 @@ struct AudioPortConfig {
      * @return Configuration for a mono port
      */
     static AudioPortConfig mono(std::string_view name) {
-        return {.name = std::string(name),
-                .channel_count = 1,
-                .port_type = CLAP_PORT_MONO};
+        return {.name = std::string(name), .channel_count = 1, .port_type = CLAP_PORT_MONO};
     }
 
     /**
@@ -78,12 +70,8 @@ struct AudioPortConfig {
      * @param pair_id ID of the paired port
      * @return Configuration for a stereo port with in-place processing
      */
-    static AudioPortConfig stereoInPlace(std::string_view name,
-                                         clap_id pair_id) {
-        return {.name = std::string(name),
-                .channel_count = 2,
-                .port_type = CLAP_PORT_STEREO,
-                .in_place_pair = pair_id};
+    static AudioPortConfig stereoInPlace(std::string_view name, clap_id pair_id) {
+        return {.name = std::string(name), .channel_count = 2, .port_type = CLAP_PORT_STEREO, .in_place_pair = pair_id};
     }
 
     /**
@@ -93,11 +81,8 @@ struct AudioPortConfig {
      * @param type Port type string (optional)
      * @return Configuration for a custom port
      */
-    static AudioPortConfig custom(std::string_view name, uint32_t channels,
-                                  std::string_view type = "") {
-        return {.name = std::string(name),
-                .channel_count = channels,
-                .port_type = std::string(type)};
+    static AudioPortConfig custom(std::string_view name, uint32_t channels, std::string_view type = "") {
+        return {.name = std::string(name), .channel_count = channels, .port_type = std::string(type)};
     }
 };
 
@@ -135,15 +120,13 @@ private:
     clap_id next_id_ = 0;
 
     // CLAP C callbacks
-    static uint32_t clap_audio_ports_count(const clap_plugin_t* plugin,
-                                           bool is_input) noexcept;
-    static bool clap_audio_ports_get(const clap_plugin_t* plugin,
-                                     uint32_t index, bool is_input,
+    static uint32_t clap_audio_ports_count(const clap_plugin_t* plugin, bool is_input) noexcept;
+    static bool clap_audio_ports_get(const clap_plugin_t* plugin, uint32_t index, bool is_input,
                                      clap_audio_port_info_t* info) noexcept;
 
     // CLAP struct
-    static constexpr clap_plugin_audio_ports_t clap_struct_ = {
-        .count = clap_audio_ports_count, .get = clap_audio_ports_get};
+    static constexpr clap_plugin_audio_ports_t clap_struct_ = {.count = clap_audio_ports_count,
+                                                               .get = clap_audio_ports_get};
 
 public:
     static constexpr const char* ID = CLAP_EXT_AUDIO_PORTS;
@@ -151,9 +134,8 @@ public:
     AudioPortsExtension() = default;
 
     const char* id() const override { return ID; }
-    const void* getClapExtensionStruct() const override {
-        return &clap_struct_;
-    }
+
+    const void* getClapExtensionStruct() const override { return &clap_struct_; }
 
     /**
      * @brief Add an input port using configuration struct.
@@ -197,5 +179,4 @@ public:
      */
     const std::vector<PortInfo>& outputPorts() const { return output_ports_; }
 };
-
 }  // namespace applause

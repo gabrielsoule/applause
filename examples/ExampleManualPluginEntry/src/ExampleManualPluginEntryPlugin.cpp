@@ -3,14 +3,13 @@
 #include <ExampleManualPluginEntryEditor.h>
 #include "applause/util/DebugHelpers.h"
 #include "applause/ui/ApplauseEditor.h"
-#include <nlohmann/json.hpp>
+#include "applause/util/Json.h"
 
 ExampleManualPluginEntryPlugin::ExampleManualPluginEntryPlugin(const clap_plugin_descriptor_t* descriptor,
                                                                const clap_host_t* host)
     : PluginBase(descriptor, host),
-      params_(host),
-      gui_ext_(host,
-               [this]() { return std::make_unique<ExampleManualPluginEntryEditor>(&params_); },
+      params_(),
+      gui_ext_([this]() { return std::make_unique<ExampleManualPluginEntryEditor>(&params_); },
                800, 600)
 {
     LOG_INFO("ExampleManualPluginEntry constructor");
@@ -58,13 +57,13 @@ ExampleManualPluginEntryPlugin::ExampleManualPluginEntryPlugin(const clap_plugin
     });
 
     // Configure state extension callbacks for parameter persistence
-    state_.setSaveCallback([this](nlohmann::json& j)
+    state_.setSaveCallback([this](applause::json& j)
     {
         params_.saveToJson(j["parameters"]);
         return true;
     });
 
-    state_.setLoadCallback([this](const nlohmann::json& j)
+    state_.setLoadCallback([this](const applause::json& j)
     {
         if (j.contains("parameters")) {
             params_.loadFromJson(j["parameters"]);

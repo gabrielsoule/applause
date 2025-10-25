@@ -1,5 +1,7 @@
 #pragma once
 
+#include <clap/clap.h>
+
 namespace applause {
 
 /**
@@ -58,6 +60,26 @@ public:
      * @return Pointer to the CLAP extension C struct, or nullptr on error
      */
     virtual const void* getClapExtensionStruct() const = 0;
+
+protected:
+    /**
+     * @brief Hook invoked after PluginBase assigns the host pointer. This is invoked after
+     * init() is invoked, as per CLAP specifications.
+     *
+     * Derived extensions override this to perform host-dependent setup. The host
+     * pointer is accessible via the protected host_ member.
+     */
+    virtual void onHostReady() noexcept {}
+
+    const clap_host_t* host_ = nullptr;
+
+private:
+    friend class PluginBase;
+
+    void assignHost(const clap_host_t* host) noexcept {
+        host_ = host;
+        onHostReady();
+    }
 };
 
 template <typename CExt>

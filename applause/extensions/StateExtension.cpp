@@ -10,13 +10,12 @@ StateExtension::StateExtension() {
     clap_struct_.load = clap_state_load;
 }
 
-bool StateExtension::clap_state_save(const clap_plugin_t* plugin,
-                                     const clap_ostream_t* stream) noexcept {
+bool StateExtension::clap_state_save(const clap_plugin_t* plugin, const clap_ostream_t* stream) noexcept {
     auto* ext = PluginBase::findExtension<StateExtension>(plugin);
     if (!ext || !ext->save_callback_) return false;
 
     try {
-        nlohmann::json state;
+        applause::json state;
 
         // Let plugin populate the state
         if (!ext->save_callback_(state)) {
@@ -35,14 +34,12 @@ bool StateExtension::clap_state_save(const clap_plugin_t* plugin,
         }
 
         return true;
-
     } catch (...) {
         return false;
     }
 }
 
-bool StateExtension::clap_state_load(const clap_plugin_t* plugin,
-                                     const clap_istream_t* stream) noexcept {
+bool StateExtension::clap_state_load(const clap_plugin_t* plugin, const clap_istream_t* stream) noexcept {
     auto* ext = PluginBase::findExtension<StateExtension>(plugin);
     if (!ext || !ext->load_callback_) return false;
 
@@ -58,13 +55,11 @@ bool StateExtension::clap_state_load(const clap_plugin_t* plugin,
             buffer.insert(buffer.end(), chunk, chunk + bytes_read);
         }
 
-        auto state = nlohmann::json::parse(buffer.begin(), buffer.end());
+        auto state = applause::json::parse(buffer.begin(), buffer.end());
 
         return ext->load_callback_(state);
-
     } catch (...) {
         return false;
     }
 }
-
 }  // namespace applause

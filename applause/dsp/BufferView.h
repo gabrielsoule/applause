@@ -56,6 +56,27 @@ public:
             applause::store_unaligned(value, base_ + frame * sample_width);
         }
 
+        /**
+         * Adds a value to an existing sample in the channel.
+         * Equivalent to: sample = load(frame) + value, but more efficient.
+         *
+         * Note: This is NOT thread-safe for concurrent writes to the same frame.
+         * Use per-voice buffers if rendering voices in parallel.
+         */
+        void add(std::size_t frame, const Sample& value) noexcept {
+            ASSERT(frame < frame_count_, "ChannelAccessor: frame out of range");
+            Scalar* ptr = base_ + frame * sample_width;
+
+            if constexpr (is_simd) {
+                // SIMD path: load, add, store
+                Sample current = applause::load_unaligned<Sample>(ptr);
+                applause::store_unaligned(current + value, ptr);
+            } else {
+                // Scalar path: direct pointer arithmetic (optimal)
+                *ptr += value;
+            }
+        }
+
         [[nodiscard]] Scalar* framePtr(std::size_t frame) noexcept {
             ASSERT(frame < frame_count_, "ChannelAccessor: frame out of range");
             return base_ + frame * sample_width;
@@ -303,6 +324,40 @@ public:
                const Sample& value) noexcept {
         Scalar* ptr = frameScalars(channel, frame);
         applause::store_unaligned<Sample>(value, ptr);
+    }
+
+    /**
+     * Adds a value to an existing sample in the buffer.
+     * Equivalent to: store(ch, frame, load(ch, frame) + value), but more efficient.
+     *
+     * This is the idiomatic way to mix multiple voices into a shared buffer.
+     * Example:
+     * @code
+     * buffer.clear();
+     * for (auto& voice : voices) {
+     *     for (int i = 0; i < numSamples; ++i) {
+     *         float sample = voice.generateSample();
+     *         buffer.add(0, i, sample);  // Mix into left channel
+     *         buffer.add(1, i, sample);  // Mix into right channel
+     *     }
+     * }
+     * @endcode
+     *
+     * Note: This is NOT thread-safe for concurrent writes to the same sample.
+     * If rendering voices in parallel, use per-voice buffers and sum sequentially.
+     */
+    void add(std::size_t channel, std::size_t frame, Scalar value) noexcept {
+        Scalar* ptr = frameScalars(channel, frame);
+        if (!ptr) return;
+
+        if constexpr (is_simd) {
+            // SIMD path: load, add, store
+            Sample current = applause::load_unaligned<Sample>(ptr);
+            applause::store_unaligned(current + value, ptr);
+        } else {
+            // Scalar path: direct pointer arithmetic (optimal)
+            *ptr += value;
+        }
     }
 
     /**

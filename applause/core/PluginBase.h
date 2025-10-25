@@ -25,11 +25,19 @@ private:
     clap_plugin_t _plugin;
     const clap_host_t* _host;
     std::unordered_map<std::string, IExtension*> _extensions;
+    bool extensions_connected_ = false;
 
     // Static C function dispatchers for core plugin functions
     static bool clapInit(const clap_plugin_t* plugin) noexcept {
         auto* self = static_cast<PluginBase*>(plugin->plugin_data);
-        return self->init();
+        bool ok = self->init();
+        if (ok) {
+            for (auto& [id, ext] : self->_extensions) {
+                (void)id;
+                ext->assignHost(self->_host);
+            }
+        }
+        return ok;
     }
 
     static void clapDestroy(const clap_plugin_t* plugin) noexcept {
@@ -111,8 +119,12 @@ protected:
 
     virtual ~PluginBase() = default;
 
-    // Extension registration - called by extension constructors
-    void registerExtension(IExtension& ext) { _extensions[ext.id()] = &ext; }
+    void registerExtension(IExtension& ext) {
+        _extensions[ext.id()] = &ext;
+        if (extensions_connected_) {
+            ext.assignHost(_host);
+        }
+    }
 
     /**
      * @brief Find an extension by type

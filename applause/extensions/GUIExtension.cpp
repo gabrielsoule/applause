@@ -8,33 +8,35 @@
 #include "applause/util/DebugHelpers.h"
 
 namespace applause {
-GUIExtension::GUIExtension(const clap_host_t* host, EditorFactory factory,
-                           uint32_t defaultWidth, uint32_t defaultHeight,
-                           bool fixedAspectRatio)
-    : host_(host),
+GUIExtension::GUIExtension(EditorFactory factory, uint32_t defaultWidth, uint32_t defaultHeight, bool fixedAspectRatio)
+    : hostGui_(nullptr),
+#ifdef __linux__
+      hostFdSupport_(nullptr),
+#endif
       editor_factory_(std::move(factory)),
+      editor_(nullptr),
       width_(defaultWidth),
       height_(defaultHeight),
-      fixedAspectRatio_(fixedAspectRatio) {
-    // Calculate aspect ratio from default dimensions
-    aspectRatio_ =
-        static_cast<float>(defaultWidth) / static_cast<float>(defaultHeight);
+      fixedAspectRatio_(fixedAspectRatio),
+      aspectRatio_(static_cast<float>(defaultWidth) / static_cast<float>(defaultHeight)) {
+}
 
-    // Get host GUI extension for callbacks
-    if (host_) {
-        hostGui_ = static_cast<const clap_host_gui_t*>(
-            host_->get_extension(host_, CLAP_EXT_GUI));
+void GUIExtension::onHostReady() noexcept {
+    hostGui_ = nullptr;
 #ifdef __linux__
-        hostFdSupport_ = static_cast<const clap_host_posix_fd_support_t*>(
-            host_->get_extension(host_, CLAP_EXT_POSIX_FD_SUPPORT));
+    hostFdSupport_ = nullptr;
+#endif
+    if (host_) {
+        hostGui_ = static_cast<const clap_host_gui_t*>(host_->get_extension(host_, CLAP_EXT_GUI));
+#ifdef __linux__
+        hostFdSupport_ =
+            static_cast<const clap_host_posix_fd_support_t*>(host_->get_extension(host_, CLAP_EXT_POSIX_FD_SUPPORT));
 #endif
     }
 }
 
 // Static callback implementations
-bool GUIExtension::clap_gui_is_api_supported(const clap_plugin_t* plugin,
-                                             const char* api,
-                                             bool is_floating) noexcept {
+bool GUIExtension::clap_gui_is_api_supported(const clap_plugin_t* plugin, const char* api, bool is_floating) noexcept {
     if (is_floating) return false;
 
 #ifdef _WIN32
@@ -42,22 +44,18 @@ bool GUIExtension::clap_gui_is_api_supported(const clap_plugin_t* plugin,
 #elif __APPLE__
     if (strcmp(api, CLAP_WINDOW_API_COCOA) == 0) return true;
 #elif __linux__
-    if (strcmp(api, CLAP_WINDOW_API_X11) == 0)
-        return true;  // Visage doesn't support Wayland
+    if (strcmp(api, CLAP_WINDOW_API_X11) == 0) return true;  // Visage doesn't support Wayland
 #endif
 
     return false;
 }
 
-bool GUIExtension::clap_gui_get_preferred_api(const clap_plugin_t* plugin,
-                                              const char** api,
+bool GUIExtension::clap_gui_get_preferred_api(const clap_plugin_t* plugin, const char** api,
                                               bool* is_floating) noexcept {
-    return false;  // we don't support multiple graphics backends yet; this can
-                   // be safely ignored
+    return false;  // we don't support multiple graphics backends yet; this can be safely ignored
 }
 
-bool GUIExtension::clap_gui_create(const clap_plugin_t* plugin, const char* api,
-                                   bool is_floating) noexcept {
+bool GUIExtension::clap_gui_create(const clap_plugin_t* plugin, const char* api, bool is_floating) noexcept {
     auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
     if (!ext) return false;
 
@@ -97,15 +95,12 @@ void GUIExtension::clap_gui_destroy(const clap_plugin_t* plugin) noexcept {
     LOG_INFO("GUI destroyed");
 }
 
-bool GUIExtension::clap_gui_set_scale(const clap_plugin_t* plugin,
-                                      double scale) noexcept {
+bool GUIExtension::clap_gui_set_scale(const clap_plugin_t* plugin, double scale) noexcept {
     // this extension can be safely ignored for now
     return false;
 }
 
-bool GUIExtension::clap_gui_get_size(const clap_plugin_t* plugin,
-                                     uint32_t* width,
-                                     uint32_t* height) noexcept {
+bool GUIExtension::clap_gui_get_size(const clap_plugin_t* plugin, uint32_t* width, uint32_t* height) noexcept {
     auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
     if (!ext) return false;
 
@@ -128,8 +123,7 @@ bool GUIExtension::clap_gui_can_resize(const clap_plugin_t* plugin) noexcept {
     return true;
 }
 
-bool GUIExtension::clap_gui_get_resize_hints(
-    const clap_plugin_t* plugin, clap_gui_resize_hints_t* hints) noexcept {
+bool GUIExtension::clap_gui_get_resize_hints(const clap_plugin_t* plugin, clap_gui_resize_hints_t* hints) noexcept {
     auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
     if (!ext) return false;
 
@@ -172,9 +166,7 @@ bool GUIExtension::clap_gui_get_resize_hints(
     return true;
 }
 
-bool GUIExtension::clap_gui_adjust_size(const clap_plugin_t* plugin,
-                                        uint32_t* width,
-                                        uint32_t* height) noexcept {
+bool GUIExtension::clap_gui_adjust_size(const clap_plugin_t* plugin, uint32_t* width, uint32_t* height) noexcept {
     auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
     if (!ext) return false;
 
@@ -194,21 +186,18 @@ bool GUIExtension::clap_gui_adjust_size(const clap_plugin_t* plugin,
         return true;
     }
 
-    float current_ratio =
-        static_cast<float>(*width) / static_cast<float>(*height);
+    float current_ratio = static_cast<float>(*width) / static_cast<float>(*height);
 
     if (std::abs(current_ratio - aspectRatio) > 0.001f) {
         // Prefer adjusting height to maintain width
-        uint32_t new_height =
-            static_cast<uint32_t>(std::round(*width / aspectRatio));
+        uint32_t new_height = static_cast<uint32_t>(std::round(*width / aspectRatio));
         *height = std::max(new_height, 1u);
     }
 
     return true;
 }
 
-bool GUIExtension::clap_gui_set_size(const clap_plugin_t* plugin,
-                                     uint32_t width, uint32_t height) noexcept {
+bool GUIExtension::clap_gui_set_size(const clap_plugin_t* plugin, uint32_t width, uint32_t height) noexcept {
     auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
     if (!ext) return false;
 
@@ -224,8 +213,7 @@ bool GUIExtension::clap_gui_set_size(const clap_plugin_t* plugin,
     return true;
 }
 
-bool GUIExtension::clap_gui_set_parent(const clap_plugin_t* plugin,
-                                       const clap_window_t* window) noexcept {
+bool GUIExtension::clap_gui_set_parent(const clap_plugin_t* plugin, const clap_window_t* window) noexcept {
     auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
     if (!ext || !ext->editor_) return false;
 
@@ -237,8 +225,7 @@ bool GUIExtension::clap_gui_set_parent(const clap_plugin_t* plugin,
     if (ext->hostFdSupport_ && ext->editor_) {
         int fd = ext->editor_->getPosixFd();
         if (fd >= 0) {
-            int fd_flags =
-                CLAP_POSIX_FD_READ | CLAP_POSIX_FD_WRITE | CLAP_POSIX_FD_ERROR;
+            int fd_flags = CLAP_POSIX_FD_READ | CLAP_POSIX_FD_WRITE | CLAP_POSIX_FD_ERROR;
             return ext->hostFdSupport_->register_(ext->host_, fd, fd_flags);
         }
     }
@@ -247,8 +234,7 @@ bool GUIExtension::clap_gui_set_parent(const clap_plugin_t* plugin,
     return true;
 }
 
-bool GUIExtension::clap_gui_set_transient(
-    const clap_plugin_t* plugin, const clap_window_t* window) noexcept {
+bool GUIExtension::clap_gui_set_transient(const clap_plugin_t* plugin, const clap_window_t* window) noexcept {
     auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
     if (!ext || !ext->editor_) return false;
 
@@ -256,8 +242,7 @@ bool GUIExtension::clap_gui_set_transient(
     return true;
 }
 
-void GUIExtension::clap_gui_suggest_title(const clap_plugin_t* plugin,
-                                          const char* title) noexcept {
+void GUIExtension::clap_gui_suggest_title(const clap_plugin_t* plugin, const char* title) noexcept {
     auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
     if (!ext || !ext->editor_) return;
 
@@ -301,8 +286,7 @@ bool GUIExtension::requestHide() {
 
 #ifdef __linux__
 // Linux POSIX FD support implementation
-void GUIExtension::clap_on_posix_fd(const clap_plugin_t* plugin, int fd,
-                                    clap_posix_fd_flags_t flags) noexcept {
+void GUIExtension::clap_on_posix_fd(const clap_plugin_t* plugin, int fd, clap_posix_fd_flags_t flags) noexcept {
     auto* ext = PluginBase::findExtension<GUIExtension>(plugin);
     if (!ext) return;
 

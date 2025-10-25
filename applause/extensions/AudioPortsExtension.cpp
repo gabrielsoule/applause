@@ -5,19 +5,15 @@
 #include "applause/core/PluginBase.h"
 
 namespace applause {
-
-uint32_t AudioPortsExtension::clap_audio_ports_count(
-    const clap_plugin_t* plugin, bool is_input) noexcept {
+uint32_t AudioPortsExtension::clap_audio_ports_count(const clap_plugin_t* plugin, bool is_input) noexcept {
     auto* ext = PluginBase::findExtension<AudioPortsExtension>(plugin);
     if (!ext) return 0;
 
-    return static_cast<uint32_t>(is_input ? ext->input_ports_.size()
-                                          : ext->output_ports_.size());
+    return static_cast<uint32_t>(is_input ? ext->input_ports_.size() : ext->output_ports_.size());
 }
 
-bool AudioPortsExtension::clap_audio_ports_get(
-    const clap_plugin_t* plugin, uint32_t index, bool is_input,
-    clap_audio_port_info_t* info) noexcept {
+bool AudioPortsExtension::clap_audio_ports_get(const clap_plugin_t* plugin, uint32_t index, bool is_input,
+                                               clap_audio_port_info_t* info) noexcept {
     auto* ext = PluginBase::findExtension<AudioPortsExtension>(plugin);
     if (!ext || !info) return false;
 
@@ -52,5 +48,4 @@ bool AudioPortsExtension::clap_audio_ports_get(
 
     return true;
 }
-
 }  // namespace applause
