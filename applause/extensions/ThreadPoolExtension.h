@@ -6,8 +6,13 @@
 #include <functional>
 
 namespace applause {
-// Thin wrapper around the CLAP thread-pool extension. Bridges the plugin-side
-// exec callback and caches the host-side request API.
+
+/**
+ * @brief Bridges the CLAP thread pool extension to plugin code.
+ *
+ * ThreadPoolExtension exposes the host-provided `clap_host_thread_pool_t`
+ * interface and allows plugins to run work on the host's background threads.
+ */
 class ThreadPoolExtension : public IExtension {
 public:
     static constexpr const char* ID = CLAP_EXT_THREAD_POOL;
@@ -16,32 +21,37 @@ public:
 
     void onHostReady() noexcept override;
 
-    // [thread-safe] Host support is optional; this reports availability.
+    /**
+     * @brief Checks whether the host exposes the CLAP thread pool extension.
+     * @return True when a valid `clap_host_thread_pool_t` is available.
+     */
     bool hasHostSupport() const noexcept { return host_pool_ && host_pool_->request_exec; }
 
     const char* id() const override { return ID; }
 
     const void* getClapExtensionStruct() const override { return &clap_struct_; }
 
-    // Install the per-task callback. [main-thread]
+    /**
+     * @brief Registers a callback invoked for each scheduled task.
+     * @param callback Functor that receives the task index supplied by the host.
+     */
     void setCallback(std::function<void(uint32_t)> callback) { callback_ = std::move(callback); }
 
-    // Called by the host's worker threads. [audio-thread or host pool]
+    /**
+     * @brief Executes the registered callback for the given task.
+     * @param task_index Task identifier provided by the host scheduler.
+     */
     void exec(uint32_t task_index) const {
         if (callback_) {
             callback_(task_index);
         }
     }
 
-    // Request execution on the host pool. Blocks until tasks finish.
-    // Returns false if the host rejects. [audio-thread]
     [[nodiscard]] bool requestExec(uint32_t num_tasks) const noexcept;
 
 private:
-    // CLAP C callback - bridges to instance method
     static void clap_exec(const clap_plugin_t* plugin, uint32_t task_index) noexcept;
 
-    // CLAP struct
     static constexpr clap_plugin_thread_pool_t clap_struct_ = {.exec = clap_exec};
 
     const clap_host_thread_pool_t* host_pool_ = nullptr;
