@@ -433,8 +433,8 @@ inline bool ParamsExtension::loadFromJson(const applause::json& json) noexcept {
             return true;  // Not a fatal error — ignore unexpected shapes
         }
 
-        size_t loaded_count = 0;
-        size_t missing_count = 0;
+        [[maybe_unused]] size_t loaded_count = 0;
+        [[maybe_unused]] size_t missing_count = 0;
 
         // Load each parameter (expects object entries: {"id", "value", ...})
         for (const auto& param_obj : json) {
