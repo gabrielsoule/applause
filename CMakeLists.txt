@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
 
-# Set macOS deployment target before project() to ensure it's available everywhere
 if(APPLE)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "13.3" CACHE STRING "Minimum macOS deployment target" FORCE)
     message(STATUS "Applause: Setting CMAKE_OSX_DEPLOYMENT_TARGET to ${CMAKE_OSX_DEPLOYMENT_TARGET}")
@@ -8,25 +7,20 @@ endif()
 
 project(Applause VERSION 0.1.0 LANGUAGES C CXX)
 
-# Enable OBJC/OBJCXX on macOS
 if(APPLE)
     enable_language(OBJC)
     enable_language(OBJCXX)
 endif()
 
-# C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Include CPM for dependency management
 include(cmake/CPM.cmake)
 
-# Include Applause plugin helper functions
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ApplausePlugin.cmake)
 
-# === Dependencies ===
 
 # CLAP
 CPMAddPackage(
@@ -62,11 +56,11 @@ CPMAddPackage(
         "BUILD_BENCHMARK OFF"
 )
 
-# Visage
+# Visage, now with commit pinning since Visage still occasionally pushes breaking changes...
 CPMAddPackage(
     NAME visage
     GITHUB_REPOSITORY vitalaudio/visage
-    GIT_TAG main
+    GIT_TAG 54b11a1
     OPTIONS
         "VISAGE_BUILD_EXAMPLES OFF"
         "VISAGE_BUILD_TESTS OFF"
@@ -112,26 +106,20 @@ CPMAddPackage(
         "NFD_INSTALL OFF"
 )
 
-# === Applause Library ===
-
 # Embed font resources
 file(GLOB APPLAUSE_FONT_FILES ${CMAKE_CURRENT_SOURCE_DIR}/resources/fonts/*.ttf)
 add_embedded_resources(ApplauseEmbeddedFonts "applause_fonts.h" "applause::fonts" "${APPLAUSE_FONT_FILES}")
 
-# Collect sources
 file(GLOB_RECURSE APPLAUSE_SOURCES applause/*.cpp applause/*.h)
 
-# Create library
 add_library(applause STATIC ${APPLAUSE_SOURCES})
 add_library(Applause::Applause ALIAS applause)
 
-# Include directories
 target_include_directories(applause PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:include>
 )
 
-# Link dependencies
 target_link_libraries(applause
     PUBLIC
         clap
