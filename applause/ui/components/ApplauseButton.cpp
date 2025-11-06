@@ -268,22 +268,14 @@ void UiButton::draw(visage::Canvas& canvas, float hover_amount) {
 }
 
 void IconButton::draw(visage::Canvas& canvas, float hover_amount) {
-    int x = iconX();
-    int y = iconY();
-
-    if (shadow_.blur_radius) {
-        canvas.setColor(Button::ApplauseButtonShadow);
-        canvas.svg(shadow_, x, y);
-    }
+    shadow_.setFillBrush(canvas.color(Button::ApplauseButtonShadow));
 
     if (isActive())
-        canvas.setBlendedColor(ToggleButton::ApplauseToggleButtonOff,
-                               ToggleButton::ApplauseToggleButtonOffHover,
-                               hover_amount);
+        icon_.setFillBrush(canvas.blendedColor(
+            ToggleButton::ApplauseToggleButtonOff,
+            ToggleButton::ApplauseToggleButtonOffHover, hover_amount));
     else
-        canvas.setColor(ToggleButton::ApplauseToggleButtonDisabled);
-
-    canvas.svg(icon_, x, y);
+        icon_.setFillBrush(canvas.color(ToggleButton::ApplauseToggleButtonDisabled));
 }
 
 bool ToggleButton::toggle() {
@@ -301,20 +293,16 @@ bool ToggleButton::toggle() {
 }
 
 void ToggleIconButton::draw(visage::Canvas& canvas, float hover_amount) {
-    int x = iconX();
-    int y = iconY();
-    if (shadow_.blur_radius) {
-        canvas.setColor(Button::ApplauseButtonShadow);
-        canvas.svg(shadow_, x, y);
-    }
+    shadow_.setFillBrush(canvas.color(Button::ApplauseButtonShadow));
 
     if (toggled())
-        canvas.setBlendedColor(ApplauseToggleButtonOn,
-                               ApplauseToggleButtonOnHover, hover_amount);
+        icon_.setFillBrush(canvas.blendedColor(ApplauseToggleButtonOn,
+                                                ApplauseToggleButtonOnHover,
+                                                hover_amount));
     else
-        canvas.setBlendedColor(ApplauseToggleButtonOff,
-                               ApplauseToggleButtonOffHover, hover_amount);
-    canvas.svg(icon_, x, y);
+        icon_.setFillBrush(canvas.blendedColor(ApplauseToggleButtonOff,
+                                                ApplauseToggleButtonOffHover,
+                                                hover_amount));
 }
 
 ToggleTextButton::ToggleTextButton(const std::string& name)

@@ -1,22 +1,5 @@
-/* Copyright Vital Audio, LLC
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+/*
+ * Adapted from the Visage button. This is effectively a re-implementation.
  */
 
 #pragma once
@@ -27,6 +10,8 @@
 #include <visage_graphics/text.h>
 #include <visage_graphics/theme.h>
 #include <visage_ui/frame.h>
+#include <visage_ui/svg_frame.h>
+#include <visage_utils/dimension.h>
 
 #include <functional>
 
@@ -164,79 +149,79 @@ private:
 
 class IconButton : public Button {
 public:
-    static constexpr float kDefaultShadowProportion = 0.1f;
+    static constexpr float kDefaultShadowRadius = 3.0f;
 
-    IconButton() = default;
+    explicit IconButton(bool shadow = false) { initSettings(shadow); }
+
     explicit IconButton(const visage::Svg& icon, bool shadow = false) {
-        setIcon(icon, shadow);
+        setIcon(icon);
+        initSettings(shadow);
     }
 
     explicit IconButton(const visage::EmbeddedFile& icon_file,
                         bool shadow = false) {
-        setIcon(icon_file, shadow);
+        setIcon(icon_file);
+        initSettings(shadow);
     }
 
     IconButton(const unsigned char* svg, int svg_size, bool shadow = false) {
-        setIcon(svg, svg_size, shadow);
+        setIcon(svg, svg_size);
+        initSettings(shadow);
     }
 
-    void setIcon(const visage::EmbeddedFile& icon_file, bool shadow = false) {
-        setIcon({icon_file.data, icon_file.size, 0, 0}, shadow);
+    void setIcon(const visage::EmbeddedFile& icon_file) {
+        setIcon({icon_file.data, icon_file.size});
     }
 
-    void setIcon(const unsigned char* svg, int svg_size, bool shadow = false) {
-        setIcon({svg, svg_size, 0, 0}, shadow);
+    void setIcon(const unsigned char* svg, int svg_size) {
+        setIcon({svg, svg_size});
     }
 
-    void setIcon(const visage::Svg& icon, bool shadow = false) {
-        icon_ = icon;
-        if (shadow) {
-            shadow_proportion_ = kDefaultShadowProportion;
-            shadow_ = icon_;
-        }
+    void setIcon(const visage::Svg& icon) {
+        icon_.load(icon);
+        shadow_.load(icon);
     }
 
     void draw(visage::Canvas& canvas, float hover_amount) override;
 
     void resized() override {
         Button::resized();
-        setIconSizes();
+        icon_.setBounds(localBounds());
+        shadow_.setBounds(localBounds());
     }
 
-    float margin() const { return std::min(width(), height()) * margin_ratio_; }
-    float iconX() const {
-        return margin() + std::max(0.0f, width() - height()) / 2.0f;
-    }
-    float iconY() const {
-        return margin() + std::max(0.0f, height() - width()) / 2.0f;
+    void setShadowRadius(const visage::Dimension& radius) {
+        shadow_radius_ = radius;
+        computeShadowRadius();
     }
 
-    void setIconSizes() {
-        int margin = std::min(width(), height()) * margin_ratio_;
-        icon_.width = std::min(width(), height()) - 2 * margin;
-        icon_.height = icon_.width;
-        shadow_.width = icon_.width;
-        shadow_.height = icon_.height;
-        shadow_.blur_radius = shadow_proportion_ * icon_.width;
-    }
-
-    void setShadowProportion(float proportion) {
-        shadow_proportion_ = proportion;
-        shadow_.blur_radius = shadow_proportion_ * shadow_.width;
-    }
-
-    void setMarginRatio(float ratio) {
-        margin_ratio_ = ratio;
-        shadow_.blur_radius = shadow_proportion_ * shadow_.width;
-        setIconSizes();
+    void setMargin(const visage::Dimension& margin) {
+        icon_.setMargin(margin);
+        shadow_.setMargin(margin);
     }
 
 private:
-    visage::Svg icon_;
-    visage::Svg shadow_;
+    void initSettings(bool shadow) {
+        addChild(shadow_, shadow);
+        shadow_.setIgnoresMouseEvents(true, false);
 
-    float shadow_proportion_ = 0.0f;
-    float margin_ratio_ = 0.0f;
+        addChild(icon_);
+        icon_.setIgnoresMouseEvents(true, false);
+        if (shadow) setShadowRadius(kDefaultShadowRadius);
+    }
+
+    void computeShadowRadius() {
+        float r = shadow_radius_.compute(dpiScale(), nativeWidth(),
+                                         nativeHeight(), 0.0f) /
+                  dpiScale();
+        shadow_.setVisible(r > 0.0f);
+        shadow_.setBlurRadius(r);
+    }
+
+    visage::SvgFrame icon_;
+    visage::SvgFrame shadow_;
+
+    visage::Dimension shadow_radius_;
 };
 
 class ButtonChangeAction;
@@ -296,81 +281,80 @@ private:
 
 class ToggleIconButton : public ToggleButton {
 public:
-    static constexpr float kDefaultShadowRatio = 0.1f;
+    static constexpr float kDefaultShadowRadius = 3.0f;
 
     explicit ToggleIconButton(const visage::Svg& icon, bool shadow = false)
-        : ToggleButton(), icon_(icon) {
+        : ToggleButton() {
+        setIcon(icon);
         initSettings(shadow);
     }
 
     ToggleIconButton(const std::string& name, const visage::Svg& icon,
                      bool shadow = false)
-        : ToggleButton(name), icon_(icon) {
+        : ToggleButton(name) {
+        setIcon(icon);
         initSettings(shadow);
     }
 
     ToggleIconButton(const unsigned char* svg, int svg_size,
                      bool shadow = false)
-        : ToggleButton(), icon_({svg, svg_size, 0, 0}) {
+        : ToggleButton() {
+        setIcon({svg, svg_size});
         initSettings(shadow);
     }
 
     ToggleIconButton(const std::string& name, const unsigned char* svg,
                      int svg_size, bool shadow = false)
-        : ToggleButton(name), icon_({svg, svg_size, 0, 0}) {
+        : ToggleButton(name) {
+        setIcon({svg, svg_size});
         initSettings(shadow);
     }
 
-    void initSettings(bool shadow) {
-        if (shadow) {
-            shadow_proportion_ = kDefaultShadowRatio;
-            shadow_ = icon_;
-        }
+    void setIcon(const visage::Svg& icon) {
+        shadow_.load(icon);
+        icon_.load(icon);
     }
 
     void draw(visage::Canvas& canvas, float hover_amount) override;
 
     void resized() override {
         ToggleButton::resized();
-        setIconSizes();
+        icon_.setBounds(localBounds());
+        shadow_.setBounds(localBounds());
     }
 
-    float margin() const {
-        return std::min(width(), height()) * margin_proportion_;
-    }
-    float iconX() const {
-        return margin() + std::max(0.0f, width() - height()) / 2.0f;
-    }
-    float iconY() const {
-        return margin() + std::max(0.0f, height() - width()) / 2.0f;
+    void setShadowRadius(const visage::Dimension& radius) {
+        shadow_radius_ = radius;
+        computeShadowRadius();
     }
 
-    void setIconSizes() {
-        int margin = std::min(width(), height()) * margin_proportion_;
-        icon_.width = std::min(width(), height()) - 2 * margin;
-        icon_.height = icon_.width;
-        shadow_.width = icon_.width;
-        shadow_.height = icon_.height;
-        shadow_.blur_radius = shadow_proportion_ * icon_.width;
-    }
-
-    void setShadowProportion(float proportion) {
-        shadow_proportion_ = proportion;
-        shadow_.blur_radius = shadow_proportion_ * shadow_.width;
-    }
-
-    void setMarginProportion(float proportion) {
-        margin_proportion_ = proportion;
-        shadow_.blur_radius = shadow_proportion_ * shadow_.width;
-        setIconSizes();
+    void setMargin(const visage::Dimension& margin) {
+        icon_.setMargin(margin);
+        shadow_.setMargin(margin);
     }
 
 private:
-    visage::Svg icon_;
-    visage::Svg shadow_;
+    void initSettings(bool shadow) {
+        addChild(shadow_, shadow);
+        shadow_.setIgnoresMouseEvents(true, false);
 
-    float shadow_proportion_ = 0.0f;
-    float margin_proportion_ = 0.0f;
+        addChild(icon_);
+        icon_.setIgnoresMouseEvents(true, false);
+        if (shadow) setShadowRadius(kDefaultShadowRadius);
+    }
+
+    void computeShadowRadius() {
+        float r = shadow_radius_.compute(dpiScale(), nativeWidth(),
+                                         nativeHeight(), 0.0f) /
+                  dpiScale();
+        shadow_.setVisible(r > 0.0f);
+        shadow_.setBlurRadius(r);
+    }
+
+    visage::SvgFrame icon_;
+    visage::SvgFrame shadow_;
+
+    visage::Dimension shadow_radius_;
 };
 
 class ToggleTextButton : public ToggleButton {
