@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <span>
 #include <type_traits>
 
 #include <clap/events.h>
@@ -160,6 +161,7 @@ public:
     VoiceType& stealVoice();
     void process(BufferView<T, MaxChannels> buffer,
                  const clap_input_events_t* events);
+    [[nodiscard]] std::span<VoiceType> getVoices() noexcept { return voices_; }
 
 private:
     std::array<VoiceType, NumVoices> voices_;
