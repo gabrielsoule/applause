@@ -8,8 +8,23 @@
 namespace applause {
 
 ParamKnob::ParamKnob(ParamInfo& paramInfo) : param_info_(paramInfo) {
+    setReceiveChildMouseEvents(true);
     knob_ = std::make_unique<Knob>();
+    knob_->setName(this->name() + " knob");
     addChild(knob_.get());
+    paramValueText_ = std::make_unique<ParamValueTextBox>(paramInfo);
+    paramValueText_->setVisible(false);
+    addChild(paramValueText_.get());
+
+    paramNameText_ = std::make_unique<visage::TextEditor>("param_name");
+    paramNameText_->setMultiLine(false);
+    paramNameText_->setJustification(visage::Font::kCenter);
+    paramNameText_->setFont(visage::Font(12, applause::fonts::JetBrainsMonoNL_Regular_ttf));
+    paramNameText_->setActive(false);
+    paramNameText_->setText(param_info_.shortName);
+    paramNameText_->setIgnoresMouseEvents(true, false);
+    paramNameText_->setMargin(0, 0);
+    addChild(paramNameText_.get());
 
     // Set initial value (normalized to 0-1 range)
     const float currentValue = param_info_.getValue();
@@ -42,26 +57,34 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo) : param_info_(paramInfo) {
 }
 
 void ParamKnob::draw(visage::Canvas& canvas) {
-    // Draw the parameter short name at the bottom
-    const visage::Font font(12, applause::fonts::JetBrainsMonoNL_Regular_ttf);
-
-    // Calculate text area bounds (bottom of the component)
-    float textY = height() - kLabelHeight;
-    float textWidth = width();
-    float textHeight = kLabelHeight - kLabelPadding;
-
-    // Draw the short name centered at the bottom
-    canvas.setColor(0xFFFFFFFF);
-    canvas.text(param_info_.shortName, font, visage::Font::kCenter, 0,
-                textY + kLabelPadding, textWidth, textHeight);
+    // No direct text drawing; label rendered via TextEditor child
 }
 
 void ParamKnob::resized() {
-    // Position the knob in the remaining space above the label
-    float knobHeight = height() - kLabelHeight;
-    if (knob_) {
-        knob_->setBounds(0, 0, width(), knobHeight);
+    knob_->setBounds(0, 0, width(), height() - kLabelHeight);
+    const float label_y = height() - kLabelHeight;
+    const float label_h = kLabelHeight - kLabelPadding;
+    // The -5, +5 Y axis "out of bounds" margin is due to a quirk of the Visage
+    // text editor implementation; it visually clips text BEFORE the left and right borders
+    // of the actual component.
+    paramValueText_->setBounds(-5, label_y, width() + 10, label_h);
+    if (paramNameText_) {
+        paramNameText_->setBounds(-5, label_y, width() + 10, label_h);
     }
+}
+
+void ParamKnob::mouseEnter(const visage::MouseEvent& e) {
+    mouseOver_ = true;
+    paramValueText_->setVisible(true);
+    if (paramNameText_) paramNameText_->setVisible(false);
+    LOG_DBG("Mouse Enter: {}", e.event_frame->name());
+}
+
+void ParamKnob::mouseExit(const visage::MouseEvent& e) {
+    mouseOver_ = false;
+    paramValueText_->setVisible(false);
+    if (paramNameText_) paramNameText_->setVisible(true);
+    LOG_DBG("Mouse Exit: {}", e.event_frame->name());
 }
 
 }  // namespace applause

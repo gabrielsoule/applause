@@ -5,36 +5,26 @@
 
 #include <cmath>
 #include <iomanip>
-#include <sstream>
 
 #include "applause/util/DebugHelpers.h"
-#include "embedded/fonts.h"
 
 namespace applause {
-// Theme color implementations with transparent defaults
-VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorBackground,
-                             0x00000000);  // Transparent
-VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorBorder,
-                             0x00000000);  // No border
-VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorText,
-                             0xFFFFFFFF);  // White text
-VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorDefaultText,
-                             0xFF999999);  // Light gray
-VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorCaret,
-                             0xFFFFFFFF);  // White caret
-VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorSelection,
-                             0x22ffffff);  // Light selection
-VISAGE_THEME_IMPLEMENT_VALUE(ParamValueTextBox, ApplauseTextEditorRounding,
-                             0.0f);  // No rounding
+VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorBackground, 0x00000000);  // Transparent
+VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorBorder, 0x00000000);  // No border
+VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorText, 0xFFFFFFFF);  // White text
+VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorDefaultText, 0xFF999999);  // Light gray
+VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorCaret, 0xFFFFFFFF);  // White caret
+VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorSelection, 0x22ffffff);  // Light selection
+VISAGE_THEME_IMPLEMENT_VALUE(ParamValueTextBox, ApplauseTextEditorRounding, 0.0f);  // No rounding
 
 ParamValueTextBox::ParamValueTextBox(ParamInfo& paramInfo)
     : param_info_(paramInfo) {
     text_editor_ = std::make_unique<visage::TextEditor>("param_value");
-    text_editor_->setMultiLine(false);                      // Single line
-    text_editor_->setJustification(visage::Font::kCenter);  // Center text
+    text_editor_->setMultiLine(false);
+    text_editor_->setJustification(visage::Font::kCenter);
     text_editor_->setFont(
         visage::Font(12, applause::fonts::JetBrainsMonoNL_SemiBold_ttf));
-
+    text_editor_->setMargin(0, 0);
     addChild(text_editor_.get());
 
     updateTextDisplay();
@@ -70,10 +60,9 @@ ParamValueTextBox::ParamValueTextBox(ParamInfo& paramInfo)
 
     text_editor_->onEnterKey() += commitValue;
 
-    // Use built-in onFocusChange() callback to commit when focus is lost
     text_editor_->onFocusChange() +=
         [this, commitValue](bool is_focused, bool was_clicked) {
-            if (!is_focused)  // Lost focus
+            if (!is_focused)
             {
                 commitValue();
             }
@@ -127,12 +116,10 @@ void ParamValueTextBox::init() {
     // float rounding = paletteValue(ApplauseTextEditorRounding);
     // text_editor_->setBackgroundRounding(rounding);
 
-    // Apply our remapped palette
     setPalette(&custom_palette_);
 }
 
 void ParamValueTextBox::updateTextDisplay() {
-    // Get formatted text from parameter's converter (includes unit)
     std::string formatted = param_info_.valueToText(param_info_.getValue());
     text_editor_->setText(formatted);
 }

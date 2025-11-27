@@ -44,7 +44,7 @@ std::string ParamsExtension::defaultValueToText(float value, const ParamInfo& in
 
     // Append unit if present
     if (!info.unit.empty()) {
-        stream << " " << info.unit;
+        stream << "" << info.unit;
     }
 
     return stream.str();
