@@ -107,6 +107,38 @@ public:
         }
     }
 
+    [[nodiscard]] SampleType getCutoffFrequency() const noexcept {
+        return cutoff_;
+    }
+
+    [[nodiscard]] SampleType getResonance() const noexcept {
+        return q_;
+    }
+
+    [[nodiscard]] SampleType getPeakFrequency() const noexcept {
+        constexpr ScalarType inv_sqrt_two = ScalarType(0.70710678118654752440);
+
+        if constexpr (filter_type == StateVariableFilterType::Bandpass) {
+            return cutoff_;
+        }
+
+        using std::sqrt;
+        using xsimd::sqrt;
+
+        if constexpr (SimdBatch<SampleType>) {
+            const auto has_peak = q_ > SampleType(inv_sqrt_two);
+            const auto q2 = q_ * q_;
+            const auto factor = sqrt(SampleType(1.0) - SampleType(0.5) / q2);
+            return xsimd::select(has_peak, cutoff_ * factor, cutoff_);
+        } else {
+            if (q_ > inv_sqrt_two) {
+                const auto q2 = q_ * q_;
+                return cutoff_ * sqrt(ScalarType(1.0) - ScalarType(0.5) / q2);
+            }
+            return cutoff_;
+        }
+    }
+
     /**
      * Sets the filter frequency based on peak frequency rather than cutoff,
      * i.e. a cutoff is calculated such that its peak frequency, with respect to the current
@@ -126,18 +158,17 @@ public:
                    "Q must be > sqrt(0.5) for peak frequency mode");
         }
 
-        cutoff_ = frequency;
+        using std::sqrt;
+        using xsimd::sqrt;
+        const auto q2 = q_ * q_;
+        const auto factor = sqrt(SampleType(1.0) - SampleType(0.5) / q2);
+        cutoff_ = frequency / factor;
+
         const ScalarType pi_over_sr = ScalarType(M_PI) / ScalarType(sample_rate_);
 
         using std::tan;
-        using std::sqrt;
         using xsimd::tan;
-        using xsimd::sqrt;
-
-        const auto w = frequency * pi_over_sr;
-        const auto numerator = q_ * tan(w);
-        const auto denominator = sqrt(q_ * q_ - SampleType(0.5));
-        g_ = numerator / denominator;
+        g_ = tan(cutoff_ * pi_over_sr);
 
         if constexpr (should_update)
             update();
