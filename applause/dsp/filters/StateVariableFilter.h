@@ -107,7 +107,7 @@ public:
         }
     }
 
-    [[nodiscard]] SampleType getCutoffFrequency() const noexcept {
+    [[nodiscard]] SampleType GgetCutoffFrequency() const noexcept {
         return cutoff_;
     }
 
@@ -163,6 +163,13 @@ public:
         const auto q2 = q_ * q_;
         const auto factor = sqrt(SampleType(1.0) - SampleType(0.5) / q2);
         cutoff_ = frequency / factor;
+
+        // Clamp cutoff to below Nyquist
+        if constexpr (SimdBatch<SampleType>) {
+            cutoff_ = xsimd::min(cutoff_, SampleType(nyquist_limit_));
+        } else {
+            cutoff_ = std::min(cutoff_, nyquist_limit_);
+        }
 
         const ScalarType pi_over_sr = ScalarType(M_PI) / ScalarType(sample_rate_);
 
