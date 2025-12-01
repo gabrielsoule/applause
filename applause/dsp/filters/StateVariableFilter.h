@@ -107,7 +107,7 @@ public:
         }
     }
 
-    [[nodiscard]] SampleType GgetCutoffFrequency() const noexcept {
+    [[nodiscard]] SampleType getCutoffFrequency() const noexcept {
         return cutoff_;
     }
 
