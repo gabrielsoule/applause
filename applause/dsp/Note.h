@@ -8,11 +8,11 @@ namespace applause {
 /**
  * Represents a CLAP note with all its expressive dimensions.
  *
- * The CLAP note spec is distinct to the CLAP protcol (and CLAP hosts0; it can be interpreted as a
+ * The CLAP note spec is distinct to the CLAP protocol (and CLAP hosts); it can be interpreted as a
  * modern MIDI-like protocol that is, in a sense, a supserset of both MIDI 1.0 and MPE.
  *
  * As such, Applause wraps and translates all incoming note events into the CLAP note format. As a developer, you can
- * design your MIDI handling with respect to the CLAP note protocol. Applaus will handle the rest.
+ * design your MIDI handling with respect to the CLAP note protocol. Applause will handle the rest.
  *
  * As a bonus, you get MPE "for free"; no special MPE handling is required.
  *
@@ -147,7 +147,6 @@ struct Note {
     /**
      * Get the volume in decibels.
      * CLAP volume is linear amplitude where 1.0 = unity.
-     * Formula: dB = 20 * log10(volume)
      */
     double getVolumeDb() const {
         if (volume <= 0.0) return -100.0; // Effectively -infinity
