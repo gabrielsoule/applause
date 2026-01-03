@@ -27,18 +27,19 @@ class ParamInfo;
  * @brief Configuration structure for a parameter.
  */
 struct ParamConfig {
-    std::string string_id;  ///< String identifier for the parameter (required)
-    std::string name;       ///< Display name (if empty, uses string_id)
-    std::string module;
-    ///< Module path for hierarchical grouping (e.g.,
-    ///< "Filter/Envelope")
-    std::string short_name;      ///< Short display name (e.g., "Cutoff")
-    std::string unit;            ///< Unit string (e.g., "Hz", "dB")
-    float min_value = 0.0f;      ///< Minimum value
-    float max_value = 1.0f;      ///< Maximum value
-    float default_value = 0.5f;  ///< Default value
-    bool is_stepped = false;     ///< Whether parameter uses discrete integer values
-    bool is_internal = false;    ///< Whether parameter is internal (not exposed to DAW)
+    std::string string_id;       /// String identifier for the parameter (required)
+    std::string name;            /// Display name (if empty, uses string_id)
+    std::string module;          /// Module path for hierarchical grouping (e.g. "Filter/Envelope")
+    std::string short_name;      /// Short display name (e.g., "Cutoff")
+    std::string unit;            /// Unit string (e.g., "Hz", "dB")
+    float min_value = 0.0f;      /// Minimum value
+    float max_value = 1.0f;      /// Maximum value
+    float default_value = 0.5f;  /// Default value
+    bool is_stepped = false;     /// Whether parameter uses discrete integer values
+    bool is_internal = false;    /// Whether parameter is internal (not exposed to DAW)
+    bool is_polyphonic = false;  /// Whether parameter can/should be polyphonically modulated by a modulation system.
+                                 ///   for example: osc tuning in a synth would be poly, but master out gain might not
+
 
     // Optional custom converters (default to nullptr)
     std::function<std::string(float value, const ParamInfo& info)> value_to_text;
