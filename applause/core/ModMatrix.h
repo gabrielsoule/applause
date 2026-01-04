@@ -55,6 +55,12 @@ struct DepthModConnection {
     DepthModConnectionType type;
 };
 
+struct ConnectionHandle {
+    uint16_t src;
+    uint16_t dst;
+    float depth;
+};
+
 template<uint16_t NumVoices, uint16_t MaxSources, uint16_t MaxDestinations, uint16_t MaxConnections>
 class ModMatrix;
 
@@ -67,16 +73,13 @@ class ModProgram {
 
     ModMatrix<NumVoices, MaxSources, MaxDestinations, MaxConnections>& matrix;
 
-    std::vector<ModConnection> mm_connections;
-    std::vector<ModConnection> mp_connections;
-    std::vector<ModConnection> pm_connections;
-    std::vector<ModConnection> pp_connections;
+    std::vector<ConnectionHandle> mm_connections;
+    std::vector<ConnectionHandle> mp_connections;
+    std::vector<ConnectionHandle> pm_connections;
+    std::vector<ConnectionHandle> pp_connections;
 
-    std::vector<DepthModConnection> depth_connections_mono_;
-    std::vector<DepthModConnection> depth_connections_poly_;
-
-    std::vector<float> depth_slots_;
-    std::vector<uint16_t> depth_slots_active_;
+    std::vector<ConnectionHandle> depth_connections_mono_;
+    std::vector<ConnectionHandle> depth_connections_poly_;
 
 public:
     explicit ModProgram(ModMatrix<NumVoices, MaxSources, MaxDestinations, MaxConnections> &matrix)
@@ -102,9 +105,15 @@ public:
      * @return
      */
     ModSrcId& registerSource(std::string string_id, ModSrcType type) {
-    }
+        ASSERT(src_count_ < MaxSources, "MaxSources exceeded");
+        ASSERT(!src_registry_.contains(string_id), "Source name already registered");
 
-    void registerMonoSourceChannel(ModSrcId id) {}
+        ModSrcId& id = src_registry_[string_id];
+        id.index = src_count_ - 1;
+
+        src_count_ += 1;
+        return id;
+    }
 
     /**
      * Creates a new modulation connection between a source and a destination. If an existing connection exists, it will
@@ -116,18 +125,38 @@ public:
      * @param bipolar whether the connection is bipolar or not; modulation will be clamped between [-depth, depth] or [0, depth] depending on polarity
      * @return
      */
-    ModConnection registerConnection(ModSrcId src, ModDstId dst, float depth, bool bipolar) {
+    ModConnection addConnection(ModSrcId src, ModDstId dst, float depth, bool bipolar) {
+        ModConnection connection{};
+        connection.src = src;
+        connection.dst = dst;
+        connection.bipolar = bipolar;
     }
 
-    DepthModConnection registerDepthConnection(ModSrcId src, ModConnection dst, float depth, bool bipolar) {
+    DepthModConnection addDepthModulation(ModSrcId src, ModConnection dst, float depth, bool bipolar) {
+        ASSERT(program_.depthBase.size() < MaxConnections, "MaxConnections/depth slots exceeded");
 
     }
+private:
+    /**
+     * Rebuilds the modulation program object
+     */
+    void recompileProgram() {
+        program_.mm_connections.clear();
+        program_.mp_connections.clear();
+        program_.pm_connections.clear();
+        program_.pp_connections.clear();
 
+        program_.depth_connections_mono_.clear();
+        program_.depth_connections_poly_.clear();
+    }
 
     ModProgram<NumVoices, MaxSources, MaxDestinations, MaxConnections> program_{*this};
 
     int src_count_ = 0;
     int dst_count_ = 0;
+
+    std::unordered_map<std::string, ModSrcId> src_registry_;
+    std::unordered_map<std::string, ModDstId> dst_registry_;
 
     // Source values (written by your modulators before processBlock)
     std::array<float, MaxSources> mono_src_buf_{};
@@ -142,6 +171,9 @@ public:
 
     std::array<float, MaxDestinations> mono_dst_{};                              // [dst]
     std::array<float, size_t(NumVoices) * MaxDestinations> poly_dst_buf_{};          // [voice][dst]
+
+    std::vector<ModConnection> connections_;
+    std::vector<DepthModConnection> depth_connections_;
 
     friend class ModProgram<NumVoices, MaxSources, MaxDestinations, MaxConnections>;
 };
