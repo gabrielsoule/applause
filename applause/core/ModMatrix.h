@@ -131,11 +131,95 @@ public:
         connection.dst = dst;
         connection.bipolar = bipolar;
     }
+    void process() {
+        // Reset mono destinations to base values
+        mono_dst_ = base_mono_dst_;
 
-    DepthModConnection addDepthModulation(ModSrcId src, ModConnection dst, float depth, bool bipolar) {
-        ASSERT(program_.depthBase.size() < MaxConnections, "MaxConnections/depth slots exceeded");
+        // Reset poly destinations for active voices
+        for (size_t i = 0; i < active_voices_.size(); i++) {
+            const uint16_t voice_index = active_voices_[i];
+            for (int j = 0; j < dst_count_; j++) {
+                poly_dst_buf_[static_cast<size_t>(voice_index) * MaxDestinations + j] = base_poly_dst_[j];
+            }
+        }
 
+        // load base depth values into the mono depth buffer
+        for (size_t slot = 0; slot < program_.depth_base_.size(); ++slot) {
+            mono_depth_buf_[slot] = program_.depth_active_[slot] ? program_.depth_base_[slot] : 0.0f;
+        }
+
+        // calculate mono depth modulation
+        for (const auto &mono_depth_conn: program_.depth_connections_mono_) {
+            float src_val = mono_src_buf_[mono_depth_conn.src];
+            if (mono_depth_conn.bipolar) {
+                src_val = src_val * 2.0f - 1.0f;  // [0,1] -> [-1,1]
+            }
+            mono_depth_buf_[mono_depth_conn.depth_slot] += src_val * mono_depth_conn.depth;
+        }
+
+        // load poly depth from mono_depth_buf_
+        for (uint16_t i = 0; i < active_voices_.size(); i++) {
+            const uint16_t voice_index = active_voices_[i];
+            for (uint16_t j = 0; j < program_.depth_base_.size(); j++) {
+                poly_depth_buf_[static_cast<size_t>(voice_index) * MaxConnections + j] = mono_depth_buf_[j];
+            }
+        }
+
+        // load poly depth modulation into the poly depth buffer
+        for (uint16_t i = 0; i < active_voices_.size(); i++) {
+            uint16_t voice_index = active_voices_[i];
+            for (const auto &poly_depth_conn: program_.depth_connections_poly_) {
+                float src_val = poly_src_buf_[static_cast<size_t>(voice_index) * MaxSources + poly_depth_conn.src];
+                if (poly_depth_conn.bipolar) {
+                    src_val = src_val * 2.0f - 1.0f;  // [0,1] -> [-1,1]
+                }
+                poly_depth_buf_[static_cast<size_t>(voice_index) * MaxConnections + poly_depth_conn.depth_slot]
+                        += src_val * poly_depth_conn.depth;
+            }
+        }
+
+        // now that the modulation depth pass is done, we can calculate final modulation values
+        // first, mono -> mono connections
+        for (const auto &mm_conn: program_.mm_connections) {
+            float src_val = mono_src_buf_[mm_conn.src];
+            if (mm_conn.bipolar) {
+                src_val = src_val * 2.0f - 1.0f;  // [0,1] -> [-1,1]
+            }
+            const float depth_val = mono_depth_buf_[mm_conn.depth_slot];
+            mono_dst_[mm_conn.dst] += src_val * depth_val;
+        }
+
+        // mono -> poly connections
+        for (uint16_t i = 0; i < active_voices_.size(); i++) {
+            uint16_t voice_index = active_voices_[i];
+            for (const auto &mp_conn: program_.mp_connections) {
+                float src_val = mono_src_buf_[mp_conn.src];
+                if (mp_conn.bipolar) {
+                    src_val = src_val * 2.0f - 1.0f;  // [0,1] -> [-1,1]
+                }
+                const float depth_val = poly_depth_buf_[
+                    static_cast<size_t>(voice_index) * MaxConnections + mp_conn.depth_slot];
+                poly_dst_buf_[static_cast<size_t>(voice_index) * MaxDestinations + mp_conn.dst] += src_val * depth_val;
+            }
+        }
+
+        // poly -> poly connections
+        for (uint16_t i = 0; i < active_voices_.size(); i++) {
+            uint16_t voice_index = active_voices_[i];
+            for (const auto &pp_conn: program_.pp_connections) {
+                float src_val = poly_src_buf_[static_cast<size_t>(voice_index) * MaxSources + pp_conn.src];
+                if (pp_conn.bipolar) {
+                    src_val = src_val * 2.0f - 1.0f;  // [0,1] -> [-1,1]
+                }
+                const float depth_val = poly_depth_buf_[
+                    static_cast<size_t>(voice_index) * MaxConnections + pp_conn.depth_slot];
+                poly_dst_buf_[static_cast<size_t>(voice_index) * MaxDestinations + pp_conn.dst] += src_val * depth_val;
+            }
+        }
+
+        // poly -> mono connections (NYI -- leave as stub)
     }
+
 private:
     /**
      * Rebuilds the modulation program object
