@@ -7,6 +7,8 @@
 #include <string>
 #include <unordered_map>
 
+#include <applause/core/ModMatrix.h>
+
 #include "Extension.h"
 
 namespace applause {

@@ -1,22 +1,19 @@
 #pragma once
+#include <cstddef>
 #include <cstdint>
+#include <string>
 #include <array>
-#include <map>
+#include <unordered_map>
+#include <algorithm>
 #include <vector>
 #include <applause/util/DebugHelpers.h>
 
 
 enum class ModSrcType : uint8_t { Mono, Poly, Both };
 
-enum class ModSrcMode : uint8_t {Mono, Poly};
+enum class ModSrcMode : uint8_t { Mono, Poly };
 
-enum class DepthModConnectionType : uint8_t { Mono, Poly };
-
-// special handling for mod connection types not yet implemented,
-// for now we just do mono sources and poly sources
-enum class ModConnectionType : uint8_t {
-    MonoToMono, MonoToPoly, PolyToPoly, PolyToMono
-};
+enum class ModDstMode : uint8_t { Mono, Poly };
 
 /**
  * Represents a logical modulation source. A modulation source can be monophonic, polyphonic, or it can support both
@@ -31,65 +28,102 @@ enum class ModConnectionType : uint8_t {
  * The ModSrcType abstraction is designed specifically to support the foregoing scenario.
  *
  */
-struct ModSrcId {
+struct ModSource {
     uint16_t index;
     ModSrcType type;
     ModSrcMode mode;
 };
 
-struct ModDstId {
+struct ModDestination {
     uint16_t index;
+    ModDstMode mode;
+    float min_value;
+    float max_value;
 };
 
 struct ModConnection {
-    ModConnectionType type;
-    ModSrcId src;
-    ModDstId dst;
+    uint16_t src;
+    uint16_t dst;
     uint16_t depth_slot;
     bool bipolar;
 };
 
 struct DepthModConnection {
-    ModDstId dst;
+    uint16_t src;
+    uint16_t depth_slot;
     float depth;
-    DepthModConnectionType type;
+    bool bipolar;
 };
 
-struct ConnectionHandle {
+/**
+ * A lightweight connection handle that contains a source index, destination index, and depth slot index.
+ * Used for internal modulation graph processing, instead of the heavier ModConnection class.
+ */
+struct ModConnectionHandle {
     uint16_t src;
     uint16_t dst;
-    float depth;
+    uint16_t depth_slot;
+    bool bipolar;
 };
 
+struct DepthConnectionHandle {
+    uint16_t src;
+    uint16_t depth_slot;
+    float depth;
+    bool bipolar;
+};
+
+/**
+ * A fast and efficient parameter modulation system. Supports modulation from mod sources (e.g. LFOs) to destinations
+ * (e.g. synth parameters). The depth of individual connections themselves can also be modulated;
+ * in other words, the matrix supports depth-one modulation-of-modulation.
+ *
+ * The modulation system is designed independently of the Applause parameter module. While there is a natural
+ * bijection between plugin parameters and modulation destinations (and we supply some glue code to facilitate this),
+ * no such association is strictly necessary.
+ *
+ * The current implementation is straightforward in the interest of performance and easy debugging.
+ * The depth-one recursive modulation is baked into the system; modulation connections ("depth connections")
+ * that modulate existing connections between sources and destinations cannot, themselves, be modulated.
+ *
+ * Deeper modulation graphs would necessitate development of a signal digraph processing system, a graph compiler,
+ * loop detection & resolution, et cetera. We omit this for now, as deeper recursive modulation (i.e. modulation of a connection
+ * that modulates a connection that modulates a parameter) is an edge case not required within most synthesis applications.
+ *
+ * This might be nice in the future, though!
+ *
+ */
 template<uint16_t NumVoices, uint16_t MaxSources, uint16_t MaxDestinations, uint16_t MaxConnections>
 class ModMatrix;
 
 /**
  * Represents a "compiled" modulation graph that can be executed efficiently. A ModMatrix owns exactly one of these.
  * When the user changes the modulation graph, this object is modified/replaced.
+ *
+ * We keep it as a separate object to atomically swap the whole thing all at the same time when an update is made,
+ * so the DSP thread never reads from a partially-updated modulation system. Thread safety!
  */
 template<uint16_t NumVoices, uint16_t MaxSources, uint16_t MaxDestinations, uint16_t MaxConnections>
 class ModProgram {
+    ModMatrix<NumVoices, MaxSources, MaxDestinations, MaxConnections> &matrix;
 
-    ModMatrix<NumVoices, MaxSources, MaxDestinations, MaxConnections>& matrix;
+    std::vector<ModConnectionHandle> mm_connections;
+    std::vector<ModConnectionHandle> mp_connections;
+    std::vector<ModConnectionHandle> pm_connections;
+    std::vector<ModConnectionHandle> pp_connections;
 
-    std::vector<ConnectionHandle> mm_connections;
-    std::vector<ConnectionHandle> mp_connections;
-    std::vector<ConnectionHandle> pm_connections;
-    std::vector<ConnectionHandle> pp_connections;
-
-    std::vector<ConnectionHandle> depth_connections_mono_;
-    std::vector<ConnectionHandle> depth_connections_poly_;
+    uint16_t num_depth_connections_;
+    std::vector<float> depth_base_;
+    std::vector<uint8_t> depth_active_;
+    std::vector<DepthConnectionHandle> depth_connections_mono_;
+    std::vector<DepthConnectionHandle> depth_connections_poly_;
 
 public:
     explicit ModProgram(ModMatrix<NumVoices, MaxSources, MaxDestinations, MaxConnections> &matrix)
         : matrix(matrix) {
     }
 
-private:
-    void process() {
-
-    }
+    friend class ModMatrix<NumVoices, MaxSources, MaxDestinations, MaxConnections>;
 };
 
 
@@ -99,20 +133,44 @@ public:
     /**
      * Registers a new modulation source symbol uniquely identifiable via string_id. This function only registers the
      * source symbolically within the matrix; to link modulation channels to your signal generators (LFOs, envelopes,
-     * etc) you should invoke registerMonoSourceChannel/
+     * etc) you must invoke registerMonoSourceChannel/registerPolySourceChannel.
      * @param string_id the unique identifier of the source
      * @param type
      * @return
      */
-    ModSrcId& registerSource(std::string string_id, ModSrcType type) {
+    ModSource& registerSource(const std::string& string_id, ModSrcType type,
+                              ModSrcMode defaultMode = ModSrcMode::Poly)
+    {
         ASSERT(src_count_ < MaxSources, "MaxSources exceeded");
-        ASSERT(!src_registry_.contains(string_id), "Source name already registered");
+        ASSERT(!src_lookup_.contains(string_id), "Source name already registered");
 
-        ModSrcId& id = src_registry_[string_id];
-        id.index = src_count_ - 1;
+        const uint16_t idx = static_cast<uint16_t>(src_count_++);
+        src_lookup_.emplace(string_id, idx);
 
-        src_count_ += 1;
-        return id;
+        ModSource& s = src_registry_[idx];
+        s.index = idx;
+        s.type  = type;
+        s.mode  = (type == ModSrcType::Both) ? defaultMode
+               : (type == ModSrcType::Poly) ? ModSrcMode::Poly
+                                            : ModSrcMode::Mono;
+        return s;
+    }
+
+    ModDestination& registerDestination(const std::string& string_id, ModDstMode mode,
+                                        float min_value = 0.0f, float max_value = 1.0f)
+    {
+        ASSERT(dst_count_ < MaxDestinations, "MaxDestinations exceeded");
+        ASSERT(!dst_lookup_.contains(string_id), "Destination name already registered");
+
+        const auto idx = static_cast<uint16_t>(dst_count_++);
+        dst_lookup_.emplace(string_id, idx);
+
+        ModDestination& d = dst_registry_[idx];
+        d.index = idx;
+        d.mode  = mode;
+        d.min_value = min_value;
+        d.max_value = max_value;
+        return d;
     }
 
     /**
@@ -125,12 +183,98 @@ public:
      * @param bipolar whether the connection is bipolar or not; modulation will be clamped between [-depth, depth] or [0, depth] depending on polarity
      * @return
      */
-    ModConnection addConnection(ModSrcId src, ModDstId dst, float depth, bool bipolar) {
+    ModConnection& addConnection(ModSource src, ModDestination dst, float depth, bool bipolar) {
+        // Check for existing connection with same (src, dst)
+        for (auto& existing : connections_) {
+            if (existing.src == src.index && existing.dst == dst.index) {
+                // Update existing connection
+                program_.depth_base_[existing.depth_slot] = depth;
+                existing.bipolar = bipolar;
+                recompileProgram();
+                return existing;
+            }
+        }
+
+        // No existing connection found - create new one
+        ASSERT(program_.depth_base_.size() < MaxConnections, "MaxConnections/depth slots exceeded");
         ModConnection connection{};
-        connection.src = src;
-        connection.dst = dst;
+        connection.src = src.index;
+        connection.dst = dst.index;
         connection.bipolar = bipolar;
+        program_.depth_base_.push_back(depth);
+        program_.depth_active_.push_back(1);
+        connection.depth_slot = static_cast<uint16_t>(program_.depth_base_.size() - 1);
+        connections_.push_back(connection);
+
+        recompileProgram();
+        return connections_.back();
     }
+
+    DepthModConnection& addDepthModulation(ModSource src, uint16_t depth_slot, float depth, bool bipolar) {
+        ASSERT(depth_slot < program_.depth_base_.size(), "Invalid depth slot");
+        DepthModConnection connection{};
+        connection.src = src.index;
+        connection.depth_slot = depth_slot;
+        connection.depth = depth;
+        connection.bipolar = bipolar;
+        depth_connections_.push_back(connection);
+
+        recompileProgram();
+        return depth_connections_.back();
+    }
+
+    /**
+     * Notifies the matrix that the voice corresponding to voice_index has just been activated.
+     * This function must be called whenever a voice is triggered by, e.g., a fresh incoming MIDI note
+     *
+     * The matrix uses this information to selectively
+     * process polyphonic modulation paths, as well as handle poly->mono source->destination routing policy.
+     */
+    void notifyVoiceOn(uint16_t voice_index) {
+        ASSERT(voice_index < NumVoices, "voice_index out of bounds");
+        if (std::find(active_voices_.begin(), active_voices_.end(), voice_index) == active_voices_.end()) {
+            active_voices_.push_back(voice_index);
+        }
+    }
+
+    /**
+     * Notifies the matrix that the voice corresponding to voice_index has been deactivated and is no longer
+     * being processed nor producing audio. This function must be called whenever a voice is disabled.
+     */
+    void notifyVoiceOff(uint16_t voice_index) {
+        std::erase(active_voices_, voice_index);
+    }
+
+    /**
+     * Sets the base (unmodulated) value for a destination. Pass the plain value (e.g. Hz, dB);
+     * it will be normalized internally for modulation processing.
+     */
+    void setBaseValue(uint16_t dstIdx, float plain_value) {
+        float normalized = normalizeValue(dstIdx, plain_value);
+        base_mono_dst_[dstIdx] = normalized;
+        base_poly_dst_[dstIdx] = normalized;
+    }
+
+    /**
+     * Returns the final modulated value for a mono destination as a plain value (denormalized).
+     * Call this after process() to retrieve the modulated parameter value.
+     */
+    [[nodiscard]] float getModValue(uint16_t dstIdx) const {
+        return denormalizeValue(dstIdx, mono_dst_[dstIdx]);
+    }
+
+    /**
+     * Returns the final modulated value for a poly destination for a specific voice, as a plain value (denormalized).
+     * Call this after process() to retrieve the modulated parameter value.
+     */
+    [[nodiscard]] float getPolyModValue(uint16_t dstIdx, uint16_t voice) const {
+        float normalized = poly_dst_buf_[static_cast<size_t>(voice) * MaxDestinations + dstIdx];
+        return denormalizeValue(dstIdx, normalized);
+    }
+
+    /**
+     * Processes modulation. Should be called once per block, before parameters are read and used by DSP components.
+     */
     void process() {
         // Reset mono destinations to base values
         mono_dst_ = base_mono_dst_;
@@ -222,7 +366,37 @@ public:
 
 private:
     /**
-     * Rebuilds the modulation program object
+     * Returns the effective source mode for a given source index.
+     * - ModSrcType::Mono sources always return Mono (regardless of mode field)
+     * - ModSrcType::Poly sources always return Poly (regardless of mode field)
+     * - ModSrcType::Both sources return their current toggle state (mode field)
+     */
+    [[nodiscard]] ModSrcMode effectiveSrcMode(uint16_t srcIdx) const {
+        const auto& s = src_registry_[srcIdx];
+        if (s.type == ModSrcType::Mono) return ModSrcMode::Mono;
+        if (s.type == ModSrcType::Poly) return ModSrcMode::Poly;
+        return s.mode;  // ModSrcType::Both - use toggle state
+    }
+
+    /**
+     * Normalize a plain value to [0,1] range based on destination's min/max.
+     */
+    [[nodiscard]] float normalizeValue(uint16_t dstIdx, float plain_value) const {
+        const auto& d = dst_registry_[dstIdx];
+        return (plain_value - d.min_value) / (d.max_value - d.min_value);
+    }
+
+    /**
+     * Denormalize a [0,1] value to plain value, clamped to destination's range.
+     */
+    [[nodiscard]] float denormalizeValue(uint16_t dstIdx, float normalized) const {
+        const auto& d = dst_registry_[dstIdx];
+        float plain = normalized * (d.max_value - d.min_value) + d.min_value;
+        return std::clamp(plain, d.min_value, d.max_value);
+    }
+
+    /**
+     * Rebuilds the modulation program object. Called whenever the user changes the modulation matrix state.
      */
     void recompileProgram() {
         program_.mm_connections.clear();
@@ -232,6 +406,32 @@ private:
 
         program_.depth_connections_mono_.clear();
         program_.depth_connections_poly_.clear();
+
+        for (const auto &dm : depth_connections_) {
+            const DepthConnectionHandle handle = {dm.src, dm.depth_slot, dm.depth, dm.bipolar};
+            if (effectiveSrcMode(dm.src) == ModSrcMode::Mono) {
+                program_.depth_connections_mono_.push_back(handle);
+            } else {
+                program_.depth_connections_poly_.push_back(handle);
+            }
+        }
+
+        for (const auto &conn: connections_) {
+            const ModSrcMode src_mode = effectiveSrcMode(conn.src);
+            const ModDstMode dst_mode = dst_registry_[conn.dst].mode;
+
+            ModConnectionHandle handle = {conn.src, conn.dst, conn.depth_slot, conn.bipolar};
+
+            if (src_mode == ModSrcMode::Mono && dst_mode == ModDstMode::Mono) {
+                program_.mm_connections.push_back(handle);
+            } else if (src_mode == ModSrcMode::Mono && dst_mode == ModDstMode::Poly) {
+                program_.mp_connections.push_back(handle);
+            } else if (src_mode == ModSrcMode::Poly && dst_mode == ModDstMode::Poly) {
+                program_.pp_connections.push_back(handle);
+            } else if (src_mode == ModSrcMode::Poly && dst_mode == ModDstMode::Mono) {
+                program_.pm_connections.push_back(handle);
+            }
+        }
     }
 
     ModProgram<NumVoices, MaxSources, MaxDestinations, MaxConnections> program_{*this};
@@ -239,8 +439,13 @@ private:
     int src_count_ = 0;
     int dst_count_ = 0;
 
-    std::unordered_map<std::string, ModSrcId> src_registry_;
-    std::unordered_map<std::string, ModDstId> dst_registry_;
+    std::vector<uint16_t> active_voices_;
+
+    std::unordered_map<std::string, uint16_t> src_lookup_;
+    std::unordered_map<std::string, uint16_t> dst_lookup_;
+
+    std::array<ModSource, MaxSources> src_registry_{};
+    std::array<ModDestination, MaxDestinations> dst_registry_{};
 
     // Source values (written by your modulators before processBlock)
     std::array<float, MaxSources> mono_src_buf_{};
@@ -248,13 +453,13 @@ private:
 
     // Base destination values (unmodulated knob values, optional)
     std::array<float, MaxDestinations> base_mono_dst_{};
-    std::array<float, MaxDestinations> base_poly_dst_{};                         // [dst] (broadcast per voice)
+    std::array<float, MaxDestinations> base_poly_dst_{};
 
-    std::array<float, MaxConnections> mono_depth_buf_{};                             // [slot] base + mono depth mods
-    std::array<float, size_t(NumVoices) * MaxConnections> poly_depth_buf{};              // [voice][slot] includes poly depth mods
+    std::array<float, MaxConnections> mono_depth_buf_{};
+    std::array<float, size_t(NumVoices) * MaxConnections> poly_depth_buf_{};
 
-    std::array<float, MaxDestinations> mono_dst_{};                              // [dst]
-    std::array<float, size_t(NumVoices) * MaxDestinations> poly_dst_buf_{};          // [voice][dst]
+    std::array<float, MaxDestinations> mono_dst_{};
+    std::array<float, size_t(NumVoices) * MaxDestinations> poly_dst_buf_{};
 
     std::vector<ModConnection> connections_;
     std::vector<DepthModConnection> depth_connections_;
