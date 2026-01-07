@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <algorithm>
 #include <vector>
+#include <optional>
+#include <applause/extensions/ParamsExtension.h>
 #include <applause/util/DebugHelpers.h>
 
 
@@ -27,50 +29,67 @@ enum class ModDstMode : uint8_t { Mono, Poly };
  *
  * The ModSrcType abstraction is designed specifically to support the foregoing scenario.
  *
+ * The bipolar flag indicates the native output range of the source:
+ * - bipolar=true:  Source outputs [-1, +1] (e.g., LFO, pitch bend)
+ * - bipolar=false: Source outputs [0, 1]   (e.g., envelope, velocity)
  */
 struct ModSource {
     uint16_t index;
     ModSrcType type;
     ModSrcMode mode;
+    bool bipolar;  ///< True if source naturally outputs [-1,+1], false for [0,1]
 };
 
 struct ModDestination {
     uint16_t index;
     ModDstMode mode;
-    float min_value;
-    float max_value;
 };
 
+/**
+ * Represents a modulation connection between a source and destination.
+ * The bipolar_mapping flag controls output behavior:
+ * - bipolar_mapping=true:  Output centered at 0, can go negative [-depth, +depth]
+ * - bipolar_mapping=false: Output only positive [0, +depth]
+ */
 struct ModConnection {
     uint16_t src;
     uint16_t dst;
     uint16_t depth_slot;
-    bool bipolar;
+    bool bipolar_mapping;  ///< True for bidirectional modulation (wobble), false for additive only
 };
 
+/**
+ * Represents a modulation connection that modulates the depth of another connection.
+ */
 struct DepthModConnection {
     uint16_t src;
     uint16_t depth_slot;
     float depth;
-    bool bipolar;
+    bool bipolar_mapping;  ///< True for bidirectional modulation, false for additive only
 };
 
 /**
  * A lightweight connection handle that contains a source index, destination index, and depth slot index.
  * Used for internal modulation graph processing, instead of the heavier ModConnection class.
+ * Caches src_bipolar from the source registry for efficient processing.
  */
 struct ModConnectionHandle {
     uint16_t src;
     uint16_t dst;
     uint16_t depth_slot;
-    bool bipolar;
+    bool src_bipolar;      ///< Cached: true if source outputs [-1,+1]
+    bool bipolar_mapping;  ///< True for bidirectional modulation output
 };
 
+/**
+ * Lightweight handle for depth modulation connections.
+ */
 struct DepthConnectionHandle {
     uint16_t src;
     uint16_t depth_slot;
     float depth;
-    bool bipolar;
+    bool src_bipolar;      ///< Cached: true if source outputs [-1,+1]
+    bool bipolar_mapping;  ///< True for bidirectional modulation output
 };
 
 /**
@@ -79,8 +98,8 @@ struct DepthConnectionHandle {
  * in other words, the matrix supports depth-one modulation-of-modulation.
  *
  * The modulation system is designed independently of the Applause parameter module. While there is a natural
- * bijection between plugin parameters and modulation destinations (and we supply some glue code to facilitate this),
- * no such association is strictly necessary.
+ * bijection between plugin parameters and modulation destinations, and we supply several helper functions that
+ * interface between applause::ParamsExtension and applause::ModMatrix, no such association is strictly necessary.
  *
  * The current implementation is straightforward in the interest of performance and easy debugging.
  * The depth-one recursive modulation is baked into the system; modulation connections ("depth connections")
@@ -135,16 +154,19 @@ public:
      * source symbolically within the matrix; to link modulation channels to your signal generators (LFOs, envelopes,
      * etc) you must invoke registerMonoSourceChannel/registerPolySourceChannel.
      * @param string_id the unique identifier of the source
-     * @param type
-     * @return
+     * @param type whether the source is mono, poly, or supports both modes
+     * @param bipolar true if source outputs [-1,+1] (e.g., LFO), false for [0,1] (e.g., envelope)
+     * @param defaultMode default mode for sources that support both mono and poly
+     * @return reference to the registered source
      */
     ModSource& registerSource(const std::string& string_id, ModSrcType type,
+                              bool bipolar = false,
                               ModSrcMode defaultMode = ModSrcMode::Poly)
     {
         ASSERT(src_count_ < MaxSources, "MaxSources exceeded");
         ASSERT(!src_lookup_.contains(string_id), "Source name already registered");
 
-        const uint16_t idx = static_cast<uint16_t>(src_count_++);
+        const auto idx = static_cast<uint16_t>(src_count_++);
         src_lookup_.emplace(string_id, idx);
 
         ModSource& s = src_registry_[idx];
@@ -153,11 +175,17 @@ public:
         s.mode  = (type == ModSrcType::Both) ? defaultMode
                : (type == ModSrcType::Poly) ? ModSrcMode::Poly
                                             : ModSrcMode::Mono;
+        s.bipolar = bipolar;
         return s;
     }
 
-    ModDestination& registerDestination(const std::string& string_id, ModDstMode mode,
-                                        float min_value = 0.0f, float max_value = 1.0f)
+    /**
+     * Registers a new modulation destination.
+     * @param string_id unique identifier for the destination
+     * @param mode whether the destination is mono or poly
+     * @return reference to the registered destination
+     */
+    ModDestination& registerDestination(const std::string& string_id, ModDstMode mode)
     {
         ASSERT(dst_count_ < MaxDestinations, "MaxDestinations exceeded");
         ASSERT(!dst_lookup_.contains(string_id), "Destination name already registered");
@@ -168,9 +196,16 @@ public:
         ModDestination& d = dst_registry_[idx];
         d.index = idx;
         d.mode  = mode;
-        d.min_value = min_value;
-        d.max_value = max_value;
         return d;
+    }
+
+    /**
+     * Helper function to automatically register all parameters from the given extension instance as modulation
+     * destinations. Destination indices will be assigned monotonically from zero with respect to the order by which
+     * the parameters are defined within the extension.
+     */
+    void registerFromParamsExtension(applause::ParamsExtension& params_extension) {
+
     }
 
     /**
@@ -180,16 +215,22 @@ public:
      * @param src the modulation source
      * @param dst the modulation destination
      * @param depth the initial modulation depth
-     * @param bipolar whether the connection is bipolar or not; modulation will be clamped between [-depth, depth] or [0, depth] depending on polarity
-     * @return
+     * @param bipolar_mapping whether the output should be centered at 0 (bidirectional).
+     *        If not specified, defaults to the source's bipolar flag (LFOs default to bidirectional,
+     *        envelopes default to additive-only).
+     * @return reference to the connection
      */
-    ModConnection& addConnection(ModSource src, ModDestination dst, float depth, bool bipolar) {
+    ModConnection& addConnection(ModSource src, ModDestination dst, float depth,
+                                 std::optional<bool> bipolar_mapping = std::nullopt) {
+        // Default to source's bipolar flag if not specified
+        const bool mapping = bipolar_mapping.value_or(src_registry_[src.index].bipolar);
+
         // Check for existing connection with same (src, dst)
         for (auto& existing : connections_) {
             if (existing.src == src.index && existing.dst == dst.index) {
                 // Update existing connection
                 program_.depth_base_[existing.depth_slot] = depth;
-                existing.bipolar = bipolar;
+                existing.bipolar_mapping = mapping;
                 recompileProgram();
                 return existing;
             }
@@ -200,7 +241,7 @@ public:
         ModConnection connection{};
         connection.src = src.index;
         connection.dst = dst.index;
-        connection.bipolar = bipolar;
+        connection.bipolar_mapping = mapping;
         program_.depth_base_.push_back(depth);
         program_.depth_active_.push_back(1);
         connection.depth_slot = static_cast<uint16_t>(program_.depth_base_.size() - 1);
@@ -210,13 +251,26 @@ public:
         return connections_.back();
     }
 
-    DepthModConnection& addDepthModulation(ModSource src, uint16_t depth_slot, float depth, bool bipolar) {
+    /**
+     * Adds a modulation connection that modulates the depth of an existing connection.
+     *
+     * @param src the modulation source
+     * @param depth_slot the depth slot to modulate (from an existing connection)
+     * @param depth the modulation depth for this depth-modulation
+     * @param bipolar_mapping whether the output should be centered at 0 (bidirectional).
+     *        If not specified, defaults to the source's bipolar flag.
+     * @return reference to the depth modulation connection
+     */
+    DepthModConnection& addDepthModulation(ModSource src, uint16_t depth_slot, float depth,
+                                            std::optional<bool> bipolar_mapping = std::nullopt) {
         ASSERT(depth_slot < program_.depth_base_.size(), "Invalid depth slot");
+        const bool mapping = bipolar_mapping.value_or(src_registry_[src.index].bipolar);
+
         DepthModConnection connection{};
         connection.src = src.index;
         connection.depth_slot = depth_slot;
         connection.depth = depth;
-        connection.bipolar = bipolar;
+        connection.bipolar_mapping = mapping;
         depth_connections_.push_back(connection);
 
         recompileProgram();
@@ -246,30 +300,30 @@ public:
     }
 
     /**
-     * Sets the base (unmodulated) value for a destination. Pass the plain value (e.g. Hz, dB);
-     * it will be normalized internally for modulation processing.
+     * Sets the base (unmodulated) normalized value for a destination.
+     * Value should be in [0,1] range. Scaling/warping is handled externally.
      */
-    void setBaseValue(uint16_t dstIdx, float plain_value) {
-        float normalized = normalizeValue(dstIdx, plain_value);
-        base_mono_dst_[dstIdx] = normalized;
-        base_poly_dst_[dstIdx] = normalized;
+    void setBaseValue(uint16_t dstIdx, float normalized_value) {
+        base_mono_dst_[dstIdx] = normalized_value;
+        base_poly_dst_[dstIdx] = normalized_value;
     }
 
     /**
-     * Returns the final modulated value for a mono destination as a plain value (denormalized).
+     * Returns the final modulated value for a mono destination as a normalized [0,1] value.
      * Call this after process() to retrieve the modulated parameter value.
+     * Apply any parameter scaling externally to convert to plain units.
      */
     [[nodiscard]] float getModValue(uint16_t dstIdx) const {
-        return denormalizeValue(dstIdx, mono_dst_[dstIdx]);
+        return mono_dst_[dstIdx];
     }
 
     /**
-     * Returns the final modulated value for a poly destination for a specific voice, as a plain value (denormalized).
+     * Returns the final modulated value for a poly destination for a specific voice, as a normalized [0,1] value.
      * Call this after process() to retrieve the modulated parameter value.
+     * Apply any parameter scaling externally to convert to plain units.
      */
     [[nodiscard]] float getPolyModValue(uint16_t dstIdx, uint16_t voice) const {
-        float normalized = poly_dst_buf_[static_cast<size_t>(voice) * MaxDestinations + dstIdx];
-        return denormalizeValue(dstIdx, normalized);
+        return poly_dst_buf_[static_cast<size_t>(voice) * MaxDestinations + dstIdx];
     }
 
     /**
@@ -295,8 +349,13 @@ public:
         // calculate mono depth modulation
         for (const auto &mono_depth_conn: program_.depth_connections_mono_) {
             float src_val = mono_src_buf_[mono_depth_conn.src];
-            if (mono_depth_conn.bipolar) {
-                src_val = src_val * 2.0f - 1.0f;  // [0,1] -> [-1,1]
+            // Step 1: Normalize bipolar sources to [0,1]
+            if (mono_depth_conn.src_bipolar) {
+                src_val = (src_val + 1.0f) * 0.5f;  // [-1,+1] -> [0,1]
+            }
+            // Step 2: Apply output mapping
+            if (mono_depth_conn.bipolar_mapping) {
+                src_val = src_val * 2.0f - 1.0f;   // [0,1] -> [-1,+1]
             }
             mono_depth_buf_[mono_depth_conn.depth_slot] += src_val * mono_depth_conn.depth;
         }
@@ -314,8 +373,13 @@ public:
             uint16_t voice_index = active_voices_[i];
             for (const auto &poly_depth_conn: program_.depth_connections_poly_) {
                 float src_val = poly_src_buf_[static_cast<size_t>(voice_index) * MaxSources + poly_depth_conn.src];
-                if (poly_depth_conn.bipolar) {
-                    src_val = src_val * 2.0f - 1.0f;  // [0,1] -> [-1,1]
+                // Step 1: Normalize bipolar sources to [0,1]
+                if (poly_depth_conn.src_bipolar) {
+                    src_val = (src_val + 1.0f) * 0.5f;  // [-1,+1] -> [0,1]
+                }
+                // Step 2: Apply output mapping
+                if (poly_depth_conn.bipolar_mapping) {
+                    src_val = src_val * 2.0f - 1.0f;   // [0,1] -> [-1,+1]
                 }
                 poly_depth_buf_[static_cast<size_t>(voice_index) * MaxConnections + poly_depth_conn.depth_slot]
                         += src_val * poly_depth_conn.depth;
@@ -326,8 +390,13 @@ public:
         // first, mono -> mono connections
         for (const auto &mm_conn: program_.mm_connections) {
             float src_val = mono_src_buf_[mm_conn.src];
-            if (mm_conn.bipolar) {
-                src_val = src_val * 2.0f - 1.0f;  // [0,1] -> [-1,1]
+            // Step 1: Normalize bipolar sources to [0,1]
+            if (mm_conn.src_bipolar) {
+                src_val = (src_val + 1.0f) * 0.5f;  // [-1,+1] -> [0,1]
+            }
+            // Step 2: Apply output mapping
+            if (mm_conn.bipolar_mapping) {
+                src_val = src_val * 2.0f - 1.0f;   // [0,1] -> [-1,+1]
             }
             const float depth_val = mono_depth_buf_[mm_conn.depth_slot];
             mono_dst_[mm_conn.dst] += src_val * depth_val;
@@ -338,8 +407,13 @@ public:
             uint16_t voice_index = active_voices_[i];
             for (const auto &mp_conn: program_.mp_connections) {
                 float src_val = mono_src_buf_[mp_conn.src];
-                if (mp_conn.bipolar) {
-                    src_val = src_val * 2.0f - 1.0f;  // [0,1] -> [-1,1]
+                // Step 1: Normalize bipolar sources to [0,1]
+                if (mp_conn.src_bipolar) {
+                    src_val = (src_val + 1.0f) * 0.5f;  // [-1,+1] -> [0,1]
+                }
+                // Step 2: Apply output mapping
+                if (mp_conn.bipolar_mapping) {
+                    src_val = src_val * 2.0f - 1.0f;   // [0,1] -> [-1,+1]
                 }
                 const float depth_val = poly_depth_buf_[
                     static_cast<size_t>(voice_index) * MaxConnections + mp_conn.depth_slot];
@@ -352,8 +426,13 @@ public:
             uint16_t voice_index = active_voices_[i];
             for (const auto &pp_conn: program_.pp_connections) {
                 float src_val = poly_src_buf_[static_cast<size_t>(voice_index) * MaxSources + pp_conn.src];
-                if (pp_conn.bipolar) {
-                    src_val = src_val * 2.0f - 1.0f;  // [0,1] -> [-1,1]
+                // Step 1: Normalize bipolar sources to [0,1]
+                if (pp_conn.src_bipolar) {
+                    src_val = (src_val + 1.0f) * 0.5f;  // [-1,+1] -> [0,1]
+                }
+                // Step 2: Apply output mapping
+                if (pp_conn.bipolar_mapping) {
+                    src_val = src_val * 2.0f - 1.0f;   // [0,1] -> [-1,+1]
                 }
                 const float depth_val = poly_depth_buf_[
                     static_cast<size_t>(voice_index) * MaxConnections + pp_conn.depth_slot];
@@ -379,23 +458,6 @@ private:
     }
 
     /**
-     * Normalize a plain value to [0,1] range based on destination's min/max.
-     */
-    [[nodiscard]] float normalizeValue(uint16_t dstIdx, float plain_value) const {
-        const auto& d = dst_registry_[dstIdx];
-        return (plain_value - d.min_value) / (d.max_value - d.min_value);
-    }
-
-    /**
-     * Denormalize a [0,1] value to plain value, clamped to destination's range.
-     */
-    [[nodiscard]] float denormalizeValue(uint16_t dstIdx, float normalized) const {
-        const auto& d = dst_registry_[dstIdx];
-        float plain = normalized * (d.max_value - d.min_value) + d.min_value;
-        return std::clamp(plain, d.min_value, d.max_value);
-    }
-
-    /**
      * Rebuilds the modulation program object. Called whenever the user changes the modulation matrix state.
      */
     void recompileProgram() {
@@ -408,7 +470,8 @@ private:
         program_.depth_connections_poly_.clear();
 
         for (const auto &dm : depth_connections_) {
-            const DepthConnectionHandle handle = {dm.src, dm.depth_slot, dm.depth, dm.bipolar};
+            const bool src_bipolar = src_registry_[dm.src].bipolar;
+            const DepthConnectionHandle handle = {dm.src, dm.depth_slot, dm.depth, src_bipolar, dm.bipolar_mapping};
             if (effectiveSrcMode(dm.src) == ModSrcMode::Mono) {
                 program_.depth_connections_mono_.push_back(handle);
             } else {
@@ -419,8 +482,9 @@ private:
         for (const auto &conn: connections_) {
             const ModSrcMode src_mode = effectiveSrcMode(conn.src);
             const ModDstMode dst_mode = dst_registry_[conn.dst].mode;
+            const bool src_bipolar = src_registry_[conn.src].bipolar;
 
-            ModConnectionHandle handle = {conn.src, conn.dst, conn.depth_slot, conn.bipolar};
+            ModConnectionHandle handle = {conn.src, conn.dst, conn.depth_slot, src_bipolar, conn.bipolar_mapping};
 
             if (src_mode == ModSrcMode::Mono && dst_mode == ModDstMode::Mono) {
                 program_.mm_connections.push_back(handle);
