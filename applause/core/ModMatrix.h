@@ -203,9 +203,22 @@ public:
      * Helper function to automatically register all parameters from the given extension instance as modulation
      * destinations. Destination indices will be assigned monotonically from zero with respect to the order by which
      * the parameters are defined within the extension.
+     *
+     * IMPORTANT: This function assumes a 1:1 bijection between parameter indices and destination indices
+     * (i.e., param 0 becomes destination 0, param 1 becomes destination 1, etc.). This assumption is
+     * used by loadParamBaseValues() and getModParamValue() for efficient lookups. Therefore, this
+     * function should only be called on an empty ModMatrix with no previously registered destinations.
+     * Calling it after manually registering destinations will cause an index offset mismatch.
+     *
+     * If you wish to add destinations that do not correspond to plugin parameters alongside plugin parameters,
+     * please add them after calling this function.
      */
-    void registerFromParamsExtension(applause::ParamsExtension& params_extension) {
-
+    void registerFromParamsExtension(const applause::ParamsExtension& params_extension) {
+        ASSERT(dst_count_ == 0, "Cannot batch register parameters from extension after manually registering destinations");
+        for (const auto& param : params_extension.getAllParameters()) {
+            ModDstMode mode = param.polyphonic ? ModDstMode::Poly : ModDstMode::Mono;
+            registerDestination(param.stringId, mode);
+        }
     }
 
     /**
@@ -324,6 +337,46 @@ public:
      */
     [[nodiscard]] float getPolyModValue(uint16_t dstIdx, uint16_t voice) const {
         return poly_dst_buf_[static_cast<size_t>(voice) * MaxDestinations + dstIdx];
+    }
+
+    /**
+     * Load all param values as normalized into base destination values.
+     * Assumes param index == destination index (1:1 bijection).
+     * Call once per block before process().
+     */
+    void loadParamBaseValues(const applause::ParamsExtension& params) {
+        const auto* values = params.getValuesArray();
+        const auto* scales = params.getScaleInfoArray();
+
+        for (uint16_t i = 0; i < dst_count_; i++) {
+            float plain = values[i].load(std::memory_order_relaxed);
+            const auto& s = scales[i];
+            float norm = s.scaling.toNormalized(plain, s.min, s.max);
+            base_mono_dst_[i] = norm;
+            base_poly_dst_[i] = norm;
+        }
+    }
+
+    /**
+     * Get modulated value converted back to plain units.
+     * Assumes param index == destination index.
+     * This is a placeholder function that will be replaced in the future by some sort of ModParamHandle struct.
+     */
+    [[nodiscard]] float getModParamValueMono(uint16_t dstIdx,
+                                           const applause::ParamsExtension& params) const {
+        float norm = std::clamp(mono_dst_[dstIdx], 0.0f, 1.0f);
+        return params.fromNormalizedAt(dstIdx, norm);
+    }
+
+    /**
+     * Get poly modulated value converted back to plain units.
+     * his is a placeholder function that will be replaced in the future by some sort of ModParamHandle struct.
+     */
+    [[nodiscard]] float getModParamValuePoly(uint16_t dstIdx,
+                                               uint16_t voice,
+                                               const applause::ParamsExtension& params) const {
+        float norm = std::clamp(poly_dst_buf_[static_cast<size_t>(voice) * MaxDestinations + dstIdx], 0.0f, 1.0f);
+        return params.fromNormalizedAt(dstIdx, norm);
     }
 
     /**

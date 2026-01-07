@@ -244,6 +244,7 @@ ParamsExtension::ParamsExtension(uint32_t max_params) : message_queue_(nullptr) 
     values_ = std::make_unique<std::atomic<float>[]>(max_params_);
     handles_ = std::make_unique<ParamHandle[]>(max_params_);
     infos_ = std::make_unique<ParamInfo[]>(max_params_);
+    scale_info_ = std::make_unique<ParamScaleInfo[]>(max_params_);
 }
 
 void ParamsExtension::onHostReady() noexcept {
@@ -278,6 +279,9 @@ void ParamsExtension::registerParam(const ParamConfig& config) {
     info.defaultValue = config.default_value;
     info.stepped = config.is_stepped;
     info.internal = config.is_internal;
+    info.scaling_ = config.scaling;
+    info.polyphonic = config.is_polyphonic;
+    info.stringId = config.string_id;
 
     std::string id;
 
@@ -320,6 +324,13 @@ void ParamsExtension::registerParam(const ParamConfig& config) {
     // Use custom converters if provided, otherwise use defaults
     infos_[index].value_to_text_ = config.value_to_text ? config.value_to_text : defaultValueToText;
     infos_[index].text_to_value_ = config.text_to_value ? config.text_to_value : defaultTextToValue;
+
+    // Populate DSP-safe scale info array
+    scale_info_[index] = ParamScaleInfo{
+        config.min_value,
+        config.max_value,
+        config.scaling
+    };
 
     // Update lookup structures
     clap_id_to_index_[info.clapId] = index;
