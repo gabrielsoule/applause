@@ -244,7 +244,7 @@ ParamsExtension::ParamsExtension(uint32_t max_params) : message_queue_(nullptr) 
     values_ = std::make_unique<std::atomic<float>[]>(max_params_);
     handles_ = std::make_unique<ParamHandle[]>(max_params_);
     infos_ = std::make_unique<ParamInfo[]>(max_params_);
-    scale_info_ = std::make_unique<ParamScaleInfo[]>(max_params_);
+    scale_info_ = std::make_unique<ValueScaleInfo[]>(max_params_);
 }
 
 void ParamsExtension::onHostReady() noexcept {
@@ -326,7 +326,7 @@ void ParamsExtension::registerParam(const ParamConfig& config) {
     infos_[index].text_to_value_ = config.text_to_value ? config.text_to_value : defaultTextToValue;
 
     // Populate DSP-safe scale info array
-    scale_info_[index] = ParamScaleInfo{
+    scale_info_[index] = ValueScaleInfo{
         config.min_value,
         config.max_value,
         config.scaling

@@ -18,7 +18,7 @@
 #include "applause/util/Json.h"
 #include "applause/util/ParamMessageQueue.h"
 #include "applause/util/thirdparty/rocket.hpp"
-#include "applause/core/ParamScaling.h"
+#include "../util/ParamScaling.h"
 
 namespace applause {
 class ParamsExtension;
@@ -41,7 +41,7 @@ struct ParamConfig {
     bool is_polyphonic = false;  /// Whether parameter can/should be polyphonically modulated by a modulation system.
                                  ///   for example: osc tuning in a synth would be poly, but master out gain might not
 
-    ParamScaling scaling = ParamScaling::linear();  /// Parameter scaling for normalization (default: linear)
+    ValueScaling scaling = ValueScaling::linear();  /// Parameter scaling for normalization (default: linear)
 
     // Optional custom converters (default to nullptr)
     std::function<std::string(float value, const ParamInfo& info)> value_to_text;
@@ -243,7 +243,7 @@ private:
     std::function<std::string(float value, const ParamInfo& info)> value_to_text_;
     std::function<std::optional<float>(const std::string& text, const ParamInfo& info)> text_to_value_;
 
-    ParamScaling scaling_;  // Parameter scaling for normalization
+    ValueScaling scaling_;  // Parameter scaling for normalization
 
     friend class ParamsExtension;  // Allow ParamsExtension to access converters
 };
@@ -297,7 +297,7 @@ private:
     std::unique_ptr<std::atomic<float>[]> values_;
     std::unique_ptr<ParamHandle[]> handles_;
     std::unique_ptr<ParamInfo[]> infos_;
-    std::unique_ptr<ParamScaleInfo[]> scale_info_;  // DSP-safe scaling info (parallel to values_)
+    std::unique_ptr<ValueScaleInfo[]> scale_info_;  // DSP-safe scaling info (parallel to values_)
 
     // Lookup structures for O(1) access
     std::unordered_map<clap_id, uint32_t> clap_id_to_index_;
@@ -422,7 +422,7 @@ public:
     /**
      * Get scale info array pointer (DSP-safe bulk access).
      */
-    [[nodiscard]] const ParamScaleInfo* getScaleInfoArray() const noexcept {
+    [[nodiscard]] const ValueScaleInfo* getScaleInfoArray() const noexcept {
         return scale_info_.get();
     }
 

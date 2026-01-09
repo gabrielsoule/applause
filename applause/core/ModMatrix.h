@@ -1,6 +1,5 @@
 #pragma once
-#include <cstddef>
-#include <cstdint>
+
 #include <string>
 #include <array>
 #include <unordered_map>
@@ -9,6 +8,7 @@
 #include <optional>
 #include <applause/extensions/ParamsExtension.h>
 #include <applause/util/DebugHelpers.h>
+#include <applause/util/ParamScaling.h>
 
 
 enum class ModSrcType : uint8_t { Mono, Poly, Both };
@@ -93,6 +93,18 @@ struct DepthConnectionHandle {
 };
 
 /**
+ * Lightweight handle for direct access to a modulated parameter value.
+ * Use getModHandle() to obtain. The pointer is pre-computed, so getValue()
+ * is a simple dereference with no arithmetic.
+ */
+struct ModParamHandle {
+    float* value_ = nullptr;
+    [[nodiscard]] float getValue() const noexcept { return *value_; }
+};
+
+/**
+ * !!! WIP !!!
+ *
  * A fast and efficient parameter modulation system. Supports modulation from mod sources (e.g. LFOs) to destinations
  * (e.g. synth parameters). The depth of individual connections themselves can also be modulated;
  * in other words, the matrix supports depth-one modulation-of-modulation.
@@ -180,12 +192,30 @@ public:
     }
 
     /**
+     * Sets the mode for a source that supports both mono and poly operation.
+     * This triggers a recompilation of the modulation program to update connection routing.
+     * @param srcIdx The source index
+     * @param mode The new mode (Mono or Poly)
+     * @note Only valid for sources registered with ModSrcType::Both
+     */
+    void setSourceMode(uint16_t srcIdx, ModSrcMode mode) {
+        ASSERT(srcIdx < src_count_, "Source index out of bounds");
+        ASSERT(src_registry_[srcIdx].type == ModSrcType::Both,
+               "setSourceMode only valid for sources with ModSrcType::Both");
+        src_registry_[srcIdx].mode = mode;
+        recompileProgram();
+    }
+
+    /**
      * Registers a new modulation destination.
      * @param string_id unique identifier for the destination
      * @param mode whether the destination is mono or poly
+     * @param scale_info scaling info for converting normalized <-> plain values.
+     *        Defaults to identity scaling (min=0, max=1, Linear).
      * @return reference to the registered destination
      */
-    ModDestination& registerDestination(const std::string& string_id, ModDstMode mode)
+    ModDestination& registerDestination(const std::string& string_id, ModDstMode mode,
+                                        applause::ValueScaleInfo scale_info = {0.0f, 1.0f, applause::ValueScaling::linear()})
     {
         ASSERT(dst_count_ < MaxDestinations, "MaxDestinations exceeded");
         ASSERT(!dst_lookup_.contains(string_id), "Destination name already registered");
@@ -196,6 +226,12 @@ public:
         ModDestination& d = dst_registry_[idx];
         d.index = idx;
         d.mode  = mode;
+        dst_scale_info_[idx] = scale_info;
+
+        if (mode == ModDstMode::Poly) {
+            poly_dst_indices_.push_back(idx);
+        }
+
         return d;
     }
 
@@ -204,10 +240,13 @@ public:
      * destinations. Destination indices will be assigned monotonically from zero with respect to the order by which
      * the parameters are defined within the extension.
      *
+     * This function automatically uses the scaling info from each parameter, so modulated values
+     * will be returned in plain units ready for DSP use.
+     *
      * IMPORTANT: This function assumes a 1:1 bijection between parameter indices and destination indices
      * (i.e., param 0 becomes destination 0, param 1 becomes destination 1, etc.). This assumption is
-     * used by loadParamBaseValues() and getModParamValue() for efficient lookups. Therefore, this
-     * function should only be called on an empty ModMatrix with no previously registered destinations.
+     * used by loadParamBaseValues() for efficient lookups. Therefore, this function should only be
+     * called on an empty ModMatrix with no previously registered destinations.
      * Calling it after manually registering destinations will cause an index offset mismatch.
      *
      * If you wish to add destinations that do not correspond to plugin parameters alongside plugin parameters,
@@ -215,9 +254,13 @@ public:
      */
     void registerFromParamsExtension(const applause::ParamsExtension& params_extension) {
         ASSERT(dst_count_ == 0, "Cannot batch register parameters from extension after manually registering destinations");
-        for (const auto& param : params_extension.getAllParameters()) {
+        const auto* scale_array = params_extension.getScaleInfoArray();
+        const auto& params = params_extension.getAllParameters();
+
+        for (uint32_t i = 0; i < params.size(); ++i) {
+            const auto& param = params[i];
             ModDstMode mode = param.polyphonic ? ModDstMode::Poly : ModDstMode::Mono;
-            registerDestination(param.stringId, mode);
+            registerDestination(param.stringId, mode, scale_array[i]);
         }
     }
 
@@ -313,30 +356,91 @@ public:
     }
 
     /**
-     * Sets the base (unmodulated) normalized value for a destination.
-     * Value should be in [0,1] range. Scaling/warping is handled externally.
+     * Sets the base (unmodulated) value for a destination in plain units.
+     * The value is internally normalized using the destination's scaling info.
      */
-    void setBaseValue(uint16_t dstIdx, float normalized_value) {
-        base_mono_dst_[dstIdx] = normalized_value;
-        base_poly_dst_[dstIdx] = normalized_value;
+    void setBaseValue(uint16_t dstIdx, float plain_value) {
+        const auto& s = dst_scale_info_[dstIdx];
+        float norm = s.scaling.toNormalized(plain_value, s.min, s.max);
+        base_mono_dst_[dstIdx] = norm;
+        base_poly_dst_[dstIdx] = norm;
     }
 
     /**
-     * Returns the final modulated value for a mono destination as a normalized [0,1] value.
+     * Sets the value for a mono modulation source.
+     * Call this before process() to update source values from your modulators.
+     * @param srcIdx The source index
+     * @param value The source value ([-1,+1] for bipolar, [0,1] for unipolar)
+     */
+    void setMonoSourceValue(uint16_t srcIdx, float value) {
+        ASSERT(srcIdx < src_count_, "Source index out of bounds");
+        mono_src_buf_[srcIdx] = value;
+    }
+
+    /**
+     * Sets the value for a poly modulation source for a specific voice.
+     * Call this before process() to update source values from your modulators.
+     * @param srcIdx The source index
+     * @param voice The voice index
+     * @param value The source value ([-1,+1] for bipolar, [0,1] for unipolar)
+     */
+    void setPolySourceValue(uint16_t srcIdx, uint16_t voice, float value) {
+        ASSERT(srcIdx < src_count_, "Source index out of bounds");
+        ASSERT(voice < NumVoices, "Voice index out of bounds");
+        poly_src_buf_[static_cast<size_t>(voice) * MaxSources + srcIdx] = value;
+    }
+
+    /**
+     * Sets both mono and poly values for a source simultaneously.
+     * Useful for sources with ModSrcType::Both where both buffers should be updated.
+     * @param srcIdx The source index
+     * @param voice The voice index for the poly value
+     * @param value The source value
+     */
+    void setSourceValue(uint16_t srcIdx, uint16_t voice, float value) {
+        ASSERT(srcIdx < src_count_, "Source index out of bounds");
+        ASSERT(voice < NumVoices, "Voice index out of bounds");
+        mono_src_buf_[srcIdx] = value;
+        poly_src_buf_[static_cast<size_t>(voice) * MaxSources + srcIdx] = value;
+    }
+
+    /**
+     * Returns the final modulated value for a mono destination in plain units.
      * Call this after process() to retrieve the modulated parameter value.
-     * Apply any parameter scaling externally to convert to plain units.
+     * The value is already scaled and ready for DSP use.
      */
     [[nodiscard]] float getModValue(uint16_t dstIdx) const {
         return mono_dst_[dstIdx];
     }
 
     /**
-     * Returns the final modulated value for a poly destination for a specific voice, as a normalized [0,1] value.
+     * Returns the final modulated value for a poly destination for a specific voice, in plain units.
      * Call this after process() to retrieve the modulated parameter value.
-     * Apply any parameter scaling externally to convert to plain units.
+     * The value is already scaled and ready for DSP use.
      */
     [[nodiscard]] float getPolyModValue(uint16_t dstIdx, uint16_t voice) const {
         return poly_dst_buf_[static_cast<size_t>(voice) * MaxDestinations + dstIdx];
+    }
+
+    /**
+     * Get a handle for direct access to a mono destination's modulated value.
+     * @param dstIdx The destination index
+     * @return Handle pointing directly to the value in mono_dst_
+     * @note Cache this handle during initialization; don't call every process()
+     */
+    [[nodiscard]] ModParamHandle getModHandle(uint16_t dstIdx) {
+        return ModParamHandle{&mono_dst_[dstIdx]};
+    }
+
+    /**
+     * Get a handle for direct access to a poly destination's modulated value for a specific voice.
+     * @param dstIdx The destination index
+     * @param voice The voice index
+     * @return Handle pointing directly to the value for this (destination, voice) pair
+     * @note Cache this handle during initialization; don't call every process()
+     */
+    [[nodiscard]] ModParamHandle getModHandle(uint16_t dstIdx, uint16_t voice) {
+        return ModParamHandle{&poly_dst_buf_[static_cast<size_t>(voice) * MaxDestinations + dstIdx]};
     }
 
     /**
@@ -358,39 +462,18 @@ public:
     }
 
     /**
-     * Get modulated value converted back to plain units.
-     * Assumes param index == destination index.
-     * This is a placeholder function that will be replaced in the future by some sort of ModParamHandle struct.
-     */
-    [[nodiscard]] float getModParamValueMono(uint16_t dstIdx,
-                                           const applause::ParamsExtension& params) const {
-        float norm = std::clamp(mono_dst_[dstIdx], 0.0f, 1.0f);
-        return params.fromNormalizedAt(dstIdx, norm);
-    }
-
-    /**
-     * Get poly modulated value converted back to plain units.
-     * his is a placeholder function that will be replaced in the future by some sort of ModParamHandle struct.
-     */
-    [[nodiscard]] float getModParamValuePoly(uint16_t dstIdx,
-                                               uint16_t voice,
-                                               const applause::ParamsExtension& params) const {
-        float norm = std::clamp(poly_dst_buf_[static_cast<size_t>(voice) * MaxDestinations + dstIdx], 0.0f, 1.0f);
-        return params.fromNormalizedAt(dstIdx, norm);
-    }
-
-    /**
      * Processes modulation. Should be called once per block, before parameters are read and used by DSP components.
      */
     void process() {
         // Reset mono destinations to base values
         mono_dst_ = base_mono_dst_;
 
-        // Reset poly destinations for active voices
+        // Reset poly destinations for active voices (only poly destinations need per-voice reset)
         for (size_t i = 0; i < active_voices_.size(); i++) {
             const uint16_t voice_index = active_voices_[i];
-            for (int j = 0; j < dst_count_; j++) {
-                poly_dst_buf_[static_cast<size_t>(voice_index) * MaxDestinations + j] = base_poly_dst_[j];
+            const size_t voice_offset = static_cast<size_t>(voice_index) * MaxDestinations;
+            for (uint16_t poly_idx : poly_dst_indices_) {
+                poly_dst_buf_[voice_offset + poly_idx] = base_poly_dst_[poly_idx];
             }
         }
 
@@ -441,6 +524,10 @@ public:
 
         // now that the modulation depth pass is done, we can calculate final modulation values
         // first, mono -> mono connections
+        // NOTE: MM connections read from mono_depth_buf_, so poly depth modulation on these
+        // depth slots is silently ignored. This is analogous to PM connections (NYI) - both
+        // require a reduction policy to collapse per-voice values to mono. Until implemented,
+        // avoid poly depth mods on slots used by MM connections.
         for (const auto &mm_conn: program_.mm_connections) {
             float src_val = mono_src_buf_[mm_conn.src];
             // Step 1: Normalize bipolar sources to [0,1]
@@ -494,6 +581,27 @@ public:
         }
 
         // poly -> mono connections (NYI -- leave as stub)
+
+
+        // Scale mono destinations: normalized -> plain
+        for (uint16_t i = 0; i < dst_count_; i++) {
+            const auto& s = dst_scale_info_[i];
+            float norm = std::clamp(mono_dst_[i], 0.0f, 1.0f);
+            mono_dst_[i] = s.scaling.fromNormalized(norm, s.min, s.max);
+        }
+
+        // Scale poly destinations for active voices: normalized -> plain
+        // Only iterate over poly destinations - mono destinations don't need per-voice scaling
+        for (size_t v = 0; v < active_voices_.size(); v++) {
+            const uint16_t voice_index = active_voices_[v];
+            const size_t voice_offset = static_cast<size_t>(voice_index) * MaxDestinations;
+
+            for (uint16_t poly_idx : poly_dst_indices_) {
+                const auto& s = dst_scale_info_[poly_idx];
+                float norm = std::clamp(poly_dst_buf_[voice_offset + poly_idx], 0.0f, 1.0f);
+                poly_dst_buf_[voice_offset + poly_idx] = s.scaling.fromNormalized(norm, s.min, s.max);
+            }
+        }
     }
 
 private:
@@ -563,6 +671,8 @@ private:
 
     std::array<ModSource, MaxSources> src_registry_{};
     std::array<ModDestination, MaxDestinations> dst_registry_{};
+    std::array<applause::ValueScaleInfo, MaxDestinations> dst_scale_info_{};
+    std::vector<uint16_t> poly_dst_indices_;  // Indices of poly destinations for optimized iteration
 
     // Source values (written by your modulators before processBlock)
     std::array<float, MaxSources> mono_src_buf_{};
