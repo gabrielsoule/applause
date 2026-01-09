@@ -8,7 +8,7 @@
 #include <optional>
 #include <applause/extensions/ParamsExtension.h>
 #include <applause/util/DebugHelpers.h>
-#include <applause/util/ParamScaling.h>
+#include <applause/util/ValueScaling.h>
 
 
 enum class ModSrcType : uint8_t { Mono, Poly, Both };
@@ -278,6 +278,8 @@ public:
      */
     ModConnection& addConnection(ModSource src, ModDestination dst, float depth,
                                  std::optional<bool> bipolar_mapping = std::nullopt) {
+        ASSERT(src.index < src_count_, "Source index out of bounds");
+        ASSERT(dst.index < dst_count_, "Destination index out of bounds");
         // Default to source's bipolar flag if not specified
         const bool mapping = bipolar_mapping.value_or(src_registry_[src.index].bipolar);
 
@@ -319,6 +321,7 @@ public:
      */
     DepthModConnection& addDepthModulation(ModSource src, uint16_t depth_slot, float depth,
                                             std::optional<bool> bipolar_mapping = std::nullopt) {
+        ASSERT(src.index < src_count_, "Source index out of bounds");
         ASSERT(depth_slot < program_.depth_base_.size(), "Invalid depth slot");
         const bool mapping = bipolar_mapping.value_or(src_registry_[src.index].bipolar);
 
@@ -360,6 +363,7 @@ public:
      * The value is internally normalized using the destination's scaling info.
      */
     void setBaseValue(uint16_t dstIdx, float plain_value) {
+        ASSERT(dstIdx < dst_count_, "Destination index out of bounds");
         const auto& s = dst_scale_info_[dstIdx];
         float norm = s.scaling.toNormalized(plain_value, s.min, s.max);
         base_mono_dst_[dstIdx] = norm;
@@ -410,6 +414,7 @@ public:
      * The value is already scaled and ready for DSP use.
      */
     [[nodiscard]] float getModValue(uint16_t dstIdx) const {
+        ASSERT(dstIdx < dst_count_, "Destination index out of bounds");
         return mono_dst_[dstIdx];
     }
 
@@ -419,6 +424,8 @@ public:
      * The value is already scaled and ready for DSP use.
      */
     [[nodiscard]] float getPolyModValue(uint16_t dstIdx, uint16_t voice) const {
+        ASSERT(dstIdx < dst_count_, "Destination index out of bounds");
+        ASSERT(voice < NumVoices, "Voice index out of bounds");
         return poly_dst_buf_[static_cast<size_t>(voice) * MaxDestinations + dstIdx];
     }
 
@@ -429,6 +436,7 @@ public:
      * @note Cache this handle during initialization; don't call every process()
      */
     [[nodiscard]] ModParamHandle getModHandle(uint16_t dstIdx) {
+        ASSERT(dstIdx < dst_count_, "Destination index out of bounds");
         return ModParamHandle{&mono_dst_[dstIdx]};
     }
 
@@ -440,6 +448,8 @@ public:
      * @note Cache this handle during initialization; don't call every process()
      */
     [[nodiscard]] ModParamHandle getModHandle(uint16_t dstIdx, uint16_t voice) {
+        ASSERT(dstIdx < dst_count_, "Destination index out of bounds");
+        ASSERT(voice < NumVoices, "Voice index out of bounds");
         return ModParamHandle{&poly_dst_buf_[static_cast<size_t>(voice) * MaxDestinations + dstIdx]};
     }
 

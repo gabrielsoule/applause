@@ -18,7 +18,7 @@
 #include "applause/util/Json.h"
 #include "applause/util/ParamMessageQueue.h"
 #include "applause/util/thirdparty/rocket.hpp"
-#include "../util/ParamScaling.h"
+#include "../util/ValueScaling.h"
 
 namespace applause {
 class ParamsExtension;
