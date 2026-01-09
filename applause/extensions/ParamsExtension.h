@@ -18,6 +18,7 @@
 #include "applause/util/Json.h"
 #include "applause/util/ParamMessageQueue.h"
 #include "applause/util/thirdparty/rocket.hpp"
+#include "../util/ValueScaling.h"
 
 namespace applause {
 class ParamsExtension;
@@ -27,18 +28,20 @@ class ParamInfo;
  * @brief Configuration structure for a parameter.
  */
 struct ParamConfig {
-    std::string string_id;  ///< String identifier for the parameter (required)
-    std::string name;       ///< Display name (if empty, uses string_id)
-    std::string module;
-    ///< Module path for hierarchical grouping (e.g.,
-    ///< "Filter/Envelope")
-    std::string short_name;      ///< Short display name (e.g., "Cutoff")
-    std::string unit;            ///< Unit string (e.g., "Hz", "dB")
-    float min_value = 0.0f;      ///< Minimum value
-    float max_value = 1.0f;      ///< Maximum value
-    float default_value = 0.5f;  ///< Default value
-    bool is_stepped = false;     ///< Whether parameter uses discrete integer values
-    bool is_internal = false;    ///< Whether parameter is internal (not exposed to DAW)
+    std::string string_id;       /// String identifier for the parameter (required)
+    std::string name;            /// Display name (if empty, uses string_id)
+    std::string module;          /// Module path for hierarchical grouping (e.g. "Filter/Envelope")
+    std::string short_name;      /// Short display name (e.g., "Cutoff")
+    std::string unit;            /// Unit string (e.g., "Hz", "dB")
+    float min_value = 0.0f;      /// Minimum value
+    float max_value = 1.0f;      /// Maximum value
+    float default_value = 0.5f;  /// Default value
+    bool is_stepped = false;     /// Whether parameter uses discrete integer values
+    bool is_internal = false;    /// Whether parameter is internal (not exposed to DAW)
+    bool is_polyphonic = false;  /// Whether parameter can/should be polyphonically modulated by a modulation system.
+                                 ///   for example: osc tuning in a synth would be poly, but master out gain might not
+
+    ValueScaling scaling = ValueScaling::linear();  /// Parameter scaling for normalization (default: linear)
 
     // Optional custom converters (default to nullptr)
     std::function<std::string(float value, const ParamInfo& info)> value_to_text;
@@ -127,6 +130,18 @@ public:
     bool stepped = false;
 
     /**
+     * If true, the parameter supports polyphonic modulation (per-voice values).
+     * For example, oscillator tuning would be polyphonic, but master volume might not.
+     */
+    bool polyphonic = false;
+
+    /**
+     * The original string identifier used during registration.
+     * Used for modulation destination registration and state serialization.
+     */
+    std::string stringId;
+
+    /**
      * Signal emitted when the parameter value changes from the host side.
      * UI components can connect to this to update their visual state.
      */
@@ -195,6 +210,27 @@ public:
      */
     std::optional<float> textToValue(const std::string& text) const noexcept;
 
+    /**
+     * Convert a plain value to normalized [0,1] using configured scaling.
+     */
+    [[nodiscard]] float toNormalized(float plainValue) const noexcept {
+        return scaling_.toNormalized(plainValue, minValue, maxValue);
+    }
+
+    /**
+     * Convert a normalized [0,1] value to plain using configured scaling.
+     */
+    [[nodiscard]] float fromNormalized(float normalized) const noexcept {
+        return scaling_.fromNormalized(normalized, minValue, maxValue);
+    }
+
+    /**
+     * Get current value as normalized [0,1].
+     */
+    [[nodiscard]] float getNormalized() const noexcept {
+        return toNormalized(getValue());
+    }
+
 private:
     ParamHandle* handle_ = nullptr;
 
@@ -206,6 +242,8 @@ private:
     // Custom converters (following member naming convention)
     std::function<std::string(float value, const ParamInfo& info)> value_to_text_;
     std::function<std::optional<float>(const std::string& text, const ParamInfo& info)> text_to_value_;
+
+    ValueScaling scaling_;  // Parameter scaling for normalization
 
     friend class ParamsExtension;  // Allow ParamsExtension to access converters
 };
@@ -259,6 +297,7 @@ private:
     std::unique_ptr<std::atomic<float>[]> values_;
     std::unique_ptr<ParamHandle[]> handles_;
     std::unique_ptr<ParamInfo[]> infos_;
+    std::unique_ptr<ValueScaleInfo[]> scale_info_;  // DSP-safe scaling info (parallel to values_)
 
     // Lookup structures for O(1) access
     std::unordered_map<clap_id, uint32_t> clap_id_to_index_;
@@ -355,6 +394,44 @@ public:
      * internal and external)
      */
     std::span<ParamInfo> getAllParameters() const noexcept;
+
+    /**
+     * Get normalized value for parameter at index (DSP-safe).
+     */
+    [[nodiscard]] float getNormalizedAt(uint32_t index) const noexcept {
+        float plain = values_[index].load(std::memory_order_relaxed);
+        const auto& s = scale_info_[index];
+        return s.scaling.toNormalized(plain, s.min, s.max);
+    }
+
+    /**
+     * Convert normalized to plain value for parameter at index (DSP-safe).
+     */
+    [[nodiscard]] float fromNormalizedAt(uint32_t index, float norm) const noexcept {
+        const auto& s = scale_info_[index];
+        return s.scaling.fromNormalized(norm, s.min, s.max);
+    }
+
+    /**
+     * Get raw values array pointer (DSP-safe bulk access).
+     */
+    [[nodiscard]] const std::atomic<float>* getValuesArray() const noexcept {
+        return values_.get();
+    }
+
+    /**
+     * Get scale info array pointer (DSP-safe bulk access).
+     */
+    [[nodiscard]] const ValueScaleInfo* getScaleInfoArray() const noexcept {
+        return scale_info_.get();
+    }
+
+    /**
+     * Get total parameter count.
+     */
+    [[nodiscard]] uint32_t getParamCount() const noexcept {
+        return param_count_;
+    }
 
     /**
      * @brief Process the CLAP events generated during process()

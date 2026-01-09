@@ -3,9 +3,11 @@
 #include <applause/util/MemoryArena.h>
 #include <applause/core/ProcessInfo.h>
 #include <clap/clap.h>
-
+#include <applause/core/ModMatrix.h>
 #include <string>
 #include <unordered_map>
+
+#include <applause/core/ModMatrix.h>
 
 #include "Extension.h"
 

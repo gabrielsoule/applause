@@ -156,4 +156,12 @@ if(APPLAUSE_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
+# Tests
+option(APPLAUSE_BUILD_TESTS "Build unit tests" OFF)
+if(APPLAUSE_BUILD_TESTS)
+    include(CTest)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
+
 message(STATUS "Applause configured successfully")
