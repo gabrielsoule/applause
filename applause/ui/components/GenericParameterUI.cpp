@@ -27,7 +27,7 @@ void GenericParameterEntry::draw(visage::Canvas& canvas) {
     float textHeight = height();
 
     // Draw the parameter name (right-aligned)
-    const visage::Font font(12, applause::fonts::JetBrainsMonoNL_SemiBold_ttf);
+    const visage::Font font(13, applause::fonts::Jost_Medium_ttf);
     canvas.setColor(0xFFFFFFFF);
     canvas.text(paramInfo_.name, font, visage::Font::kRight, textX, textY,
                 textWidth, textHeight);

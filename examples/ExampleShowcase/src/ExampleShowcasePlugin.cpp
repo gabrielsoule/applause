@@ -55,6 +55,121 @@ ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* des
         .is_stepped = true
     });
 
+    // Additional parameters to demonstrate scrolling in GenericParameterUI
+    params_.registerParam(applause::ParamConfig{
+        .string_id = "volume",
+        .name = "Volume",
+        .short_name = "Vol",
+        .min_value = 0.0f,
+        .max_value = 1.0f,
+        .default_value = 0.8f
+    });
+
+    params_.registerParam(applause::ParamConfig{
+        .string_id = "pan",
+        .name = "Pan",
+        .short_name = "Pan",
+        .min_value = -1.0f,
+        .max_value = 1.0f,
+        .default_value = 0.0f
+    });
+
+    params_.registerParam(applause::ParamConfig{
+        .string_id = "attack",
+        .name = "Attack",
+        .short_name = "Atk",
+        .unit = "s",
+        .min_value = 0.001f,
+        .max_value = 2.0f,
+        .default_value = 0.01f
+    });
+
+    params_.registerParam(applause::ParamConfig{
+        .string_id = "decay",
+        .name = "Decay",
+        .short_name = "Dec",
+        .unit = "s",
+        .min_value = 0.001f,
+        .max_value = 2.0f,
+        .default_value = 0.1f
+    });
+
+    params_.registerParam(applause::ParamConfig{
+        .string_id = "sustain",
+        .name = "Sustain",
+        .short_name = "Sus",
+        .min_value = 0.0f,
+        .max_value = 1.0f,
+        .default_value = 0.7f
+    });
+
+    params_.registerParam(applause::ParamConfig{
+        .string_id = "release",
+        .name = "Release",
+        .short_name = "Rel",
+        .unit = "s",
+        .min_value = 0.001f,
+        .max_value = 5.0f,
+        .default_value = 0.3f
+    });
+
+    params_.registerParam(applause::ParamConfig{
+        .string_id = "detune",
+        .name = "Detune",
+        .short_name = "Det",
+        .unit = "ct",
+        .min_value = -100.0f,
+        .max_value = 100.0f,
+        .default_value = 0.0f
+    });
+
+    params_.registerParam(applause::ParamConfig{
+        .string_id = "drive",
+        .name = "Drive",
+        .short_name = "Drv",
+        .min_value = 0.0f,
+        .max_value = 1.0f,
+        .default_value = 0.0f
+    });
+
+    params_.registerParam(applause::ParamConfig{
+        .string_id = "mix",
+        .name = "Mix",
+        .short_name = "Mix",
+        .min_value = 0.0f,
+        .max_value = 1.0f,
+        .default_value = 0.5f
+    });
+
+    params_.registerParam(applause::ParamConfig{
+        .string_id = "lfo_rate",
+        .name = "LFO Rate",
+        .short_name = "Rate",
+        .unit = "Hz",
+        .min_value = 0.1f,
+        .max_value = 20.0f,
+        .default_value = 1.0f
+    });
+
+    params_.registerParam(applause::ParamConfig{
+        .string_id = "lfo_depth",
+        .name = "LFO Depth",
+        .short_name = "Depth",
+        .min_value = 0.0f,
+        .max_value = 1.0f,
+        .default_value = 0.0f
+    });
+
+    params_.registerParam(applause::ParamConfig{
+        .string_id = "octave",
+        .name = "Octave",
+        .short_name = "Oct",
+        .min_value = -2.0f,
+        .max_value = 2.0f,
+        .default_value = 0.0f,
+        .is_stepped = true
+    });
+
     // Configure state extension callbacks - plugin manages its own versioning
     state_.setSaveCallback([this](applause::json& j)
     {

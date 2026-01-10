@@ -19,7 +19,7 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo) : param_info_(paramInfo) {
     paramNameText_ = std::make_unique<visage::TextEditor>("param_name");
     paramNameText_->setMultiLine(false);
     paramNameText_->setJustification(visage::Font::kCenter);
-    paramNameText_->setFont(visage::Font(12, applause::fonts::JetBrainsMonoNL_Regular_ttf));
+    paramNameText_->setFont(visage::Font(12, applause::fonts::Jost_Medium_ttf));
     paramNameText_->setActive(false);
     paramNameText_->setText(param_info_.shortName);
     paramNameText_->setIgnoresMouseEvents(true, false);

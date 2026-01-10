@@ -189,7 +189,7 @@ void Button::mouseUp(const visage::MouseEvent& e) {
 
 UiButton::UiButton(const std::string& text)
     : text_(text,
-            visage::Font(12, applause::fonts::JetBrainsMonoNL_SemiBold_ttf)) {}
+            visage::Font(13, applause::fonts::Jost_Medium_ttf)) {}
 
 UiButton::UiButton(const std::string& text, const visage::Font& font)
     : text_(text, font) {}
@@ -308,7 +308,7 @@ void ToggleIconButton::draw(visage::Canvas& canvas, float hover_amount) {
 ToggleTextButton::ToggleTextButton(const std::string& name)
     : ToggleButton(name),
       text_(name,
-            visage::Font(12, applause::fonts::JetBrainsMonoNL_SemiBold_ttf)) {}
+            visage::Font(13, applause::fonts::Jost_Medium_ttf)) {}
 
 ToggleTextButton::ToggleTextButton(const std::string& name,
                                    const visage::Font& font)

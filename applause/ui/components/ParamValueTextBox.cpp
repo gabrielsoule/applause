@@ -23,7 +23,7 @@ ParamValueTextBox::ParamValueTextBox(ParamInfo& paramInfo)
     text_editor_->setMultiLine(false);
     text_editor_->setJustification(visage::Font::kCenter);
     text_editor_->setFont(
-        visage::Font(12, applause::fonts::JetBrainsMonoNL_SemiBold_ttf));
+        visage::Font(12, applause::fonts::Jost_Medium_ttf));
     text_editor_->setMargin(0, 0);
     addChild(text_editor_.get());
 
