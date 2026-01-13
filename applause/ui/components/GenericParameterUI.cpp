@@ -11,11 +11,9 @@
 using namespace visage::dimension;
 
 namespace applause {
-
 GenericParameterEntry::GenericParameterEntry(ParamInfo& paramInfo)
-    : paramInfo_(paramInfo) {
-    paramSlider_ = std::make_unique<ParamSlider>(paramInfo);
-    addChild(paramSlider_.get());
+    : paramInfo_(paramInfo), paramSlider_(paramInfo) {
+    addChild(&paramSlider_);
 }
 
 void GenericParameterEntry::draw(visage::Canvas& canvas) {
@@ -39,13 +37,13 @@ void GenericParameterEntry::resized() {
     float sliderWidth = width() - labelWidth_;
     float sliderX = labelWidth_;
 
-    paramSlider_->setBounds(sliderX, 0, sliderWidth, height());
+    paramSlider_.setBounds(sliderX, 0, sliderWidth, height());
 }
 
 void GenericParameterEntry::setLabelWidth(float labelWidth) {
     labelWidth_ = labelWidth;
-    resized();  // Trigger layout update
-    redraw();   // Trigger redraw for label
+    resized(); // Trigger layout update
+    redraw(); // Trigger redraw for label
 }
 
 // GenericParameterUI Implementation
@@ -53,12 +51,12 @@ void GenericParameterEntry::setLabelWidth(float labelWidth) {
 GenericParameterUI::GenericParameterUI() {
     // Configure scrollable vertical flex layout
     scrollableLayout().setFlex(true);
-    scrollableLayout().setFlexRows(true);  // Vertical layout (default)
+    scrollableLayout().setFlexRows(true); // Vertical layout (default)
     scrollableLayout().setFlexGap(kEntryGap);
     scrollableLayout().setPadding(kPadding);
     scrollableLayout().setFlexItemAlignment(
-        visage::Layout::ItemAlignment::Stretch);  // Children stretch to fill
-                                                  // width
+        visage::Layout::ItemAlignment::Stretch); // Children stretch to fill
+    // width
 }
 
 void GenericParameterUI::draw(visage::Canvas& canvas) {
@@ -101,8 +99,7 @@ void GenericParameterUI::addParameter(ParamInfo& paramInfo) {
     addScrolledChild(entry.get());
     entries_.push_back(std::move(entry));
 
-    computeLayout();  // Just compute layout, no manual width updates needed
-    resized();        // Update scroll area after adding content
+    computeLayout(); // Just compute layout, no manual width updates needed
+    resized(); // Update scroll area after adding content
 }
-
-}  // namespace applause
+}

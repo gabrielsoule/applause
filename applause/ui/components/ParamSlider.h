@@ -2,8 +2,6 @@
 
 #include <visage_ui/frame.h>
 
-#include <memory>
-
 #include "ParamValueTextBox.h"
 #include "Slider.h"
 #include "applause/extensions/ParamsExtension.h"
@@ -27,9 +25,9 @@ private:
     static constexpr int kLabelPadding = 5;
 
     ParamInfo& param_info_;
-    std::unique_ptr<Slider> slider_;
-    std::unique_ptr<ParamValueTextBox> param_text_box_;
+    Slider slider_;
+    ParamValueTextBox param_text_box_;
     rocket::scoped_connection param_connection_;
 };
 
-}  // namespace applause
+}

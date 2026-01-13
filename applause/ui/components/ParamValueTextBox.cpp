@@ -9,23 +9,22 @@
 #include "applause/util/DebugHelpers.h"
 
 namespace applause {
-VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorBackground, 0x00000000);  // Transparent
-VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorBorder, 0x00000000);  // No border
-VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorText, 0xFFFFFFFF);  // White text
-VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorDefaultText, 0xFF999999);  // Light gray
-VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorCaret, 0xFFFFFFFF);  // White caret
-VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorSelection, 0x22ffffff);  // Light selection
-VISAGE_THEME_IMPLEMENT_VALUE(ParamValueTextBox, ApplauseTextEditorRounding, 0.0f);  // No rounding
+VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorBackground, 0x00000000); // Transparent
+VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorBorder, 0x00000000); // No border
+VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorText, 0xFFFFFFFF); // White text
+VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorDefaultText, 0xFF999999); // Light gray
+VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorCaret, 0xFFFFFFFF); // White caret
+VISAGE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorSelection, 0x22ffffff); // Light selection
+VISAGE_THEME_IMPLEMENT_VALUE(ParamValueTextBox, ApplauseTextEditorRounding, 0.0f); // No rounding
 
 ParamValueTextBox::ParamValueTextBox(ParamInfo& paramInfo)
     : param_info_(paramInfo) {
-    text_editor_ = std::make_unique<visage::TextEditor>("param_value");
-    text_editor_->setMultiLine(false);
-    text_editor_->setJustification(visage::Font::kCenter);
-    text_editor_->setFont(
+    text_editor_.setMultiLine(false);
+    text_editor_.setJustification(visage::Font::kCenter);
+    text_editor_.setFont(
         visage::Font(12, applause::fonts::Jost_Medium_ttf));
-    text_editor_->setMargin(0, 0);
-    addChild(text_editor_.get());
+    text_editor_.setMargin(0, 0);
+    addChild(&text_editor_);
 
     updateTextDisplay();
 
@@ -35,7 +34,7 @@ ParamValueTextBox::ParamValueTextBox(ParamInfo& paramInfo)
 
         // Try to parse the entered text
         auto parsed_value =
-            param_info_.textToValue(text_editor_->text().toUtf8());
+            param_info_.textToValue(text_editor_.text().toUtf8());
 
         if (parsed_value.has_value()) {
             // Valid value entered - apply it
@@ -49,7 +48,7 @@ ParamValueTextBox::ParamValueTextBox(ParamInfo& paramInfo)
     };
 
     // Set up TextEditor callbacks
-    text_editor_->onTextChange() += [this]() {
+    text_editor_.onTextChange() += [this]() {
         if (!is_editing_) {
             // Save original value when editing starts
             original_value_ = param_info_.getValue();
@@ -58,17 +57,16 @@ ParamValueTextBox::ParamValueTextBox(ParamInfo& paramInfo)
         }
     };
 
-    text_editor_->onEnterKey() += commitValue;
+    text_editor_.onEnterKey() += commitValue;
 
-    text_editor_->onFocusChange() +=
+    text_editor_.onFocusChange() +=
         [this, commitValue](bool is_focused, bool was_clicked) {
-            if (!is_focused)
-            {
+            if (!is_focused) {
                 commitValue();
             }
         };
 
-    text_editor_->onEscapeKey() += [this]() {
+    text_editor_.onEscapeKey() += [this]() {
         // Restore original value
         param_info_.setValueNotifyingHost(original_value_);
 
@@ -121,12 +119,10 @@ void ParamValueTextBox::init() {
 
 void ParamValueTextBox::updateTextDisplay() {
     std::string formatted = param_info_.valueToText(param_info_.getValue());
-    text_editor_->setText(formatted);
+    text_editor_.setText(formatted);
 }
 
 void ParamValueTextBox::resized() {
-    if (text_editor_) {
-        text_editor_->setBounds(0, 0, width(), height());
-    }
+    text_editor_.setBounds(0, 0, width(), height());
 }
-}  // namespace applause
+}

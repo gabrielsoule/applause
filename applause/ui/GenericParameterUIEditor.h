@@ -1,13 +1,10 @@
 #pragma once
 
-#include <memory>
-
 #include "ApplauseEditor.h"
 #include "applause/extensions/ParamsExtension.h"
 #include "components/GenericParameterUI.h"
 
-namespace applause {
-
+namespace applause{
 /**
  * @class GenericParameterUIEditor
  * @brief A plug-and-play editor that automatically displays all parameters
@@ -21,7 +18,8 @@ namespace applause {
  * The editor size is configured through the GUIExtension factory, and the
  * GenericParameterUI automatically fills the window with appropriate padding.
  */
-class GenericParameterUIEditor : public ApplauseEditor {
+class GenericParameterUIEditor : public ApplauseEditor
+{
 public:
     /**
      * @brief Construct a GenericParameterUIEditor.
@@ -40,7 +38,6 @@ public:
     void resized() override;
 
 private:
-    std::unique_ptr<GenericParameterUI> parameter_ui_;
+    GenericParameterUI parameter_ui_;
 };
-
-}  // namespace applause
+}
