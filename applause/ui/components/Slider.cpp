@@ -1,6 +1,7 @@
 #include "Slider.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include "applause/util/DebugHelpers.h"
 
@@ -39,7 +40,8 @@ void Slider::mouseUp(const visage::MouseEvent& event) {
 
 bool Slider::mouseWheel(const visage::MouseEvent& event) {
     float delta = -event.precise_wheel_delta_y * kWheelSensitivity;
-    float newValue = std::clamp(value_ + delta, 0.0f, 1.0f);
+    float minVal = bipolar_ ? -1.0f : 0.0f;
+    float newValue = std::clamp(value_ + delta, minVal, 1.0f);
 
     // Only process if the value actually changed
     if (newValue != value_) {
@@ -58,12 +60,29 @@ bool Slider::mouseWheel(const visage::MouseEvent& event) {
 }
 
 void Slider::setValue(float value) {
-    value_ = std::clamp(value, 0.0f, 1.0f);
+    if (bipolar_) {
+        value_ = std::clamp(value, -1.0f, 1.0f);
+    } else {
+        value_ = std::clamp(value, 0.0f, 1.0f);
+    }
     redraw();
 }
 
+void Slider::setBipolar(bool bipolar) {
+    if (bipolar_ != bipolar) {
+        bipolar_ = bipolar;
+        value_ = 0.0f;  // Reset to neutral position
+        redraw();
+    }
+}
+
 void Slider::processDrag(float rawDragPos) {
-    value_ = std::clamp(rawDragPos / width(), 0.0f, 1.0f);
+    if (bipolar_) {
+        // Map [0, width] to [-1, 1]
+        value_ = std::clamp((rawDragPos / width()) * 2.0f - 1.0f, -1.0f, 1.0f);
+    } else {
+        value_ = std::clamp(rawDragPos / width(), 0.0f, 1.0f);
+    }
     on_value_changed.callback(value_);
     redraw();
 }
@@ -93,7 +112,20 @@ void Slider::draw(visage::Canvas& canvas) {
 
     canvas.setColor(0xFFFFFFFF);
     canvas.rectangleBorder(0, 0, width(), height(), borderThickness);
-    canvas.fill(0, 0, value_ * width(), height());
+
+    if (bipolar_) {
+        float centerX = width() / 2.0f;
+        float fillWidth = std::abs(value_) * centerX;
+        if (value_ >= 0.0f) {
+            // Fill from center to right
+            canvas.fill(centerX, 0, fillWidth, height());
+        } else {
+            // Fill from center to left
+            canvas.fill(centerX - fillWidth, 0, fillWidth, height());
+        }
+    } else {
+        canvas.fill(0, 0, value_ * width(), height());
+    }
 }
 
 }  // namespace applause

@@ -22,6 +22,8 @@ public:
     bool mouseWheel(const visage::MouseEvent& event) override;
 
     void setValue(float value);
+    void setBipolar(bool bipolar);
+    bool isBipolar() const { return bipolar_; }
 
     visage::CallbackList<void(float)> on_value_changed;
     visage::CallbackList<void()> on_drag_started;
@@ -31,7 +33,8 @@ private:
     void processDrag(float rawDragPos);
     bool dragging_ = false;
     bool hovering_ = false;
-    float value_ = 0;  // [0, 1]
+    bool bipolar_ = false;
+    float value_ = 0;  // [0, 1] or [-1, 1] when bipolar
     visage::Animation<float> hover_amount_;
 
     static constexpr float kWheelSensitivity = 0.01f;

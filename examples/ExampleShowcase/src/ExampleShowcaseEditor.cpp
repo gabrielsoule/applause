@@ -96,6 +96,13 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params)
     };
     addChild(popup_menu_button_.get());
 #endif
+
+    // Configure bipolar slider
+    bipolar_slider_.setBipolar(true);
+    bipolar_slider_.on_value_changed.add([](float value) {
+        LOG_INFO("Bipolar slider value: {:.2f}", value);
+    });
+    addChild(&bipolar_slider_);
 }
 
 void ExampleShowcaseEditor::resized() {
@@ -136,6 +143,9 @@ void ExampleShowcaseEditor::resized() {
     if (popup_menu_button_)
         popup_menu_button_->setBounds(button_x, knob_start_y + 20 + button_spacing * 3, button_width, button_height);
 #endif
+
+    // Position bipolar slider below the parameter UI
+    bipolar_slider_.setBounds(20, 440, 400, 24);
 }
 
 void ExampleShowcaseEditor::onLoadFileClicked() {

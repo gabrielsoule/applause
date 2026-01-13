@@ -4,6 +4,7 @@
 #include "applause/ui/components/GenericParameterUI.h"
 #include "applause/ui/components/ParamKnob.h"
 #include "applause/ui/components/ApplauseButton.h"
+#include "applause/ui/components/Slider.h"
 #include "applause/extensions/ParamsExtension.h"
 #include <memory>
 
@@ -30,6 +31,9 @@ private:
 #ifdef __APPLE__
     std::unique_ptr<applause::UiButton> popup_menu_button_;
 #endif
+
+    // Bipolar slider demo
+    applause::Slider bipolar_slider_;
 
     void onLoadFileClicked();
 };
