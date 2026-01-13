@@ -1,4 +1,7 @@
 #include "ExampleShowcaseEditor.h"
+#ifdef __APPLE__
+#include "applause/ui/NativePopupMenu.h"
+#endif
 #include "applause/util/DebugHelpers.h"
 #include <visage_graphics/canvas.h>
 #include <nfd.hpp>
@@ -55,6 +58,44 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params)
         onLoadFileClicked();
     };
     addChild(load_file_button_.get());
+
+#ifdef __APPLE__
+    popup_menu_button_ = std::make_unique<applause::UiButton>("Show Menu");
+    popup_menu_button_->onToggle() += [this](applause::Button* button, bool on) {
+        applause::NativePopupMenu menu("Demo Menu");
+
+        menu.addOption(1, "Option 1")
+            .select(true)
+            .withKeyboardShortcut(applause::NativePopupMenu::Modifier::Cmd, "1");
+
+        menu.addOption(2, "Option 2")
+            .withKeyboardShortcut(applause::NativePopupMenu::Modifier::Cmd, "2");
+
+        menu.addOption(3, "Disabled Option")
+            .enable(false);
+
+        menu.addBreak();
+
+        menu.addSubMenu("Submenu")
+            .addOption(10, "Sub Option A")
+            .addOption(11, "Sub Option B");
+
+        menu.onSelection() += [](int id) {
+            LOG_INFO("Popup menu selected: {}", id);
+        };
+
+        menu.onCancel() += []() {
+            LOG_INFO("Popup menu cancelled");
+        };
+
+        if (void* native_handle = getNativeHandle()) {
+            menu.show(native_handle,
+                      popup_menu_button_->x(),
+                      popup_menu_button_->y() + popup_menu_button_->height());
+        }
+    };
+    addChild(popup_menu_button_.get());
+#endif
 }
 
 void ExampleShowcaseEditor::resized() {
@@ -90,6 +131,11 @@ void ExampleShowcaseEditor::resized() {
 
     if (load_file_button_)
         load_file_button_->setBounds(button_x, knob_start_y + 20 + button_spacing * 2, button_width, button_height);
+
+#ifdef __APPLE__
+    if (popup_menu_button_)
+        popup_menu_button_->setBounds(button_x, knob_start_y + 20 + button_spacing * 3, button_width, button_height);
+#endif
 }
 
 void ExampleShowcaseEditor::onLoadFileClicked() {
