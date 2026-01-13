@@ -35,7 +35,7 @@ Applause is currently (very) early in development. Here are some things that exi
 - CMake utilities to spin up plugins quickly and reduce boilerplate glue code
 - A simple Synthesizer class 
 
-### Partially implenented, but incomplete
+### Partially implemented, but incomplete
 - A polyphonic modulation system (the DSP side works; but several UI components such as a mod matrix list and knob visualizations are WIP)
 
 ### On the Roadmap
