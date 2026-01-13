@@ -64,6 +64,12 @@ void ApplauseEditor::draw(visage::Canvas& canvas) {
     canvas.fill(0, 0, width(), height());
 }
 
+void* ApplauseEditor::getNativeHandle() {
+    if (auto* win = window())
+        return win->nativeHandle();
+    return nullptr;
+}
+
 #ifdef __linux__
 int ApplauseEditor::getPosixFd() {
     if (auto* win = window()) {

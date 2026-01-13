@@ -44,6 +44,7 @@ public:
     bool isFixedAspectRatio() const override;
     float getAspectRatio() const override;
     void draw(visage::Canvas& canvas) override;
+    void* getNativeHandle() override;
 
 #ifdef __linux__
     int getPosixFd() override;
