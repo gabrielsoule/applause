@@ -111,6 +111,10 @@ file(GLOB APPLAUSE_FONT_FILES ${CMAKE_CURRENT_SOURCE_DIR}/resources/fonts/*.ttf)
 add_embedded_resources(ApplauseEmbeddedFonts "applause_fonts.h" "applause::fonts" "${APPLAUSE_FONT_FILES}")
 
 file(GLOB_RECURSE APPLAUSE_SOURCES applause/*.cpp applause/*.h)
+if(APPLE)
+    file(GLOB_RECURSE APPLAUSE_OBJCXX_SOURCES applause/*.mm)
+    list(APPEND APPLAUSE_SOURCES ${APPLAUSE_OBJCXX_SOURCES})
+endif()
 
 add_library(applause STATIC ${APPLAUSE_SOURCES})
 add_library(Applause::Applause ALIAS applause)
