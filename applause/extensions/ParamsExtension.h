@@ -38,6 +38,7 @@ struct ParamConfig {
     float default_value = 0.5f;  /// Default value
     bool is_stepped = false;     /// Whether parameter uses discrete integer values
     bool is_internal = false;    /// Whether parameter is internal (not exposed to DAW)
+    bool is_hidden = false;      /// Whether parameter is hidden from host UI (still enumerated, but flagged CLAP_PARAM_IS_HIDDEN)
     bool is_polyphonic = false;  /// Whether parameter can/should be polyphonically modulated by a modulation system.
                                  ///   for example: osc tuning in a synth would be poly, but master out gain might not
 
@@ -121,6 +122,12 @@ public:
      * automation, modulation, etc.
      */
     bool internal = false;
+
+    /**
+     * If true, the parameter is enumerated to the host but flagged as hidden
+     * from the host's UI. Hosts running the VST3/AU clap-wrapper may not
+     */
+    bool hidden = false;
 
     /**
      * If true, the parameter represents discrete integer values only.
@@ -442,6 +449,14 @@ public:
      * @param out the CLAP output event struct from process()
      */
     void processEvents(const clap_input_events_t* in, const clap_output_events_t* out);
+
+    /**
+     * @brief Request the host to rescan parameter info. This allows the host to know that parameter metadata,
+     * e.g. display name, has changed.
+     *
+     * @param flags Bitmask of clap_param_rescan_flags indicating what changed
+     */
+    void rescan(clap_param_rescan_flags flags) noexcept;
 
     /**
      * @brief Save all parameter values to a JSON object.

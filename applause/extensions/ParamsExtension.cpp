@@ -170,6 +170,7 @@ bool ParamsExtension::clap_params_get_info(const clap_plugin_t* plugin, uint32_t
 
     param_info->flags = 0;
     if (info.stepped) param_info->flags |= CLAP_PARAM_IS_STEPPED;
+    if (info.hidden) param_info->flags |= CLAP_PARAM_IS_HIDDEN;
 
     // All parameters are automatable by default
     param_info->flags |= CLAP_PARAM_IS_AUTOMATABLE;
@@ -279,6 +280,7 @@ void ParamsExtension::registerParam(const ParamConfig& config) {
     info.defaultValue = config.default_value;
     info.stepped = config.is_stepped;
     info.internal = config.is_internal;
+    info.hidden = config.is_hidden;
     info.scaling_ = config.scaling;
     info.polyphonic = config.is_polyphonic;
     info.stringId = config.string_id;
@@ -482,4 +484,10 @@ void ParamsExtension::processEvents(const clap_input_events_t* in, const clap_ou
 void ParamsExtension::flush(const clap_input_events_t* in, const clap_output_events_t* out) noexcept {
     processEvents(in, out);
 }
+void ParamsExtension::rescan(clap_param_rescan_flags flags) noexcept {
+    if (host_params_ && host_params_->rescan) {
+        host_params_->rescan(host_, flags);
+    }
+}
+
 }  // namespace applause
