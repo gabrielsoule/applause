@@ -18,7 +18,7 @@ Applause is designed to be fast, with cache-friendly data structures and careful
 Applause is fully modular. The underlying CLAP specification is composed of "extensions" that plugins may or may not implement; Applause implements these extensions and exposes them to the plugin developer through easy-to-use C++ interfaces. As a plugin developer, you can instantiate the extensions you want and ignore the ones you don't. As such, you will never pay a performance penalty for something you don't care about. If you're dissatisfied with Applause's implementation of a CLAP extension, you can implement the extension yourself. Your custom extension will integrate seamlessly with the rest of the Applause ecosystem. Extensions can be written in C++ using a helpful wrapper, or in good old C (if you are into that kind of thing).
 
 ### GPU-accelerated UI
-Applause's UI layer is built on top of Matt Tytel's visage library, which in turn inherits from the Vital synthesizer. The UI is GPU-accelerated and supports 60fps animations, shaders, gradients, et cetera. 
+Applause's UI layer is built on top of Matt Tytel's visage library, which in turn inherits from the Vital synthesizer. The UI is GPU-accelerated and supports 60fps animations, shaders, gradients, et cetera. Applause supplies a collection of useful plugin widgets such as knobs and sliders, which can directly connect to host parameters if desired. It's all plug-and-play; we handle the cross-thread shenanigans for you.
 
 ## Roadmap
 
@@ -35,7 +35,7 @@ Applause is currently (very) early in development. Here are some things that exi
 - CMake utilities to spin up plugins quickly and reduce boilerplate glue code
 - A simple Synthesizer class 
 
-### Partially implemented, but incomplete
+### Implemented, but in active development
 - A polyphonic modulation system (the DSP side works; but several UI components such as a mod matrix list and knob visualizations are WIP)
 
 ### On the Roadmap
