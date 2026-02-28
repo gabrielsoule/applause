@@ -5,18 +5,26 @@
 
 namespace applause {
 
+/**
+ * A simple Knob. Spin it around by dragging the mouse, or hovering and scrolling.
+ *
+ * The Knob doesn't do much on its own. If you want a plug-and-play Knob with a built-in label that
+ * attaches to a Parameter, check out ParamKnob.
+ */
 class Knob : public visage::Frame {
 public:
     Knob();
     ~Knob() override = default;
 
-    // Value management
     void setValue(float value);
     float getValue() const { return value_; }
 
     visage::CallbackList<void(float)> onValueChanged;
     visage::CallbackList<void()> onDragStarted;
     visage::CallbackList<void()> onDragEnded;
+
+    void setDragSensitivity(float sensitivity) { drag_sensitivity_ = sensitivity; }
+    void setWheelSensitivity(float sensitivity) { wheel_sensitivity_ = sensitivity; }
 
 protected:
     void draw(visage::Canvas& canvas) override;
@@ -30,15 +38,14 @@ protected:
 private:
     void processDrag(float mouseY);
 
-    float value_ = 0.0f;  // Normalized value [0, 1]
+    float value_ = 0.0f;  // normalized value between 0 and 1, not bipolar
     bool dragging_ = false;
     bool hovering_ = false;
     float drag_start_y_ = 0.0f;
     float drag_start_value_ = 0.0f;
+    float drag_sensitivity_ = 0.005f;
+    float wheel_sensitivity_ = 0.015f;
     visage::Animation<float> hover_amount_;
-
-    static constexpr float kDragSensitivity = 0.005f;
-    static constexpr float kWheelSensitivity = 0.015f;
 };
 
 }  // namespace applause

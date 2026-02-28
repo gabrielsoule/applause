@@ -9,7 +9,7 @@ namespace applause {
 
 Knob::Knob() {
     hover_amount_.setTargetValue(1.0f);
-    hover_amount_.setSourceValue(0.0f);  // Set initial value to 0
+    hover_amount_.setSourceValue(0.0f);
     hover_amount_.setAnimationTime(150);
 }
 
@@ -53,24 +53,24 @@ void Knob::draw(visage::Canvas& canvas) {
                    progressCenterRad, progressSpanRad, true);
     }
 
-    // Draw small center circle
+    // small center circle
     float centerDotRadius = radius * 0.15f;
-    canvas.setColor(0xFFFFFFFF);  // White
+    canvas.setColor(0xFFFFFFFF);
     canvas.circle(centerX - centerDotRadius, centerY - centerDotRadius,
                   centerDotRadius * 2.0f);
 
-    // Calculate line position based on value
+    // line position/angle
     float angle = 120.0f + (value_ * 300.0f);
     float angleRad = angle * (static_cast<float>(M_PI) / 180.0f);
 
-    // Calculate line end point (from center to edge)
+    // find line points
     float lineEndX =
         centerX + static_cast<float>(std::cos(angleRad)) * (radius * 0.6f);
     float lineEndY =
         centerY + static_cast<float>(std::sin(angleRad)) * (radius * 0.6f);
 
-    // Draw indicator line
-    canvas.setColor(0xFFFFFFFF);  // White
+    // draw it!
+    canvas.setColor(0xFFFFFFFF);
     canvas.segment(centerX, centerY, lineEndX, lineEndY, 2.0f, true);
 }
 
@@ -117,7 +117,7 @@ void Knob::mouseExit(const visage::MouseEvent& e) {
 }
 
 bool Knob::mouseWheel(const visage::MouseEvent& e) {
-    float delta = -e.precise_wheel_delta_y * kWheelSensitivity;
+    float delta = -e.precise_wheel_delta_y * wheel_sensitivity_;
     float newValue = std::clamp(value_ + delta, 0.0f, 1.0f);
 
     if (newValue != value_) {
@@ -137,7 +137,7 @@ bool Knob::mouseWheel(const visage::MouseEvent& e) {
 
 void Knob::processDrag(float mouseY) {
     const float delta_y = drag_start_y_ - mouseY;
-    const float delta_value = delta_y * kDragSensitivity;
+    const float delta_value = delta_y * drag_sensitivity_;
 
     const float newValue =
         std::clamp(drag_start_value_ + delta_value, 0.0f, 1.0f);
