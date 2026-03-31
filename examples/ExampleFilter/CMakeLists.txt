@@ -20,18 +20,18 @@ include(../../cmake/CPM.cmake)
 CPMAddPackage(
     NAME chowdsp_utils
     GITHUB_REPOSITORY Chowdhury-DSP/chowdsp_utils
-    GIT_TAG v2.2.0  # Using a stable version tag
+    GIT_TAG v2.4.0
     OPTIONS 
-        "BUILD_JUCE_MODULES OFF"  # We're not using JUCE
+        "BUILD_JUCE_MODULES OFF"  # no JUCE
 )
 
 # Create static library from chowdsp modules for filter processing
 if(chowdsp_utils_ADDED)
     setup_chowdsp_lib(chowdsp_filter_lib
         MODULES 
-            chowdsp_math        # Math utilities
-            chowdsp_dsp_utils   # General DSP utilities
-            chowdsp_filters     # Filter implementations
+            chowdsp_math
+            chowdsp_dsp_utils
+            chowdsp_filters
     )
 endif()
 
@@ -88,7 +88,6 @@ if(chowdsp_utils_ADDED)
     target_link_libraries(${PROJECT_NAME}-impl PRIVATE chowdsp_filter_lib)
     
     # Also link to all the format targets so they get the PUBLIC includes
-    # The formats are: CLAP VST3 AUV2 Standalone
     if(TARGET ${PROJECT_NAME}_clap)
         target_link_libraries(${PROJECT_NAME}_clap PRIVATE chowdsp_filter_lib)
     endif()

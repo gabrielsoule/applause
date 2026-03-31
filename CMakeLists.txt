@@ -56,12 +56,12 @@ CPMAddPackage(
         "BUILD_BENCHMARK OFF"
 )
 
-# Visage, now with commit pinning since Visage still occasionally pushes breaking changes...
+# Visage, with commit pinning since Visage still occasionally pushes breaking changes...
 CPMAddPackage(
     NAME visage
     GITHUB_REPOSITORY vitalaudio/visage
-    GIT_TAG 54b11a1
-    OPTIONS
+    GIT_TAG b0b2ee8
+        OPTIONS
         "VISAGE_BUILD_EXAMPLES OFF"
         "VISAGE_BUILD_TESTS OFF"
 )
