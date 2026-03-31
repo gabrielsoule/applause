@@ -25,8 +25,8 @@ void GenericParameterEntry::draw(visage::Canvas& canvas) {
     float textHeight = height();
 
     // Draw the parameter name (right-aligned)
-    const visage::Font font(13, applause::fonts::Jost_Medium_ttf);
-    canvas.setColor(0xFFFFFFFF);
+    const visage::Font font(13, applause::fonts::Jost_Regular_ttf);
+    canvas.setColor(0xFFCCCCCC);
     canvas.text(paramInfo_.name, font, visage::Font::kRight, textX, textY,
                 textWidth, textHeight);
 }
@@ -60,8 +60,6 @@ GenericParameterUI::GenericParameterUI() {
 }
 
 void GenericParameterUI::draw(visage::Canvas& canvas) {
-    canvas.setColor(0xFFFFFFFF);
-    canvas.rectangleBorder(0, 0, width(), height(), 2);
 }
 
 void GenericParameterUI::resized() {

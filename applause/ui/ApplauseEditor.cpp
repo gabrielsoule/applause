@@ -60,7 +60,7 @@ float ApplauseEditor::getAspectRatio() const {
 }
 
 void ApplauseEditor::draw(visage::Canvas& canvas) {
-    canvas.setColor(0xFF1d1930);
+    canvas.setColor(0xff111115);
     canvas.fill(0, 0, width(), height());
 }
 

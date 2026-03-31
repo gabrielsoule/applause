@@ -14,10 +14,10 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params)
     : applause::ApplauseEditor(params) {
     ApplauseEditor::setFixedAspectRatio(true);
 
-    // Create parameter UI
-    parameter_ui_ = std::make_unique<applause::GenericParameterUI>();
+    // --- Parameters Panel (left column) ---
+    addChild(&params_panel_);
 
-    // Add all non-internal parameters to the UI
+    parameter_ui_ = std::make_unique<applause::GenericParameterUI>();
     if (getParamsExtension()) {
         for (auto& param : getParamsExtension()->getAllParameters()) {
             if (!param.internal) {
@@ -25,39 +25,49 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params)
             }
         }
     }
+    params_panel_.content().addChild(parameter_ui_.get());
 
-    addChild(parameter_ui_.get());
+    // --- Knobs Panel (top-right) ---
+    addChild(&knobs_panel_);
 
-    // Create individual knobs for each parameter
     if (getParamsExtension()) {
         param1_knob_ = std::make_unique<applause::ParamKnob>(getParamsExtension()->getInfo("param1"));
-        addChild(param1_knob_.get());
+        knobs_panel_.content().addChild(param1_knob_.get());
 
         param2_knob_ = std::make_unique<applause::ParamKnob>(getParamsExtension()->getInfo("param2"));
-        addChild(param2_knob_.get());
+        knobs_panel_.content().addChild(param2_knob_.get());
 
         filter_mode_knob_ = std::make_unique<applause::ParamKnob>(getParamsExtension()->getInfo("filter_mode"));
-        addChild(filter_mode_knob_.get());
+        knobs_panel_.content().addChild(filter_mode_knob_.get());
     }
 
-    // Create test buttons
-    ui_button_ = std::make_unique<applause::UiButton>("UI Button");
+    // --- Buttons Panel (middle-right) ---
+    addChild(&buttons_panel_);
+
+    ui_button_ = std::make_unique<applause::UiButton>("BUTTON");
     ui_button_->onToggle() += [](applause::Button* button, bool on) {
         LOG_INFO("UI Button clicked!");
     };
-    addChild(ui_button_.get());
+    buttons_panel_.content().addChild(ui_button_.get());
 
-    toggle_button_ = std::make_unique<applause::ToggleTextButton>("Toggle");
+    action_button_ = std::make_unique<applause::UiButton>("Action");
+    action_button_->setActionButton();
+    action_button_->onToggle() += [](applause::Button* button, bool on) {
+        LOG_INFO("Action Button clicked!");
+    };
+    buttons_panel_.content().addChild(action_button_.get());
+
+    toggle_button_ = std::make_unique<applause::ToggleTextButton>("TOGGLE");
     toggle_button_->onToggle() += [](applause::Button* button, bool on) {
         LOG_INFO("Toggle button state: {}", on ? "ON" : "OFF");
     };
-    addChild(toggle_button_.get());
+    buttons_panel_.content().addChild(toggle_button_.get());
 
     load_file_button_ = std::make_unique<applause::UiButton>("Load File");
     load_file_button_->onToggle() += [this](applause::Button* button, bool on) {
         onLoadFileClicked();
     };
-    addChild(load_file_button_.get());
+    buttons_panel_.content().addChild(load_file_button_.get());
 
 #ifdef __APPLE__
     popup_menu_button_ = std::make_unique<applause::UiButton>("Show Menu");
@@ -89,63 +99,102 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params)
         };
 
         if (void* native_handle = getNativeHandle()) {
-            menu.show(native_handle,
-                      popup_menu_button_->x(),
-                      popup_menu_button_->y() + popup_menu_button_->height());
+            auto pos = popup_menu_button_->positionInWindow();
+            menu.show(native_handle, pos.x, pos.y + popup_menu_button_->height());
         }
     };
-    addChild(popup_menu_button_.get());
+    buttons_panel_.content().addChild(popup_menu_button_.get());
 #endif
 
-    // Configure bipolar slider
-    bipolar_slider_.setBipolar(true);
-    bipolar_slider_.on_value_changed.add([](float value) {
-        LOG_INFO("Bipolar slider value: {:.2f}", value);
-    });
-    addChild(&bipolar_slider_);
+    small_button_ = std::make_unique<applause::UiButton>("TINY");
+    small_button_->onToggle() += [](applause::Button* button, bool on) {
+        LOG_INFO("Small button clicked!");
+    };
+    buttons_panel_.content().addChild(small_button_.get());
+
+    small_toggle_button_ = std::make_unique<applause::ToggleTextButton>("TINY");
+    small_toggle_button_->onToggle() += [](applause::Button* button, bool on) {
+        LOG_INFO("Small toggle state: {}", on ? "ON" : "OFF");
+    };
+    buttons_panel_.content().addChild(small_toggle_button_.get());
+
 }
 
 void ExampleShowcaseEditor::resized() {
-    // Layout components
-    parameter_ui_->setBounds(20, 20, 400, 400);
+    static constexpr float kPadding = 12.0f;
+    static constexpr float kGap = 10.0f;
 
-    // Position knobs in a vertical column to the right of GenericParameterUI
-    const int knob_x = 450;
-    const int knob_size = 50;
-    const int knob_spacing = 100;
-    const int knob_start_y = 40;
+    // Left column: Parameters panel (full height)
+    float left_w = 380.0f;
+    params_panel_.setBounds(kPadding, kPadding,
+                            left_w, height() - 2 * kPadding);
 
-    if (param1_knob_)
-        param1_knob_->setBounds(knob_x, knob_start_y, knob_size, knob_size + 20);
+    // Right column
+    float right_x = kPadding + left_w + kGap;
+    float right_w = width() - right_x - kPadding;
 
-    if (param2_knob_)
-        param2_knob_->setBounds(knob_x, knob_start_y + knob_spacing, knob_size, knob_size + 20);
+    // Knobs panel: top-right — 3 knobs in a row
+    static constexpr float kKnobPanelHeight = 120.0f;
+    knobs_panel_.setBounds(right_x, kPadding, right_w, kKnobPanelHeight);
 
-    if (filter_mode_knob_)
-        filter_mode_knob_->setBounds(knob_x, knob_start_y + knob_spacing * 2, knob_size, knob_size + 20);
+    // Layout knobs horizontally inside the knobs panel content area
+    if (param1_knob_ && param2_knob_ && filter_mode_knob_) {
+        auto& kc = knobs_panel_.content();
+        float knob_w = kc.width() / 3.0f;
+        float knob_h = kc.height();
+        param1_knob_->setBounds(0, 0, knob_w, knob_h);
+        param2_knob_->setBounds(knob_w, 0, knob_w, knob_h);
+        filter_mode_knob_->setBounds(knob_w * 2, 0, knob_w, knob_h);
+    }
 
-    // Position buttons in a column to the right of the knobs
-    const int button_x = knob_x + knob_size + 30;
-    const int button_width = 120;
-    const int button_height = 40;
-    const int button_spacing = 50;
+    // Buttons panel: middle-right (fills remaining space)
+    float buttons_y = kPadding + kKnobPanelHeight + kGap;
+    float buttons_h = height() - buttons_y - kPadding;
+    buttons_panel_.setBounds(right_x, buttons_y, right_w, buttons_h);
 
-    if (ui_button_)
-        ui_button_->setBounds(button_x, knob_start_y + 20, button_width, button_height);
+    // Layout buttons in a grid inside the buttons panel content area
+    {
+        auto& bc = buttons_panel_.content();
+        float btn_pad = 6.0f;
+        float bw = (bc.width() - 2 * btn_pad - kGap) / 2.0f;  // 2 columns
+        float bh = 34.0f;
+        float row_gap = 8.0f;
+        int col = 0;
+        int row = 0;
 
-    if (toggle_button_)
-        toggle_button_->setBounds(button_x, knob_start_y + 20 + button_spacing, button_width, button_height);
+        auto placeButton = [&](visage::Frame* btn) {
+            if (!btn) return;
+            float x = btn_pad + col * (bw + kGap);
+            float y = row * (bh + row_gap);
+            btn->setBounds(x, y, bw, bh);
+            col++;
+            if (col >= 2) { col = 0; row++; }
+        };
 
-    if (load_file_button_)
-        load_file_button_->setBounds(button_x, knob_start_y + 20 + button_spacing * 2, button_width, button_height);
-
+        placeButton(ui_button_.get());
+        placeButton(action_button_.get());
+        placeButton(toggle_button_.get());
+        placeButton(load_file_button_.get());
 #ifdef __APPLE__
-    if (popup_menu_button_)
-        popup_menu_button_->setBounds(button_x, knob_start_y + 20 + button_spacing * 3, button_width, button_height);
+        placeButton(popup_menu_button_.get());
 #endif
 
-    // Position bipolar slider below the parameter UI
-    bipolar_slider_.setBounds(20, 440, 400, 24);
+        // Small buttons on their own row at reduced size
+        if (col != 0) { col = 0; row++; }
+        float small_bw = 70.0f;
+        float small_bh = 24.0f;
+        float small_y = row * (bh + row_gap);
+        if (small_button_)
+            small_button_->setBounds(btn_pad, small_y, small_bw, small_bh);
+        if (small_toggle_button_)
+            small_toggle_button_->setBounds(btn_pad + small_bw + kGap, small_y, small_bw, small_bh);
+    }
+
+    // Parameter UI fills its panel's content area
+    if (parameter_ui_)
+        parameter_ui_->setBounds(0, 0,
+                                 params_panel_.content().width(),
+                                 params_panel_.content().height());
 }
 
 void ExampleShowcaseEditor::onLoadFileClicked() {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <visage_graphics/animation.h>
+#include <visage_graphics/theme.h>
 #include <visage_ui/frame.h>
 
 namespace applause {
@@ -13,6 +14,12 @@ namespace applause {
  */
 class Knob : public visage::Frame {
 public:
+    VISAGE_THEME_DEFINE_COLOR(ApplauseKnobBodyTop);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseKnobBodyBottom);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseKnobBodyBorder);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseKnobArcTrack);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseKnobAccent);
+
     Knob();
     ~Knob() override = default;
 
@@ -25,7 +32,6 @@ public:
 
     void setDragSensitivity(float sensitivity) { drag_sensitivity_ = sensitivity; }
     void setWheelSensitivity(float sensitivity) { wheel_sensitivity_ = sensitivity; }
-
 protected:
     void draw(visage::Canvas& canvas) override;
     void mouseDown(const visage::MouseEvent& e) override;
@@ -45,7 +51,8 @@ private:
     float drag_start_value_ = 0.0f;
     float drag_sensitivity_ = 0.005f;
     float wheel_sensitivity_ = 0.015f;
-    visage::Animation<float> hover_amount_;
+    float sweep_ = 300.0f * (static_cast<float>(M_PI) / 180.0f);
+    visage::Animation<float> glow_amount_;
 };
 
 }  // namespace applause

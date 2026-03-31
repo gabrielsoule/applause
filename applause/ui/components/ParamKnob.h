@@ -1,5 +1,6 @@
 #pragma once
 
+#include <visage_graphics/theme.h>
 #include <visage_ui/frame.h>
 #include <visage_widgets/text_editor.h>
 
@@ -16,6 +17,8 @@ namespace applause {
  */
 class ParamKnob : public visage::Frame {
 public:
+    VISAGE_THEME_DEFINE_COLOR(ApplauseParamKnobText);
+
     ParamKnob(ParamInfo& paramInfo);
 
     void draw(visage::Canvas& canvas) override;

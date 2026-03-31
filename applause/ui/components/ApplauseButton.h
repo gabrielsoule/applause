@@ -19,6 +19,7 @@ namespace applause {
 class Button : public visage::Frame {
 public:
     VISAGE_THEME_DEFINE_COLOR(ApplauseButtonShadow);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonGlow);
 
     Button() {
         hover_amount_.setTargetValue(1.0f);
@@ -82,10 +83,13 @@ private:
 
 class UiButton : public Button {
 public:
-    // Regular button colors - Normal, Hover, Pressed
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackground);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackgroundHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackgroundPressed);
+    // Regular button background gradient - Normal, Hover, Pressed
+    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackgroundTop);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackgroundBottom);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackgroundTopHover);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackgroundBottomHover);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackgroundTopPressed);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackgroundBottomPressed);
 
     VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonText);
     VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonTextHover);
@@ -95,10 +99,13 @@ public:
     VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBorderHover);
     VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBorderPressed);
 
-    // Action button colors - Normal, Hover, Pressed
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBackground);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBackgroundHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBackgroundPressed);
+    // Action button background gradient - Normal, Hover, Pressed
+    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBackgroundTop);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBackgroundBottom);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBackgroundTopHover);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBackgroundBottomHover);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBackgroundTopPressed);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBackgroundBottomPressed);
 
     VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonText);
     VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonTextHover);
@@ -359,18 +366,25 @@ private:
 
 class ToggleTextButton : public ToggleButton {
 public:
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOff);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOffHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOffPressed);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOn);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOnHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOnPressed);
+    // Background gradient - Off state
+    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOffTop);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOffBottom);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOffHoverTop);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOffHoverBottom);
+    // Background gradient - On state
+    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOnTop);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOnBottom);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOnHoverTop);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOnHoverBottom);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOff);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOffHover);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOffPressed);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOn);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOnHover);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOnPressed);
+
+    // Glow color (radial glow overlay when toggled on)
+    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonGlow);
 
     // Border colors
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBorderOff);

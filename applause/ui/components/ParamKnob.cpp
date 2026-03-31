@@ -1,11 +1,14 @@
 #include "ParamKnob.h"
 
 #include <visage_graphics/font.h>
+#include <visage_graphics/theme.h>
 
 #include "applause/util/DebugHelpers.h"
 #include "embedded/applause_fonts.h"
 
 namespace applause {
+
+VISAGE_THEME_IMPLEMENT_COLOR(ParamKnob, ApplauseParamKnobText, 0xffcccccc);
 ParamKnob::ParamKnob(ParamInfo& paramInfo)
     : param_info_(paramInfo), paramValueText_(paramInfo) {
     setReceiveChildMouseEvents(true);
@@ -16,11 +19,16 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo)
 
     paramNameText_.setMultiLine(false);
     paramNameText_.setJustification(visage::Font::kCenter);
-    paramNameText_.setFont(visage::Font(12, applause::fonts::Jost_Medium_ttf));
+    paramNameText_.setFont(visage::Font(12, applause::fonts::Jost_Regular_ttf));
     paramNameText_.setActive(false);
     paramNameText_.setText(param_info_.shortName);
     paramNameText_.setIgnoresMouseEvents(true, false);
     paramNameText_.setMargin(0, 0);
+    name_text_palette_.setColor(visage::TextEditor::TextEditorText,
+                                paletteColor(ApplauseParamKnobText));
+    name_text_palette_.setColor(visage::TextEditor::TextEditorBackground,
+                                visage::Color(0x00000000));
+    paramNameText_.setPalette(&name_text_palette_);
     addChild(&paramNameText_);
 
     // Set initial value (normalized to 0-1 range)

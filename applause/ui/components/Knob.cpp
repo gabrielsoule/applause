@@ -3,14 +3,22 @@
 #include <algorithm>
 #include <cmath>
 
+#include <visage_graphics/theme.h>
+
 #include "applause/util/DebugHelpers.h"
 
 namespace applause {
 
+VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobBodyTop, 0xFF333338);
+VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobBodyBottom, 0xFF1a1a1e);
+VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobBodyBorder, 0xFF444444);
+VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobArcTrack, 0xFF2a2a2e);
+VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobAccent, 0xff9966ff);
+
 Knob::Knob() {
-    hover_amount_.setTargetValue(1.0f);
-    hover_amount_.setSourceValue(0.0f);
-    hover_amount_.setAnimationTime(150);
+    glow_amount_.setSourceValue(0.0f);
+    glow_amount_.setTargetValue(1.0f);
+    glow_amount_.setAnimationTime(150);
 }
 
 void Knob::setValue(float value) {
@@ -24,61 +32,94 @@ void Knob::draw(visage::Canvas& canvas) {
     float centerY = height() * 0.5f;
     float radius = size * 0.5f;
 
-    // Update animation and determine arc thickness
-    hover_amount_.update();
-    float animValue = hover_amount_.value();
-    float arcThickness = 2.0f + (animValue * 2.0f);
+    constexpr float kTopCenter = 1.5f * static_cast<float>(M_PI);  // 270° = 3π/2
+    float halfSweep = sweep_ * 0.5f;
+    float startAngle = kTopCenter - halfSweep;
 
-    if (hover_amount_.isAnimating()) redraw();
-    canvas.setColor(0xFF828282);
+    float arcThickness = 3.0f;
+    float trackCenter = radius - 1.5f;
+    float bodyRadius = radius - 6.0f;
+    float bodyDiameter = bodyRadius * 2.0f;
 
-    float centerRadians = 270.0f * (static_cast<float>(M_PI) / 180.0f);
-    float spanRadians = 150.0f * (static_cast<float>(M_PI) / 180.0f);
+    // Drop shadow beneath knob body
+    float shadowOffset = 4.0f;
+    float shadowPad = 3.0f;
+    float shadowDiameter = bodyDiameter + shadowPad * 2.0f;
+    canvas.setColor(0x88000000);
+    canvas.fadeCircle(centerX - bodyRadius - shadowPad,
+                      centerY - bodyRadius - shadowPad + shadowOffset,
+                      shadowDiameter, 10.0f);
 
-    canvas.arc(centerX - radius, centerY - radius, size, arcThickness,
-               centerRadians, spanRadians, true);
+    // Draw knob body
+    float bodyX = centerX - bodyRadius;
+    float bodyY = centerY - bodyRadius;
+    auto sample = [&](auto id) { return canvas.color(id).gradient().sample(0.0f); };
+    canvas.setColor(visage::Brush::vertical(sample(ApplauseKnobBodyTop), sample(ApplauseKnobBodyBottom)));
+    canvas.circle(bodyX, bodyY, bodyDiameter);
+    canvas.setColor(ApplauseKnobBodyBorder);
+    canvas.ring(bodyX, bodyY, bodyDiameter, 1.0f);
 
+    // Animated radial glow over body center
+    glow_amount_.update();
+    float glowAlpha = glow_amount_.value();
+    if (glowAlpha > 0.0f) {
+        visage::Color accent = sample(ApplauseKnobAccent);
+        visage::Gradient glow;
+        glow.addColorStop(accent.withAlpha(glowAlpha * 0.35f), 0.0f);
+        glow.addColorStop(accent.withAlpha(glowAlpha * 0.15f), 0.6f);
+        glow.addColorStop(accent.withAlpha(glowAlpha * 0.10f), 1.0f);
+        visage::Point center = {centerX, centerY};
+        canvas.setColor(visage::Brush::radial(glow, center, bodyRadius, bodyRadius));
+        canvas.circle(bodyX, bodyY, bodyDiameter);
+    }
+    if (glow_amount_.isAnimating()) redraw();
+
+    // Draw accent arc on body ring from zero to current value
     if (value_ > 0.0f) {
-        canvas.setColor(0xFFFFFFFF);  // Bright blue
-
-        float progressCenterDeg = 120.0f + (value_ * 150.0f);
-        float progressSpanDeg = value_ * 150.0f;
-
-        float progressCenterRad =
-            progressCenterDeg * (static_cast<float>(M_PI) / 180.0f);
-        float progressSpanRad =
-            progressSpanDeg * (static_cast<float>(M_PI) / 180.0f);
-
-        canvas.arc(centerX - radius, centerY - radius, size, arcThickness,
-                   progressCenterRad, progressSpanRad, true);
+        float accentCenter = startAngle + value_ * halfSweep;
+        float accentSpan = value_ * halfSweep;
+        canvas.setColor(ApplauseKnobAccent);
+        canvas.arc(bodyX, bodyY, bodyDiameter, 1.0f, accentCenter, accentSpan, false);
     }
 
-    // small center circle
-    float centerDotRadius = radius * 0.15f;
-    canvas.setColor(0xFFFFFFFF);
-    canvas.circle(centerX - centerDotRadius, centerY - centerDotRadius,
-                  centerDotRadius * 2.0f);
+    // Draw arc track
+    canvas.setColor(ApplauseKnobArcTrack);
+    float trackDiameter = trackCenter * 2.0f;
+    canvas.arc(centerX - trackCenter, centerY - trackCenter, trackDiameter,
+               arcThickness, kTopCenter, halfSweep, true);
 
-    // line position/angle
-    float angle = 120.0f + (value_ * 300.0f);
-    float angleRad = angle * (static_cast<float>(M_PI) / 180.0f);
+    // Tracking dot on the arc
+    float trackAngleRad = startAngle + value_ * sweep_;
+    float dotDiameter = arcThickness;
+    float dotTrackRadius = trackCenter - arcThickness * 0.5f;
+    float dotCenterX = centerX + std::cos(trackAngleRad) * dotTrackRadius;
+    float dotCenterY = centerY + std::sin(trackAngleRad) * dotTrackRadius;
+    canvas.setColor(ApplauseKnobAccent);
+    canvas.circle(dotCenterX - dotDiameter * 0.5f, dotCenterY - dotDiameter * 0.5f, dotDiameter);
 
-    // find line points
+    float angle = startAngle + value_ * sweep_;
+
+    float needle_radius = bodyDiameter * 0.5f - 2.0f;
     float lineEndX =
-        centerX + static_cast<float>(std::cos(angleRad)) * (radius * 0.6f);
+        centerX + static_cast<float>(std::cos(angle)) * needle_radius;
     float lineEndY =
-        centerY + static_cast<float>(std::sin(angleRad)) * (radius * 0.6f);
+        centerY + static_cast<float>(std::sin(angle)) * needle_radius;
 
     // draw it!
-    canvas.setColor(0xFFFFFFFF);
-    canvas.segment(centerX, centerY, lineEndX, lineEndY, 2.0f, true);
+    float needleStartRadius = 5.0f;
+    float lineStartX =
+        centerX + static_cast<float>(std::cos(angle)) * needleStartRadius;
+    float lineStartY =
+        centerY + static_cast<float>(std::sin(angle)) * needleStartRadius;
+    canvas.setColor(ApplauseKnobAccent);
+    canvas.segment(lineStartX, lineStartY, lineEndX, lineEndY, 3.0f, true);
 }
 
 void Knob::mouseDown(const visage::MouseEvent& e) {
     dragging_ = true;
     drag_start_y_ = e.position.y;
     drag_start_value_ = value_;
-    hover_amount_.target(true);  // Keep animation at max during drag
+    glow_amount_.target(true);
     onDragStarted.callback();
     redraw();
 }
@@ -94,25 +135,20 @@ void Knob::mouseUp(const visage::MouseEvent& e) {
         dragging_ = false;
         processDrag(e.position.y);
         onDragEnded.callback();
-        // If not hovering anymore, animate back to normal
-        if (!hovering_) {
-            hover_amount_.target(false);
-        }
+        if (!hovering_) glow_amount_.target(false);
         redraw();
     }
 }
 
 void Knob::mouseEnter(const visage::MouseEvent& e) {
     hovering_ = true;
-    hover_amount_.target(true);
+    glow_amount_.target(true);
     redraw();
 }
 
 void Knob::mouseExit(const visage::MouseEvent& e) {
     hovering_ = false;
-    if (!dragging_) {
-        hover_amount_.target(false);
-    }
+    if (!dragging_) glow_amount_.target(false);
     redraw();
 }
 
