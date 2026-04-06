@@ -2,6 +2,7 @@
 
 #include <applause/util/SampleType.h>
 #include <applause/util/DebugHelpers.h>
+#include <algorithm>
 #include <complex>
 
 namespace applause {
@@ -123,17 +124,35 @@ public:
         }
 
         using std::sqrt;
+        using std::atan;
         using xsimd::sqrt;
+        using xsimd::atan;
+        const auto sr_over_pi = SampleType(static_cast<ScalarType>(sample_rate_ / M_PI));
 
         if constexpr (SimdBatch<SampleType>) {
             const auto has_peak = q_ > SampleType(inv_sqrt_two);
             const auto q2 = q_ * q_;
             const auto factor = sqrt(SampleType(1.0) - SampleType(0.5) / q2);
-            return xsimd::select(has_peak, cutoff_ * factor, cutoff_);
+            const auto g_peak = [&]() {
+                if constexpr (filter_type == StateVariableFilterType::Lowpass) {
+                    return g_ * factor;
+                } else {
+                    return g_ / factor;
+                }
+            }();
+            return xsimd::select(has_peak, sr_over_pi * atan(g_peak), cutoff_);
         } else {
             if (q_ > inv_sqrt_two) {
                 const auto q2 = q_ * q_;
-                return cutoff_ * sqrt(ScalarType(1.0) - ScalarType(0.5) / q2);
+                const auto factor = sqrt(ScalarType(1.0) - ScalarType(0.5) / q2);
+                const auto g_peak = [&]() {
+                    if constexpr (filter_type == StateVariableFilterType::Lowpass) {
+                        return g_ * factor;
+                    } else {
+                        return g_ / factor;
+                    }
+                }();
+                return static_cast<ScalarType>(sample_rate_ / M_PI) * atan(g_peak);
             }
             return cutoff_;
         }
@@ -142,27 +161,52 @@ public:
     /**
      * Sets the filter frequency based on peak frequency rather than cutoff,
      * i.e. a cutoff is calculated such that its peak frequency, with respect to the current
-     * resonance value, is equal to this function's input.
+     * resonance value, is equal to this function's input. For bandpass filters,
+     * peak frequency is equal to cutoff frequency.
      */
     template <bool should_update = true>
     void setPeakFrequency(SampleType frequency) {
         if constexpr (SimdBatch<SampleType>) {
             ASSERT(xsimd::all(frequency < SampleType(nyquist_limit_)),
                    "Frequency exceeds Nyquist");
-            ASSERT(xsimd::all(q_ > SampleType(ScalarType(0.70710678118654752440))),
-                   "Q must be > sqrt(0.5) for peak frequency mode");
         } else {
             ASSERT(frequency < nyquist_limit_,
                    "Frequency exceeds Nyquist");
-            ASSERT(q_ > ScalarType(0.70710678118654752440),
-                   "Q must be > sqrt(0.5) for peak frequency mode");
         }
 
-        using std::sqrt;
-        using xsimd::sqrt;
-        const auto q2 = q_ * q_;
-        const auto factor = sqrt(SampleType(1.0) - SampleType(0.5) / q2);
-        cutoff_ = frequency / factor;
+        if constexpr (filter_type == StateVariableFilterType::Bandpass) {
+            cutoff_ = frequency;
+        } else {
+            if constexpr (SimdBatch<SampleType>) {
+                ASSERT(xsimd::all(q_ > SampleType(ScalarType(0.70710678118654752440))),
+                       "Q must be > sqrt(0.5) for peak frequency mode");
+            } else {
+                ASSERT(q_ > ScalarType(0.70710678118654752440),
+                       "Q must be > sqrt(0.5) for peak frequency mode");
+            }
+
+            using std::sqrt;
+            using std::tan;
+            using std::atan;
+            using xsimd::sqrt;
+            using xsimd::tan;
+            using xsimd::atan;
+
+            const auto q2 = q_ * q_;
+            const auto factor = sqrt(SampleType(1.0) - SampleType(0.5) / q2);
+            const ScalarType pi_over_sr = ScalarType(M_PI) / ScalarType(sample_rate_);
+            const auto g_peak = tan(frequency * pi_over_sr);
+
+            const auto g_cutoff = [&]() {
+                if constexpr (filter_type == StateVariableFilterType::Lowpass) {
+                    return g_peak / factor;
+                } else {
+                    return g_peak * factor;
+                }
+            }();
+
+            cutoff_ = SampleType(static_cast<ScalarType>(sample_rate_ / M_PI)) * atan(g_cutoff);
+        }
 
         // Clamp cutoff to below Nyquist
         if constexpr (SimdBatch<SampleType>) {
