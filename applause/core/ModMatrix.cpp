@@ -118,6 +118,14 @@ bool ModMatrix::removeConnection(const ModConnection& connection) {
     return false;
 }
 
+ModConnection* ModMatrix::findConnection(uint16_t srcIdx, uint16_t dstIdx) {
+    for (auto& conn : connections_) {
+        if (!conn.isDepthMod() && conn.src_idx == srcIdx && conn.dst_idx == dstIdx)
+            return &conn;
+    }
+    return nullptr;
+}
+
 ModSource* ModMatrix::findSource(const std::string& name) {
     auto it = src_lookup_.find(name);
     if (it == src_lookup_.end()) return nullptr;

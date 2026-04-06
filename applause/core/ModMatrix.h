@@ -289,6 +289,12 @@ public:
 
     [[nodiscard]] const std::vector<ModConnection>& getConnections() const { return connections_; }
 
+    /**
+     * Finds a first-order (non-depth-mod) connection by source and destination index.
+     * @return pointer to the connection, or nullptr if not found
+     */
+    [[nodiscard]] ModConnection* findConnection(uint16_t srcIdx, uint16_t dstIdx);
+
     [[nodiscard]] ModSource* findSource(const std::string& name);
 
     [[nodiscard]] const ModSource* findSource(const std::string& name) const;
