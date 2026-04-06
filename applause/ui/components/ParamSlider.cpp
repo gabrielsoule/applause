@@ -10,15 +10,11 @@ ParamSlider::ParamSlider(ParamInfo& paramInfo)
     addChild(&slider_);
     addChild(&param_text_box_);
 
-    // Set initial value (normalized to 0-1 range)
     const float currentValue = param_info_.getValue();
     const float normalizedValue = (currentValue - param_info_.minValue) /
         (param_info_.maxValue - param_info_.minValue);
     slider_.setValue(normalizedValue);
-    LOG_DBG("ParamSlider value: {} min: {} max: {}", param_info_.getValue(),
-            param_info_.minValue, param_info_.maxValue);
 
-    // Add our callbacks to hook the slider's state into the parameter's state
     slider_.on_value_changed.add([this](float value) {
         const float paramValue =
             this->param_info_.minValue +
@@ -26,7 +22,6 @@ ParamSlider::ParamSlider(ParamInfo& paramInfo)
         this->param_info_.setValueNotifyingHost(paramValue);
     });
 
-    // Connect gesture events
     slider_.on_drag_started.add(
         [this]() { this->param_info_.beginGesture(); });
 

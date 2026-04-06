@@ -80,13 +80,11 @@ void ParamKnob::mouseEnter(const visage::MouseEvent& e) {
     mouseOver_ = true;
     paramValueText_.setVisible(true);
     paramNameText_.setVisible(false);
-    LOG_DBG("Mouse Enter: {}", e.event_frame->name());
 }
 
 void ParamKnob::mouseExit(const visage::MouseEvent& e) {
     mouseOver_ = false;
     paramValueText_.setVisible(false);
     paramNameText_.setVisible(true);
-    LOG_DBG("Mouse Exit: {}", e.event_frame->name());
 }
 }
