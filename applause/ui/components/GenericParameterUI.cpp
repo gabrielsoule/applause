@@ -6,13 +6,11 @@
 #include <algorithm>
 
 #include "applause/util/DebugHelpers.h"
-#include "embedded/fonts.h"
 
 using namespace visage::dimension;
 
 namespace applause {
-GenericParameterEntry::GenericParameterEntry(ParamInfo& paramInfo)
-    : paramInfo_(paramInfo), paramSlider_(paramInfo) {
+GenericParameterEntry::GenericParameterEntry(ParamInfo& paramInfo) : paramInfo_(paramInfo), paramSlider_(paramInfo) {
     addChild(&paramSlider_);
 }
 
@@ -27,13 +25,11 @@ void GenericParameterEntry::draw(visage::Canvas& canvas) {
     // Draw the parameter name (right-aligned)
     const visage::Font font(13, applause::fonts::Jost_Regular_ttf);
     canvas.setColor(0xFFCCCCCC);
-    canvas.text(paramInfo_.name, font, visage::Font::kRight, textX, textY,
-                textWidth, textHeight);
+    canvas.text(paramInfo_.name, font, visage::Font::kRight, textX, textY, textWidth, textHeight);
 }
 
 void GenericParameterEntry::resized() {
-    // Position the ParamSlider on the right side, leaving space for label on
-    // the left
+    // Position the ParamSlider on the right side, leaving space for label on the left
     float sliderWidth = width() - labelWidth_;
     float sliderX = labelWidth_;
 
@@ -42,25 +38,20 @@ void GenericParameterEntry::resized() {
 
 void GenericParameterEntry::setLabelWidth(float labelWidth) {
     labelWidth_ = labelWidth;
-    resized(); // Trigger layout update
-    redraw(); // Trigger redraw for label
+    resized();
+    redraw();
 }
-
-// GenericParameterUI Implementation
 
 GenericParameterUI::GenericParameterUI() {
     // Configure scrollable vertical flex layout
     scrollableLayout().setFlex(true);
-    scrollableLayout().setFlexRows(true); // Vertical layout (default)
+    scrollableLayout().setFlexRows(true);
     scrollableLayout().setFlexGap(kEntryGap);
     scrollableLayout().setPadding(kPadding);
-    scrollableLayout().setFlexItemAlignment(
-        visage::Layout::ItemAlignment::Stretch); // Children stretch to fill
-    // width
+    scrollableLayout().setFlexItemAlignment(visage::Layout::ItemAlignment::Stretch);
 }
 
-void GenericParameterUI::draw(visage::Canvas& canvas) {
-}
+void GenericParameterUI::draw(visage::Canvas& canvas) {}
 
 void GenericParameterUI::resized() {
     ScrollableFrame::resized();
@@ -85,19 +76,17 @@ void GenericParameterUI::resized() {
 }
 
 void GenericParameterUI::addParameter(ParamInfo& paramInfo) {
-    // Add to parameters vector
     LOG_DBG("Adding parameter {}", paramInfo.name);
-    // Create new entry
+
     auto entry = std::make_unique<GenericParameterEntry>(paramInfo);
     entry->layout().setHeight(kEntryHeight);
     entry->layout().setFlexGrow(0.0f);
     entry->layout().setFlexShrink(0.0f);
-    // Width handled automatically by flex stretch - no manual sizing needed
 
     addScrolledChild(entry.get());
     entries_.push_back(std::move(entry));
 
-    computeLayout(); // Just compute layout, no manual width updates needed
-    resized(); // Update scroll area after adding content
+    computeLayout();
+    resized();
 }
-}
+}  // namespace applause

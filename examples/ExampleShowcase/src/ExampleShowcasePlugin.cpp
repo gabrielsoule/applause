@@ -7,8 +7,9 @@ ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* des
     : PluginBase(descriptor, host),
       note_ports_(),
       params_(),
-      gui_ext_([this]() { return std::make_unique<ExampleShowcaseEditor>(&params_); },
-               800, 600)
+      mod_matrix_({.num_voices = 8, .max_sources = 16, .max_destinations = 32, .max_connections = 32}),
+      gui_ext_([this]() { return std::make_unique<ExampleShowcaseEditor>(&params_, &mod_matrix_); },
+               800, 800)
 {
     LOG_INFO("ExampleShowcase constructor");
 
@@ -169,6 +170,14 @@ ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* des
         .default_value = 0.0f,
         .is_stepped = true
     });
+
+    // Configure ModMatrix with demo sources and destinations
+    mod_matrix_.registerSource("LFO 1", applause::ModSrcType::Mono, true);
+    mod_matrix_.registerSource("LFO 2", applause::ModSrcType::Both, true);
+    mod_matrix_.registerSource("Envelope", applause::ModSrcType::Poly, false);
+    mod_matrix_.registerSource("Velocity", applause::ModSrcType::Poly, false);
+    mod_matrix_.registerSource("Mod Wheel", applause::ModSrcType::Mono, false);
+    mod_matrix_.registerFromParamsExtension(params_);
 
     // Configure state extension callbacks - plugin manages its own versioning
     state_.setSaveCallback([this](applause::json& j)

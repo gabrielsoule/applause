@@ -34,6 +34,9 @@ public:
     void setBipolar(bool bipolar);
     bool isBipolar() const { return bipolar_; }
 
+    void setActive(bool active) { active_ = active; redraw(); }
+    bool isActive() const { return active_; }
+
     visage::CallbackList<void(float)> on_value_changed;
     visage::CallbackList<void()> on_drag_started;
     visage::CallbackList<void()> on_drag_ended;
@@ -41,6 +44,7 @@ public:
 private:
     void processDrag(float raw_drag_pos);
 
+    bool active_ = true;
     bool dragging_ = false;
     bool hovering_ = false;
     bool bipolar_ = false;

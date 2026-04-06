@@ -1,6 +1,7 @@
 #pragma once
 
 #include "applause/core/PluginBase.h"
+#include "applause/core/ModMatrix.h"
 #include "applause/extensions/AudioPortsExtension.h"
 #include "applause/extensions/NotePortsExtension.h"
 #include "applause/extensions/StateExtension.h"
@@ -30,5 +31,6 @@ private:
     applause::AudioPortsExtension audio_ports_;
     applause::StateExtension state_;
     applause::ParamsExtension params_;
+    applause::ModMatrix mod_matrix_;
     applause::GUIExtension gui_ext_;
 };

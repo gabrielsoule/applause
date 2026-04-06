@@ -22,6 +22,7 @@ Slider::Slider() {
 void Slider::resized() {}
 
 void Slider::mouseDown(const visage::MouseEvent& event) {
+    if (!active_) return;
     dragging_ = true;
     glow_amount_.target(true);
     on_drag_started.callback();
@@ -30,10 +31,12 @@ void Slider::mouseDown(const visage::MouseEvent& event) {
 }
 
 void Slider::mouseDrag(const visage::MouseEvent& event) {
+    if (!active_) return;
     processDrag(event.position.x);
 }
 
 void Slider::mouseUp(const visage::MouseEvent& event) {
+    if (!active_) return;
     dragging_ = false;
     on_drag_ended.callback();
     processDrag(event.position.x);
@@ -43,6 +46,7 @@ void Slider::mouseUp(const visage::MouseEvent& event) {
 }
 
 bool Slider::mouseWheel(const visage::MouseEvent& event) {
+    if (!active_) return false;
     float delta = -event.precise_wheel_delta_y * kWheelSensitivity;
     float minVal = bipolar_ ? -1.0f : 0.0f;
     float newValue = std::clamp(value_ + delta, minVal, 1.0f);
@@ -91,12 +95,14 @@ void Slider::processDrag(float raw_drag_pos) {
 }
 
 void Slider::mouseEnter(const visage::MouseEvent& event) {
+    if (!active_) return;
     hovering_ = true;
     glow_amount_.target(true);
     redraw();
 }
 
 void Slider::mouseExit(const visage::MouseEvent& event) {
+    if (!active_) return;
     hovering_ = false;
     if (!dragging_)
         glow_amount_.target(false);
@@ -120,11 +126,43 @@ void Slider::draw(visage::Canvas& canvas) {
         tcx = kThumbRadius + value_ * usable;
     }
 
-    // 1. Track background
+    float thumbX = tcx - kThumbRadius;
+    float thumbY = centerY - kThumbRadius;
+
+    if (!active_) {
+        constexpr float kInactiveDim = 0.2f;
+        visage::Color black(0xff000000);
+
+        canvas.setColor(sample(ApplauseSliderTrack).interpolateWith(black, kInactiveDim));
+        canvas.roundedRectangle(0, trackY, width(), kTrackHeight, trackRounding);
+
+        if (bipolar_) {
+            float centerX = width() * 0.5f;
+            float fillW = std::abs(tcx - centerX);
+            if (fillW > 0.0f) {
+                canvas.setColor(sample(ApplauseSliderAccent).interpolateWith(black, kInactiveDim));
+                canvas.roundedRectangle(value_ > 0.0f ? centerX : tcx, trackY, fillW, kTrackHeight, trackRounding);
+            }
+        } else if (value_ > 0.0f) {
+            canvas.setColor(sample(ApplauseSliderAccent).interpolateWith(black, kInactiveDim));
+            canvas.roundedRectangle(0, trackY, tcx, kTrackHeight, trackRounding);
+        }
+
+        canvas.setColor(visage::Brush::vertical(
+            sample(ApplauseSliderThumbTop).interpolateWith(black, kInactiveDim),
+            sample(ApplauseSliderThumbBottom).interpolateWith(black, kInactiveDim)));
+        canvas.circle(thumbX, thumbY, kThumbDiameter);
+
+        canvas.setColor(sample(ApplauseSliderThumbBorder).interpolateWith(black, kInactiveDim));
+        canvas.ring(thumbX, thumbY, kThumbDiameter, 1.0f);
+        return;
+    }
+
+    // Track background
     canvas.setColor(ApplauseSliderTrack);
     canvas.roundedRectangle(0, trackY, width(), kTrackHeight, trackRounding);
 
-    // 2. Accent fill
+    // Accent fill
     if (bipolar_) {
         float centerX = width() * 0.5f;
         if (value_ > 0.0f) {
@@ -147,7 +185,7 @@ void Slider::draw(visage::Canvas& canvas) {
         }
     }
 
-    // 3. Thumb drop shadow
+    // Thumb drop shadow
     float shadowOffset = 3.0f;
     float shadowPad = 2.0f;
     float shadowDiameter = kThumbDiameter + shadowPad * 2.0f;
@@ -156,18 +194,16 @@ void Slider::draw(visage::Canvas& canvas) {
                       centerY - shadowDiameter * 0.5f + shadowOffset,
                       shadowDiameter, 8.0f);
 
-    // 4. Thumb body (vertical gradient)
-    float thumbX = tcx - kThumbRadius;
-    float thumbY = centerY - kThumbRadius;
+    // Thumb body (vertical gradient)
     canvas.setColor(visage::Brush::vertical(
         sample(ApplauseSliderThumbTop), sample(ApplauseSliderThumbBottom)));
     canvas.circle(thumbX, thumbY, kThumbDiameter);
 
-    // 5. Thumb border ring
+    // Thumb border ring
     canvas.setColor(ApplauseSliderThumbBorder);
     canvas.ring(thumbX, thumbY, kThumbDiameter, 1.0f);
 
-    // 6. Animated glow overlay
+    // Animated glow overlay
     glow_amount_.update();
     float glowAlpha = glow_amount_.value();
     if (glowAlpha > 0.0f) {

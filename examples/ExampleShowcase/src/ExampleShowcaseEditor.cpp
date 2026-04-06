@@ -10,7 +10,7 @@
 
 using namespace visage::dimension;
 
-ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params)
+ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params, applause::ModMatrix* mod_matrix)
     : applause::ApplauseEditor(params) {
     ApplauseEditor::setFixedAspectRatio(true);
 
@@ -72,7 +72,7 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params)
 #ifdef __APPLE__
     popup_menu_button_ = std::make_unique<applause::UiButton>("Show Menu");
     popup_menu_button_->onToggle() += [this](applause::Button* button, bool on) {
-        applause::NativePopupMenu menu("Demo Menu");
+applause::NativePopupMenu menu("Demo Menu");
 
         menu.addOption(1, "Option 1")
             .select(true)
@@ -106,6 +106,10 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params)
     buttons_panel_.content().addChild(popup_menu_button_.get());
 #endif
 
+    inactive_button_ = std::make_unique<applause::UiButton>("Inactive");
+    inactive_button_->setActive(false);
+    buttons_panel_.content().addChild(inactive_button_.get());
+
     small_button_ = std::make_unique<applause::UiButton>("TINY");
     small_button_->onToggle() += [](applause::Button* button, bool on) {
         LOG_INFO("Small button clicked!");
@@ -118,16 +122,40 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params)
     };
     buttons_panel_.content().addChild(small_toggle_button_.get());
 
+    // --- Sliders Panel (right column) ---
+    addChild(&sliders_panel_);
+
+    bipolar_slider_.setBipolar(true);
+    bipolar_slider_.setValue(0.0f);
+    sliders_panel_.content().addChild(&bipolar_slider_);
+
+    normal_slider_.setValue(0.5f);
+    sliders_panel_.content().addChild(&normal_slider_);
+
+    inactive_slider_.setValue(0.35f);
+    inactive_slider_.setActive(false);
+    sliders_panel_.content().addChild(&inactive_slider_);
+
+    // --- Mod Matrix Panel (bottom) ---
+    addChild(&mod_matrix_panel_);
+
+    if (mod_matrix) {
+        mod_matrix_ui_ = std::make_unique<applause::ModMatrixComponent>(*mod_matrix);
+        mod_matrix_panel_.content().addChild(mod_matrix_ui_.get());
+    }
 }
 
 void ExampleShowcaseEditor::resized() {
     static constexpr float kPadding = 12.0f;
     static constexpr float kGap = 10.0f;
 
-    // Left column: Parameters panel (full height)
+    // Mod matrix panel at the bottom (full width)
+    static constexpr float kModMatrixHeight = 200.0f;
+    float top_area_h = height() - kModMatrixHeight - kGap - 2 * kPadding;
+
+    // Left column: Parameters panel (top portion)
     float left_w = 380.0f;
-    params_panel_.setBounds(kPadding, kPadding,
-                            left_w, height() - 2 * kPadding);
+    params_panel_.setBounds(kPadding, kPadding, left_w, top_area_h);
 
     // Right column
     float right_x = kPadding + left_w + kGap;
@@ -147,9 +175,26 @@ void ExampleShowcaseEditor::resized() {
         filter_mode_knob_->setBounds(knob_w * 2, 0, knob_w, knob_h);
     }
 
-    // Buttons panel: middle-right (fills remaining space)
-    float buttons_y = kPadding + kKnobPanelHeight + kGap;
-    float buttons_h = height() - buttons_y - kPadding;
+    // Sliders panel: below knobs
+    static constexpr float kSlidersPanelHeight = 150.0f;
+    float sliders_y = kPadding + kKnobPanelHeight + kGap;
+    sliders_panel_.setBounds(right_x, sliders_y, right_w, kSlidersPanelHeight);
+
+    // Layout sliders vertically inside the sliders panel content area
+    {
+        auto& sc = sliders_panel_.content();
+        float slider_pad = 8.0f;
+        float slider_h = 24.0f;
+        float slider_gap = 6.0f;
+        float sw = sc.width() - 2 * slider_pad;
+        normal_slider_.setBounds(slider_pad, slider_pad, sw, slider_h);
+        bipolar_slider_.setBounds(slider_pad, slider_pad + slider_h + slider_gap, sw, slider_h);
+        inactive_slider_.setBounds(slider_pad, slider_pad + 2 * (slider_h + slider_gap), sw, slider_h);
+    }
+
+    // Buttons panel: below sliders (fills remaining top area)
+    float buttons_y = sliders_y + kSlidersPanelHeight + kGap;
+    float buttons_h = top_area_h - kKnobPanelHeight - kSlidersPanelHeight - 2 * kGap;
     buttons_panel_.setBounds(right_x, buttons_y, right_w, buttons_h);
 
     // Layout buttons in a grid inside the buttons panel content area
@@ -178,6 +223,7 @@ void ExampleShowcaseEditor::resized() {
 #ifdef __APPLE__
         placeButton(popup_menu_button_.get());
 #endif
+        placeButton(inactive_button_.get());
 
         // Small buttons on their own row at reduced size
         if (col != 0) { col = 0; row++; }
@@ -195,6 +241,15 @@ void ExampleShowcaseEditor::resized() {
         parameter_ui_->setBounds(0, 0,
                                  params_panel_.content().width(),
                                  params_panel_.content().height());
+
+    // Mod Matrix panel at the bottom (full width)
+    float mod_y = kPadding + top_area_h + kGap;
+    mod_matrix_panel_.setBounds(kPadding, mod_y,
+                                width() - 2 * kPadding, kModMatrixHeight);
+    if (mod_matrix_ui_)
+        mod_matrix_ui_->setBounds(0, 0,
+                                  mod_matrix_panel_.content().width(),
+                                  mod_matrix_panel_.content().height());
 }
 
 void ExampleShowcaseEditor::onLoadFileClicked() {

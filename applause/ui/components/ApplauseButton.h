@@ -21,6 +21,29 @@ public:
     VISAGE_THEME_DEFINE_COLOR(ApplauseButtonShadow);
     VISAGE_THEME_DEFINE_COLOR(ApplauseButtonGlow);
 
+    // Shared background gradient (normal, hover)
+    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonBackgroundTop);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonBackgroundBottom);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonBackgroundTopHover);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonBackgroundBottomHover);
+
+    // Shared text colors
+    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonText);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonTextHover);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonTextPressed);
+
+    // Shared border colors
+    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonBorder);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonBorderHover);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonBorderPressed);
+
+    // Shared values
+    VISAGE_THEME_DEFINE_VALUE(ApplauseButtonRounding);
+    VISAGE_THEME_DEFINE_VALUE(ApplauseButtonHoverRoundingMult);
+    VISAGE_THEME_DEFINE_VALUE(ApplauseButtonBorderWidth);
+    VISAGE_THEME_DEFINE_VALUE(ApplauseButtonBorderWidthHover);
+    VISAGE_THEME_DEFINE_VALUE(ApplauseButtonBorderWidthPressed);
+
     Button() {
         hover_amount_.setTargetValue(1.0f);
         hover_amount_.setAnimationTime(200);
@@ -56,7 +79,7 @@ public:
         toggle_on_mouse_down_ = mouse_down;
     }
     float hoverAmount() const { return hover_amount_.value(); }
-    void setActive(bool active) { active_ = active; }
+    void setActive(bool active) { active_ = active; redraw(); }
     bool isActive() const { return active_; }
     bool isPressed() const { return pressed_; }
 
@@ -83,44 +106,14 @@ private:
 
 class UiButton : public Button {
 public:
-    // Regular button background gradient - Normal, Hover, Pressed
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackgroundTop);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackgroundBottom);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackgroundTopHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackgroundBottomHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackgroundTopPressed);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBackgroundBottomPressed);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseActionButtonBackgroundTop);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseActionButtonBackgroundBottom);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseActionButtonBackgroundTopHover);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseActionButtonBackgroundBottomHover);
 
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonText);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonTextHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonTextPressed);
-
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBorder);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBorderHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiButtonBorderPressed);
-
-    // Action button background gradient - Normal, Hover, Pressed
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBackgroundTop);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBackgroundBottom);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBackgroundTopHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBackgroundBottomHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBackgroundTopPressed);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBackgroundBottomPressed);
-
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonText);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonTextHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonTextPressed);
-
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBorder);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBorderHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseUiActionButtonBorderPressed);
-
-    // Misc values
-    VISAGE_THEME_DEFINE_VALUE(ApplauseUiButtonRounding);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseUiButtonHoverRoundingMult);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseUiButtonBorderWidth);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseUiButtonBorderWidthHover);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseUiButtonBorderWidthPressed);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseActionButtonBorder);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseActionButtonBorderHover);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseActionButtonBorderPressed);
 
     explicit UiButton(const std::string& text);
 
@@ -238,10 +231,8 @@ public:
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleButtonDisabled);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleButtonOff);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleButtonOffHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleButtonOffPressed);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleButtonOn);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleButtonOnHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleButtonOnPressed);
 
     ToggleButton() = default;
 
@@ -366,37 +357,13 @@ private:
 
 class ToggleTextButton : public ToggleButton {
 public:
-    // Background gradient - Off state
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOffTop);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOffBottom);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOffHoverTop);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOffHoverBottom);
-    // Background gradient - On state
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOnTop);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOnBottom);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOnHoverTop);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBackgroundOnHoverBottom);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOff);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOffHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOffPressed);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOn);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOnHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOnPressed);
 
-    // Glow color (radial glow overlay when toggled on)
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonGlow);
 
-    // Border colors
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBorderOff);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBorderOffHover);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBorderOn);
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBorderOnHover);
-
-    // Values
-    VISAGE_THEME_DEFINE_VALUE(ApplauseToggleTextButtonRounding);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseToggleTextButtonHoverRoundingMult);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseToggleTextButtonBorderWidth);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseToggleTextButtonBorderWidthHover);
 
     explicit ToggleTextButton(const std::string& name);
     explicit ToggleTextButton(const std::string& name,
