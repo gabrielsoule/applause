@@ -30,3 +30,4 @@ Thumbs.db
 /.agent/
 /.gemini/
 # in case anyone is running agents
+.cairn/assets/
