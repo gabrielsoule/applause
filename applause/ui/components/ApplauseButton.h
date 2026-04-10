@@ -386,4 +386,17 @@ private:
     bool draw_background_ = true;
     visage::Text text_;
 };
+class NativePopupMenu;
+
+class PopupMenuButton : public UiButton {
+public:
+    explicit PopupMenuButton(const std::string& default_text = "--");
+
+    std::function<void(NativePopupMenu&)> on_build_menu_;
+    visage::CallbackList<void(int)> on_item_selected_;
+
+private:
+    void showPopup();
+};
+
 }  // namespace applause

@@ -21,6 +21,9 @@
 
 #include "ApplauseButton.h"
 
+#include "applause/ui/ApplauseEditor.h"
+#include "applause/ui/NativePopupMenu.h"
+
 #include <embedded/applause_fonts.h>
 #include <visage_graphics/theme.h>
 #include <visage_windowing/windowing.h>
@@ -39,7 +42,7 @@ VISAGE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonTextPressed, 0xffffffff);
 VISAGE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonBorder, 0xff444444);
 VISAGE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonBorderHover, 0xff5a5a60);
 VISAGE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonBorderPressed, 0xff555555);
-VISAGE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonRounding, 5.0f);
+VISAGE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonRounding, 7.0f);
 VISAGE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonHoverRoundingMult, 1.0f);
 VISAGE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonBorderWidth, 1.5f);
 VISAGE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonBorderWidthHover, 1.5f);
@@ -300,4 +303,28 @@ void ToggleTextButton::draw(visage::Canvas& canvas, float hover_amount) {
 
     canvas.text(&text_, 0, 0, width(), height());
 }
+PopupMenuButton::PopupMenuButton(const std::string& default_text) : UiButton(default_text) {
+    onToggle() += [this](Button*, bool) { showPopup(); };
+}
+
+void PopupMenuButton::showPopup() {
+    if (!on_build_menu_) return;
+
+    auto* editor = findParent<applause::ApplauseEditor>();
+    if (!editor) return;
+
+    void* native_handle = editor->getNativeHandle();
+    if (!native_handle) return;
+
+    NativePopupMenu menu("Select");
+    on_build_menu_(menu);
+
+    menu.onSelection() += [this](int id) {
+        on_item_selected_.callback(id);
+    };
+
+    auto pos = positionInWindow();
+    menu.show(native_handle, pos.x, pos.y + height());
+}
+
 }  // namespace applause
