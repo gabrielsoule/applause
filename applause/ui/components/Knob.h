@@ -26,6 +26,9 @@ public:
     void setValue(float value);
     float getValue() const { return value_; }
 
+    void setDefaultValue(float value);
+    float getDefaultValue() const { return default_value_; }
+
     visage::CallbackList<void(float)> onValueChanged;
     visage::CallbackList<void()> onDragStarted;
     visage::CallbackList<void()> onDragEnded;
@@ -45,6 +48,7 @@ private:
     void processDrag(float mouseY);
 
     float value_ = 0.0f;  // normalized value between 0 and 1, not bipolar
+    float default_value_ = 0.0f;  // normalized [0,1]; rim arc draws from here, double-click resets here
     bool dragging_ = false;
     bool hovering_ = false;
     float drag_start_y_ = 0.0f;

@@ -31,10 +31,13 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo)
     paramNameText_.setPalette(&name_text_palette_);
     addChild(&paramNameText_);
 
+    // Push the parameter's default position into the knob (normalized to 0-1).
+    // The knob uses this for both the rim-arc origin and double-click reset.
+    const float range = param_info_.maxValue - param_info_.minValue;
+    knob_.setDefaultValue((param_info_.defaultValue - param_info_.minValue) / range);
+
     // Set initial value (normalized to 0-1 range)
-    const float currentValue = param_info_.getValue();
-    const float normalizedValue = (currentValue - param_info_.minValue) /
-        (param_info_.maxValue - param_info_.minValue);
+    const float normalizedValue = (param_info_.getValue() - param_info_.minValue) / range;
     knob_.setValue(normalizedValue);
 
     // Connect knob value changes to parameter

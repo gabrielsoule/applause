@@ -26,6 +26,11 @@ void Knob::setValue(float value) {
     redraw();
 }
 
+void Knob::setDefaultValue(float value) {
+    default_value_ = std::clamp(value, 0.0f, 1.0f);
+    redraw();
+}
+
 void Knob::draw(visage::Canvas& canvas) {
     float size = std::min(width(), height());
     float centerX = width() * 0.5f;
@@ -74,12 +79,12 @@ void Knob::draw(visage::Canvas& canvas) {
     }
     if (glow_amount_.isAnimating()) redraw();
 
-    // Draw accent arc on body ring from zero to current value
-    if (value_ > 0.0f) {
-        float accentCenter = startAngle + value_ * halfSweep;
-        float accentSpan = value_ * halfSweep;
+    // Draw accent arc on body ring from default position to current value
+    if (value_ != default_value_) {
+        float accentCenter = startAngle + (value_ + default_value_) * 0.5f * sweep_;
+        float accentHalfSpan = std::abs(value_ - default_value_) * 0.5f * sweep_;
         canvas.setColor(ApplauseKnobAccent);
-        canvas.arc(bodyX, bodyY, bodyDiameter, 1.0f, accentCenter, accentSpan, false);
+        canvas.arc(bodyX, bodyY, bodyDiameter, 1.0f, accentCenter, accentHalfSpan, false);
     }
 
     // Draw arc track
@@ -116,6 +121,19 @@ void Knob::draw(visage::Canvas& canvas) {
 }
 
 void Knob::mouseDown(const visage::MouseEvent& e) {
+    if (e.repeatClickCount() == 2) {
+        if (value_ != default_value_) {
+            // Wrap with begin/end so the host treats this as a single
+            // automatable gesture (matches the mouseWheel pattern below).
+            onDragStarted.callback();
+            value_ = default_value_;
+            onValueChanged.callback(value_);
+            onDragEnded.callback();
+            redraw();
+        }
+        return;  // do NOT start a drag on the reset click
+    }
+
     dragging_ = true;
     drag_start_y_ = e.position.y;
     drag_start_value_ = value_;
