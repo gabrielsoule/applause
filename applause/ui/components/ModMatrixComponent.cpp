@@ -7,83 +7,50 @@ using namespace visage::dimension;
 
 namespace applause {
 
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowHeight, 30.0f);
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowGap, 7.0f);
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixPadding, 8.0f);
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixColumnGap, 4.0f);
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixToggleWidth, 30.0f);
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixDeleteWidth, 30.0f);
+VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowHeight, 30.0f);    // height of each row
+VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowGap, 7.0f);       // vertical spacing between rows
+VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixPadding, 8.0f);      // outer padding of the matrix
+VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixColumnGap, 16.0f);    // horizontal gap between columns
+VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixToggleWidth, 30.0f); // bipolar toggle button width
+VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixDeleteWidth, 30.0f); // delete button width
 
-ModMatrixComponent::PopupMenuComponent::PopupMenuComponent(const std::string& default_text) :
-    UiButton(default_text), default_text_(default_text) {
-    onToggle() += [this](Button*, bool) { showPopup(); };
+static std::string connectionLabel(const ModMatrix& matrix, const ModConnection& conn) {
+    return matrix.getSource(conn.src_idx).name + " -> " + conn.destination()->name;
 }
 
-void ModMatrixComponent::PopupMenuComponent::setItems(std::vector<std::pair<int, std::string>> items) {
-    items_ = std::move(items);
-}
-
-void ModMatrixComponent::PopupMenuComponent::showPopup() {
-    if (items_.empty()) return;
-
-    auto* editor = findParent<applause::ApplauseEditor>();
-    if (!editor) return;
-
-    void* native_handle = editor->getNativeHandle();
-    if (!native_handle) return;
-
-    NativePopupMenu menu("Select");
-    for (auto& [id, name] : items_) {
-        menu.addOption(id, name);
-        if (id == selected_id_) menu.select(true);
-    }
-
-    menu.onSelection() += [this](int id) {
-        setSelectedId(id);
-        on_item_selected_.callback(id);
-    };
-
-    auto pos = positionInWindow();
-    menu.show(native_handle, pos.x, pos.y + height());
-}
-
-void ModMatrixComponent::PopupMenuComponent::setSelectedId(int id) {
-    selected_id_ = id;
-    for (auto& [item_id, name] : items_) {
-        if (item_id == id) {
-            selected_name_ = name;
-            setText(name);
-            return;
-        }
-    }
-}
-
-void ModMatrixComponent::PopupMenuComponent::reset() {
-    selected_id_ = -1;
-    selected_name_.clear();
-    setText(default_text_);
-}
-
-ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(owner), is_dummy_(is_dummy) {
-    // Horizontal flex layout
+ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(owner), is_dummy(is_dummy) {
     setFlexLayout(true);
-    layout().setFlexRows(false);  // horizontal
+    layout().setFlexRows(false);
     layout().setFlexGap(paletteValue(ApplauseModMatrixColumnGap));
     layout().setFlexItemAlignment(visage::Layout::ItemAlignment::Stretch);
 
-    // Populate source menu
-    std::vector<std::pair<int, std::string>> sources;
-    for (uint16_t i = 0; i < owner_.matrix_.getSourceCount(); ++i)
-        sources.emplace_back(i, owner_.matrix_.getSource(i).name);
-    src_menu_.setItems(std::move(sources));
+    src_menu_.on_build_menu_ = [this](NativePopupMenu& menu) {
+        for (uint16_t i = 0; i < owner_.matrix_.getSourceCount(); ++i) {
+            menu.addOption(i, owner_.matrix_.getSource(i).name);
+            if (i == src_list_id) menu.select(true);
+        }
+    };
 
-    // Populate destination menu
-    std::vector<std::pair<int, std::string>> dests;
-    for (uint16_t i = 0; i < owner_.matrix_.getDestinationCount(); ++i)
-        dests.emplace_back(i, owner_.matrix_.getDestination(i).name);
-    dst_menu_.setItems(std::move(dests));
+    dst_menu_.on_build_menu_ = [this](NativePopupMenu& menu) {
+        for (uint16_t i = 0; i < owner_.matrix_.getDestinationCount(); ++i) {
+            menu.addOption(i + 1, owner_.matrix_.getDestination(i).name);
+            if (dst_list_id >= 0 && i + 1 == dst_list_id) menu.select(true);
+        }
 
-    // Add children with flex properties
+        bool has_connections = false;
+        for (auto& conn : owner_.matrix_.getConnections()) {
+            if (!conn.isDepthMod()) { has_connections = true; break; }
+        }
+        if (has_connections) {
+            menu.addBreak();
+            auto& sub = menu.addSubMenu("Connections");
+            for (auto& conn : owner_.matrix_.getConnections()) {
+                if (conn.isDepthMod()) continue;
+                sub.addOption(-(static_cast<int>(conn.depth_slot) + 1), connectionLabel(owner_.matrix_, conn));
+            }
+        }
+    };
+
     addChild(&src_menu_);
     src_menu_.layout().setFlexGrow(1.0f);
 
@@ -107,60 +74,82 @@ ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(
     if (is_dummy) {
         setControlsActive(false);
 
-        // When both source and destination are selected, activate
         src_menu_.on_item_selected_ += [this](int id) {
-            src_idx_ = id;
-            if (src_idx_ >= 0 && dst_idx_ >= 0) owner_.activateRow(this);
+            src_list_id = id;
+            src_menu_.setText(owner_.matrix_.getSource(id).name);
+            if (src_list_id >= 0 && dst_list_id != 0) owner_.activateRow(this);
         };
         dst_menu_.on_item_selected_ += [this](int id) {
-            dst_idx_ = id;
-            if (src_idx_ >= 0 && dst_idx_ >= 0) owner_.activateRow(this);
+            dst_list_id = id;
+            if (id < 0) {
+                auto slot = static_cast<uint16_t>(-(id + 1));
+                if (auto target = owner_.matrix_.findConnection(slot))
+                    dst_menu_.setText(connectionLabel(owner_.matrix_, *target));
+            } else {
+                dst_menu_.setText(owner_.matrix_.getDestination(id - 1).name);
+            }
+            if (src_list_id >= 0 && dst_list_id != 0) owner_.activateRow(this);
         };
     }
 }
 
-void ModMatrixComponent::Row::bindToConnection(const ModConnection& conn) {
-    is_dummy_ = false;
-    src_idx_ = conn.src_idx;
-    dst_idx_ = conn.dst_idx;
+void ModMatrixComponent::Row::bindToConnection(const ModConnection& c) {
+    is_dummy = false;
+    conn = c;
+    src_list_id = c.src_idx;
 
-    src_menu_.setSelectedId(conn.src_idx);
-    dst_menu_.setSelectedId(conn.dst_idx);
-    depth_slider_.setValue(conn.getDepth());
-    bipolar_toggle_.setToggled(conn.isBipolar());
+    src_menu_.setText(owner_.matrix_.getSource(c.src_idx).name);
+
+    if (c.isDepthMod()) {
+        dst_list_id = -(static_cast<int>(c.dst_idx) + 1);
+        if (auto target = owner_.matrix_.findConnection(c.dst_idx))
+            dst_menu_.setText(connectionLabel(owner_.matrix_, *target));
+        else
+            dst_menu_.setText("[deleted]");
+        dst_menu_.on_build_menu_ = nullptr;
+    } else {
+        dst_list_id = c.dst_idx + 1;
+        dst_menu_.setText(owner_.matrix_.getDestination(c.dst_idx).name);
+    }
+
+    depth_slider_.setValue(c.getDepth());
+    bipolar_toggle_.setToggled(c.isBipolar());
     setControlsActive(true);
 
-    // Wire active-row callbacks
-    depth_slider_.on_value_changed += [this](float value) {
-        if (auto* conn = owner_.matrix_.findConnection(src_idx_, dst_idx_)) conn->setDepth(value);
-    };
+    depth_slider_.on_value_changed += [this](float value) { conn.setDepth(value); };
 
-    bipolar_toggle_.onToggle() += [this](Button*, bool on) {
-        if (auto* conn = owner_.matrix_.findConnection(src_idx_, dst_idx_)) conn->setBipolar(on);
-    };
+    bipolar_toggle_.onToggle() += [this](Button*, bool on) { conn.setBipolar(on); };
 
     src_menu_.on_item_selected_ += [this](int id) {
-        // Remove old connection, create new one with updated source
-        auto* old_conn = owner_.matrix_.findConnection(src_idx_, dst_idx_);
-        float depth = old_conn ? old_conn->getDepth() : 0.0f;
-        bool bipolar = old_conn ? old_conn->isBipolar() : false;
-        owner_.matrix_.removeConnection(src_idx_, dst_idx_);
+        float depth = conn.getDepth();
+        bool bipolar = conn.isBipolar();
+        owner_.matrix_.removeConnection(conn);
 
-        src_idx_ = id;
-        auto& new_conn = owner_.matrix_.addConnection(owner_.matrix_.getSource(src_idx_),
-                                                      owner_.matrix_.getDestination(dst_idx_), depth, bipolar);
+        src_list_id = id;
+        src_menu_.setText(owner_.matrix_.getSource(id).name);
+
+        if (conn.isDepthMod()) {
+            if (auto target = owner_.matrix_.findConnection(conn.dst_idx))
+                conn = owner_.matrix_.addDepthModulation(owner_.matrix_.getSource(id), *target, depth, bipolar);
+        } else {
+            conn = owner_.matrix_.addConnection(owner_.matrix_.getSource(id),
+                                                owner_.matrix_.getDestination(conn.dst_idx), depth, bipolar);
+        }
     };
 
-    dst_menu_.on_item_selected_ += [this](int id) {
-        auto* old_conn = owner_.matrix_.findConnection(src_idx_, dst_idx_);
-        float depth = old_conn ? old_conn->getDepth() : 0.0f;
-        bool bipolar = old_conn ? old_conn->isBipolar() : false;
-        owner_.matrix_.removeConnection(src_idx_, dst_idx_);
+    if (!c.isDepthMod()) {
+        dst_menu_.on_item_selected_ += [this](int id) {
+            if (id <= 0) return;
+            float depth = conn.getDepth();
+            bool bipolar = conn.isBipolar();
+            owner_.matrix_.removeConnection(conn);
 
-        dst_idx_ = id;
-        auto& new_conn = owner_.matrix_.addConnection(owner_.matrix_.getSource(src_idx_),
-                                                      owner_.matrix_.getDestination(dst_idx_), depth, bipolar);
-    };
+            dst_list_id = id;
+            dst_menu_.setText(owner_.matrix_.getDestination(id - 1).name);
+            conn = owner_.matrix_.addConnection(owner_.matrix_.getSource(conn.src_idx),
+                                                owner_.matrix_.getDestination(id - 1), depth, bipolar);
+        };
+    }
 
     delete_button_.onToggle() += [this](Button*, bool) { owner_.deleteRow(this); };
 }
@@ -173,7 +162,7 @@ void ModMatrixComponent::Row::setControlsActive(bool active) {
 
 ModMatrixComponent::ModMatrixComponent(applause::ModMatrix& matrix) : matrix_(matrix) {
     scrollableLayout().setFlex(true);
-    scrollableLayout().setFlexRows(true);  // vertical
+    scrollableLayout().setFlexRows(true);
     scrollableLayout().setFlexGap(paletteValue(ApplauseModMatrixRowGap));
     scrollableLayout().setPadding(paletteValue(ApplauseModMatrixPadding));
     scrollableLayout().setFlexItemAlignment(visage::Layout::ItemAlignment::Stretch);
@@ -182,14 +171,10 @@ ModMatrixComponent::ModMatrixComponent(applause::ModMatrix& matrix) : matrix_(ma
 }
 
 void ModMatrixComponent::rebuildRows() {
-    // Remove all existing rows from scroll container
     for (auto& row : rows_) removeScrolledChild(row.get());
     rows_.clear();
 
-    // Create rows for existing connections (skip depth mods)
     for (auto& conn : matrix_.getConnections()) {
-        if (conn.isDepthMod()) continue;
-
         auto row = std::make_unique<Row>(*this, false);
         row->layout().setHeight(paletteValue(ApplauseModMatrixRowHeight));
         row->layout().setFlexGrow(0.0f);
@@ -227,8 +212,18 @@ void ModMatrixComponent::addDummyRow() {
 }
 
 void ModMatrixComponent::activateRow(Row* row) {
-    auto& conn = matrix_.addConnection(matrix_.getSource(row->srcIdx()), matrix_.getDestination(row->dstIdx()), 0.0f);
-    row->bindToConnection(conn);
+    if (row->dst_list_id < 0) {
+        auto slot = static_cast<uint16_t>(-(row->dst_list_id + 1));
+        auto target = matrix_.findConnection(slot);
+        if (!target) return;
+
+        auto conn = matrix_.addDepthModulation(matrix_.getSource(row->src_list_id), *target, 0.0f);
+        row->bindToConnection(conn);
+    } else {
+        auto conn = matrix_.addConnection(matrix_.getSource(row->src_list_id),
+                                          matrix_.getDestination(row->dst_list_id - 1), 0.0f);
+        row->bindToConnection(conn);
+    }
     addDummyRow();
 
     computeLayout();
@@ -236,13 +231,23 @@ void ModMatrixComponent::activateRow(Row* row) {
 }
 
 void ModMatrixComponent::deleteRow(Row* row) {
-    matrix_.removeConnection(row->srcIdx(), row->dstIdx());
-    removeScrolledChild(row);
+    if (row->conn.isDepthMod()) {
+        matrix_.removeConnection(row->conn);
+    } else {
+        // Cascade-delete depth mods targeting this connection
+        uint16_t target_slot = row->conn.depth_slot;
+        std::vector<ModConnection> depth_mods_to_remove;
+        for (auto& c : matrix_.getConnections()) {
+            if (c.isDepthMod() && c.dst_idx == target_slot)
+                depth_mods_to_remove.push_back(c);
+        }
+        for (auto& dm : depth_mods_to_remove)
+            matrix_.removeConnection(dm);
 
-    std::erase_if(rows_, [row](const std::unique_ptr<Row>& r) { return r.get() == row; });
+        matrix_.removeConnection(row->conn);
+    }
 
-    computeLayout();
-    resized();
+    rebuildRows();
 }
 
 }  // namespace applause

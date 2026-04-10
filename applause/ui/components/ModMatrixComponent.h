@@ -9,7 +9,6 @@
 
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 namespace applause {
@@ -24,31 +23,6 @@ public:
     VISAGE_THEME_DEFINE_VALUE(ApplauseModMatrixDeleteWidth);
 
     /**
-     * Button that shows a native popup menu on click and displays the selected value.
-     * Shows a default placeholder ("--") when nothing is selected.
-     */
-    class PopupMenuComponent : public applause::UiButton {
-    public:
-        explicit PopupMenuComponent(const std::string& default_text = "--");
-
-        void setItems(std::vector<std::pair<int, std::string>> items);
-        void showPopup();
-        void setSelectedId(int id);
-        void reset();
-
-        [[nodiscard]] int selectedId() const { return selected_id_; }
-        [[nodiscard]] const std::string& selectedName() const { return selected_name_; }
-
-        visage::CallbackList<void(int)> on_item_selected_;
-
-    private:
-        std::string default_text_;
-        std::string selected_name_;
-        int selected_id_ = -1;
-        std::vector<std::pair<int, std::string>> items_;
-    };
-
-    /**
      * A single row in the mod matrix UI, representing one modulation connection.
      * Can be a "dummy" row (awaiting user input) or an active row bound to a connection.
      */
@@ -57,20 +31,19 @@ public:
         Row(ModMatrixComponent& owner, bool is_dummy);
 
         void bindToConnection(const ModConnection& conn);
-        [[nodiscard]] bool isDummy() const { return is_dummy_; }
-        [[nodiscard]] int srcIdx() const { return src_idx_; }
-        [[nodiscard]] int dstIdx() const { return dst_idx_; }
+
+        bool is_dummy;
+        int src_list_id = -1; // ModMatrix source index, or -1 if unset
+        int dst_list_id = 0;  // 0 = unset, positive = ModMatrix dest index + 1, negative = -(depth_slot + 1)
+        ModConnection conn;   // Copied from matrix on bind; only valid when !is_dummy
 
     private:
         void setControlsActive(bool active);
 
         ModMatrixComponent& owner_;
-        bool is_dummy_;
-        int src_idx_ = -1;
-        int dst_idx_ = -1;
 
-        PopupMenuComponent src_menu_{"—"};
-        PopupMenuComponent dst_menu_{"—"};
+        applause::PopupMenuButton src_menu_{"—"};
+        applause::PopupMenuButton dst_menu_{"—"};
         applause::ToggleTextButton bipolar_toggle_{"±"};
         applause::Slider depth_slider_;
         applause::UiButton delete_button_{"X"};

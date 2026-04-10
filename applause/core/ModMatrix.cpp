@@ -63,8 +63,8 @@ void ModMatrix::registerFromParamsExtension(const applause::ParamsExtension& par
     }
 }
 
-ModConnection& ModMatrix::addConnection(ModSource src, ModDestination dst, float depth,
-                                        std::optional<bool> bipolar_mapping) {
+ModConnection ModMatrix::addConnection(ModSource src, ModDestination dst, float depth,
+                                       std::optional<bool> bipolar_mapping) {
     ASSERT(src.index < src_count_, "Source index out of bounds");
     ASSERT(dst.index < dst_count_, "Destination index out of bounds");
     // Default to source's bipolar flag if not specified
@@ -74,7 +74,8 @@ ModConnection& ModMatrix::addConnection(ModSource src, ModDestination dst, float
     for (auto& existing : connections_) {
         if (!existing.isDepthMod() && existing.src_idx == src.index && existing.dst_idx == dst.index) {
             program_.depth_base_[existing.depth_slot] = depth;
-            existing.flags = mapping ? (existing.flags | 0x02) : (existing.flags & ~0x02);
+            existing.flags = mapping ? (existing.flags | ModConnection::kFlagBipolar)
+                                     : (existing.flags & ~ModConnection::kFlagBipolar);
             recompileProgram();
             return existing;
         }
@@ -85,7 +86,7 @@ ModConnection& ModMatrix::addConnection(ModSource src, ModDestination dst, float
     connection.matrix_ = this;
     connection.src_idx = src.index;
     connection.dst_idx = dst.index;
-    connection.flags = mapping ? 0x02 : 0x00;  // bit 1 = bipolar_mapping
+    connection.flags = mapping ? ModConnection::kFlagBipolar : 0;
     connection.depth_slot = allocateDepthSlot(depth);
     connections_.push_back(connection);
 
@@ -118,12 +119,28 @@ bool ModMatrix::removeConnection(const ModConnection& connection) {
     return false;
 }
 
-ModConnection* ModMatrix::findConnection(uint16_t srcIdx, uint16_t dstIdx) {
+std::optional<ModConnection> ModMatrix::findConnection(uint16_t srcIdx, uint16_t dstIdx) {
     for (auto& conn : connections_) {
         if (!conn.isDepthMod() && conn.src_idx == srcIdx && conn.dst_idx == dstIdx)
-            return &conn;
+            return conn;
     }
-    return nullptr;
+    return std::nullopt;
+}
+
+std::optional<ModConnection> ModMatrix::findConnection(uint16_t depthSlot) {
+    for (auto& conn : connections_) {
+        if (!conn.isDepthMod() && conn.depth_slot == depthSlot)
+            return conn;
+    }
+    return std::nullopt;
+}
+
+std::optional<ModConnection> ModMatrix::findDepthMod(uint16_t srcIdx, uint16_t targetDepthSlot) {
+    for (auto& conn : connections_) {
+        if (conn.isDepthMod() && conn.src_idx == srcIdx && conn.dst_idx == targetDepthSlot)
+            return conn;
+    }
+    return std::nullopt;
 }
 
 ModSource* ModMatrix::findSource(const std::string& name) {
@@ -150,14 +167,25 @@ const ModDestination* ModMatrix::findDestination(const std::string& name) const 
     return &dst_registry_[it->second];
 }
 
-ModConnection& ModMatrix::addDepthModulation(ModSource src, const ModConnection& target_conn, float depth,
-                                             std::optional<bool> bipolar_mapping) {
+ModConnection ModMatrix::addDepthModulation(ModSource src, const ModConnection& target_conn, float depth,
+                                            std::optional<bool> bipolar_mapping) {
     ASSERT(src.index < src_count_, "Source index out of bounds");
     ASSERT(target_conn.depth_slot < program_.depth_base_.size(), "Invalid target connection");
     ASSERT(!target_conn.isDepthMod(), "Cannot modulate the depth of a depth connection (depth-1 limit)");
 
     const bool mapping = bipolar_mapping.value_or(src_registry_[src.index].bipolar);
     const uint16_t target_slot = target_conn.depth_slot;
+
+    // Check for existing depth-mod connection with same (src, target_slot)
+    for (auto& existing : connections_) {
+        if (existing.isDepthMod() && existing.src_idx == src.index && existing.dst_idx == target_slot) {
+            program_.depth_base_[existing.depth_slot] = depth;
+            existing.flags = mapping ? (existing.flags | ModConnection::kFlagBipolar)
+                                     : (existing.flags & ~ModConnection::kFlagBipolar);
+            recompileProgram();
+            return existing;
+        }
+    }
 
     // Depth mod connections now allocate a depth slot for their own depth, even though it is impossible for a
     // modulation connection to point to this slot.
@@ -167,7 +195,7 @@ ModConnection& ModMatrix::addDepthModulation(ModSource src, const ModConnection&
     connection.matrix_ = this;
     connection.src_idx = src.index;
     connection.dst_idx = target_slot;
-    connection.flags = 0x01 | (mapping ? 0x02 : 0x00);  // bit 0 = is_depth_mod, bit 1 = bipolar_mapping
+    connection.flags = ModConnection::kFlagDepthMod | (mapping ? ModConnection::kFlagBipolar : 0);
     connection.depth_slot = allocateDepthSlot(depth);
     connections_.push_back(connection);
 
@@ -368,11 +396,10 @@ void ModMatrix::recompileProgram() {
             : (src.type == ModSrcType::Poly)                       ? ModSrcMode::Poly
                                                                    : src.mode;
 
-        // Build flags: bit 0 = is_depth_mod, bit 1 = src_bipolar, bit 2 = bipolar_mapping
         uint8_t handle_flags = 0;
-        if (conn.isDepthMod()) handle_flags |= 0x01;
-        if (src_bipolar) handle_flags |= 0x02;
-        if (conn.isBipolar()) handle_flags |= 0x04;
+        if (conn.isDepthMod()) handle_flags |= ModConnectionHandle::kFlagDepthMod;
+        if (src_bipolar) handle_flags |= ModConnectionHandle::kFlagSrcBipolar;
+        if (conn.isBipolar()) handle_flags |= ModConnectionHandle::kFlagBipolar;
 
         ModConnectionHandle handle{conn.src_idx, conn.dst_idx, conn.depth_slot, handle_flags};
 
@@ -408,7 +435,7 @@ void ModConnection::setDepth(float d) { matrix_->setDepthBase(depth_slot, d); }
 
 void ModConnection::setBipolar(bool v) {
     if (isBipolar() != v) {
-        flags = v ? (flags | 0x02) : (flags & ~0x02);
+        flags = v ? (flags | kFlagBipolar) : (flags & ~kFlagBipolar);
         matrix_->recompileProgram();
     }
 }

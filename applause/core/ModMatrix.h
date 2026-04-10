@@ -56,14 +56,17 @@ class ModMatrix;  // Forward declaration for ModConnection
  * that could occur if we stored raw pointers into reallocating vectors).
  */
 struct ModConnection {
+    static constexpr uint8_t kFlagDepthMod = 1u << 0;  ///< Connection modulates another connection's depth
+    static constexpr uint8_t kFlagBipolar = 1u << 1;   ///< Output is centered at 0 (bidirectional mapping)
+
     ModMatrix* matrix_ = nullptr;  ///< Parent matrix (required for depth/recompile access)
     uint16_t src_idx = 0;  ///< Source index
     uint16_t dst_idx = 0;  ///< Destination index (param conn) OR target depth slot (depth mod)
     uint16_t depth_slot = 0;  ///< Slot index where this connection's depth is stored
-    uint8_t flags = 0;  ///< Packed flags: bit 0 = is_depth_mod, bit 1 = bipolar_mapping
+    uint8_t flags = 0;  ///< Packed flags; see kFlag* constants above
 
-    [[nodiscard]] bool isDepthMod() const { return flags & 0x01; }
-    [[nodiscard]] bool isBipolar() const { return flags & 0x02; }
+    [[nodiscard]] bool isDepthMod() const { return flags & kFlagDepthMod; }
+    [[nodiscard]] bool isBipolar() const { return flags & kFlagBipolar; }
 
     // Implemented after ModMatrix definition (require access to matrix internals)
     [[nodiscard]] float getDepth() const;
@@ -79,14 +82,18 @@ struct ModConnection {
  * Compiled connection handle for efficient real-time processing.
  */
 struct ModConnectionHandle {
+    static constexpr uint8_t kFlagDepthMod = 1u << 0;    ///< Connection modulates another connection's depth
+    static constexpr uint8_t kFlagSrcBipolar = 1u << 1;  ///< Source's native output range is [-1, +1]
+    static constexpr uint8_t kFlagBipolar = 1u << 2;     ///< Output is centered at 0 (bidirectional mapping)
+
     uint16_t src;  ///< Source index
     uint16_t target;  ///< Destination index (param conn) OR target depth slot (depth mod)
     uint16_t depth_slot;  ///< Slot index where this connection's depth is stored
-    uint8_t flags;  ///< Packed flags
+    uint8_t flags;  ///< Packed flags; see kFlag* constants above
 
-    [[nodiscard]] bool isDepthMod() const { return flags & 0x01; }
-    [[nodiscard]] bool isSourceBipolar() const { return flags & 0x02; }
-    [[nodiscard]] bool isBipolar() const { return flags & 0x04; }
+    [[nodiscard]] bool isDepthMod() const { return flags & kFlagDepthMod; }
+    [[nodiscard]] bool isSourceBipolar() const { return flags & kFlagSrcBipolar; }
+    [[nodiscard]] bool isBipolar() const { return flags & kFlagBipolar; }
 };
 
 /**
@@ -98,31 +105,6 @@ struct ModParamHandle {
     float* value_ = nullptr;
     [[nodiscard]] float getValue() const noexcept { return *value_; }
 };
-
-/**
- * !!! WIP !!!
- *
- * A fast and efficient parameter modulation system. Supports modulation from mod sources (e.g. LFOs) to destinations
- * (e.g. synth parameters). The depth of individual connections themselves can also be modulated;
- * in other words, the matrix supports depth-one modulation-of-modulation.
- *
- * The modulation system is designed independently of the Applause parameter module. While there is a natural
- * bijection between plugin parameters and modulation destinations, and we supply several helper functions that
- * interface between applause::ParamsExtension and applause::ModMatrix, no such association is strictly necessary.
- *
- * The current implementation is straightforward in the interest of performance and easy debugging.
- * The depth-one recursive modulation is baked into the system; modulation connections ("depth connections")
- * that modulate existing connections between sources and destinations cannot, themselves, be modulated.
- * We sacrifice generality upon the altar of pragmatism.
- *
- * Deeper modulation graphs would necessitate development of a signal digraph processing system, a graph compiler,
- * loop detection & resolution, et cetera. We omit this for now, as deeper recursive modulation (i.e. modulation of a
- * connection that modulates a connection that modulates a parameter) is an edge case not required within most synthesis
- * applications.
- *
- * This might be nice in the future, and a "ModMatrix 2.0" is on the distant roadmap.
- *
- */
 
 /**
  * Represents a "compiled" modulation graph that can be executed efficiently. A ModMatrix owns exactly one of these.
@@ -163,6 +145,30 @@ public:
 };
 
 
+/**
+ * !!! WIP !!!
+ *
+ * A fast and efficient parameter modulation system. Supports modulation from mod sources (e.g. LFOs) to destinations
+ * (e.g. synth parameters). The depth of individual connections themselves can also be modulated;
+ * in other words, the matrix supports depth-one modulation-of-modulation.
+ *
+ * The modulation system is designed independently of the Applause parameter module. While there is a natural
+ * bijection between plugin parameters and modulation destinations, and we supply several helper functions that
+ * interface between applause::ParamsExtension and applause::ModMatrix, no such association is strictly necessary.
+ *
+ * The current implementation is straightforward in the interest of performance and easy debugging.
+ * The depth-one recursive modulation is baked into the system; modulation connections ("depth connections")
+ * that modulate existing connections between sources and destinations cannot, themselves, be modulated.
+ * We sacrifice generality upon the altar of pragmatism.
+ *
+ * Deeper modulation graphs would necessitate development of a signal digraph processing system, a graph compiler,
+ * loop detection & resolution, et cetera. We omit this for now, as deeper recursive modulation (i.e. modulation of a
+ * connection that modulates a connection that modulates a parameter) is an edge case not required within most synthesis
+ * applications.
+ *
+ * This might be nice in the future, and a "ModMatrix 2.0" is on the distant roadmap.
+ *
+ */
 class ModMatrix {
 public:
     struct Config {
@@ -252,7 +258,7 @@ public:
      * called on an empty ModMatrix with no previously registered destinations.
      * Calling it after manually registering destinations will cause an index offset mismatch.
      *
-     * This fragility can/should be patched in the future, but it hasn't been done yet!
+     * This fragility can/should be patched in the future, but it hasn't been done yet! (TODO)
      *
      * If you wish to add destinations that do not correspond to plugin parameters alongside plugin parameters,
      * please add them after calling this function.
@@ -268,10 +274,10 @@ public:
      * @param depth the initial modulation depth
      * @param bipolar_mapping whether the output should be centered at 0 (bidirectional).
      *        If not specified, defaults to the source's bipolar flag
-     * @return reference to the connection
+     * @return copy of the created/updated connection
      */
-    ModConnection& addConnection(ModSource src, ModDestination dst, float depth,
-                                 std::optional<bool> bipolar_mapping = std::nullopt);
+    ModConnection addConnection(ModSource src, ModDestination dst, float depth,
+                                std::optional<bool> bipolar_mapping = std::nullopt);
 
     /**
      * Removes a modulation connection between a source and destination.
@@ -291,9 +297,20 @@ public:
 
     /**
      * Finds a first-order (non-depth-mod) connection by source and destination index.
-     * @return pointer to the connection, or nullptr if not found
      */
-    [[nodiscard]] ModConnection* findConnection(uint16_t srcIdx, uint16_t dstIdx);
+    [[nodiscard]] std::optional<ModConnection> findConnection(uint16_t srcIdx, uint16_t dstIdx);
+
+    /**
+     * Finds a first-order (non-depth-mod) connection by its depth slot.
+     */
+    [[nodiscard]] std::optional<ModConnection> findConnection(uint16_t depthSlot);
+
+    /**
+     * Finds a depth-mod connection by source index and target depth slot.
+     * @param srcIdx the modulation source index
+     * @param targetDepthSlot the depth_slot of the connection being modulated
+     */
+    [[nodiscard]] std::optional<ModConnection> findDepthMod(uint16_t srcIdx, uint16_t targetDepthSlot);
 
     [[nodiscard]] ModSource* findSource(const std::string& name);
 
@@ -304,17 +321,19 @@ public:
     [[nodiscard]] const ModDestination* findDestination(const std::string& name) const;
 
     /**
-     * Adds a modulation connection that modulates the depth of an existing connection.
+     * Adds a modulation connection that modulates the depth of an existing connection. If a depth modulation
+     * already exists with the same source targeting the same connection, it will be updated in place rather than
+     * duplicated.
      *
      * @param src the modulation source
      * @param target_conn the connection whose depth should be modulated
      * @param depth the modulation depth for this depth-modulation connection
      * @param bipolar_mapping whether the output should be centered at 0 (bidirectional).
      *        If not specified, defaults to the source's bipolar flag.
-     * @return reference to the depth modulation connection
+     * @return copy of the created/updated depth modulation connection
      */
-    ModConnection& addDepthModulation(ModSource src, const ModConnection& target_conn, float depth,
-                                      std::optional<bool> bipolar_mapping = std::nullopt);
+    ModConnection addDepthModulation(ModSource src, const ModConnection& target_conn, float depth,
+                                     std::optional<bool> bipolar_mapping = std::nullopt);
 
     /**
      * Notifies the matrix that the voice corresponding to voice_index has just been activated.
