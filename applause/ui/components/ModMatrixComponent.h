@@ -58,8 +58,15 @@ private:
     void addDummyRow();
     void activateRow(Row* row);
     void deleteRow(Row* row);
+    void buildHeader();
 
     applause::ModMatrix& matrix_;
+    visage::Frame header_;
+    visage::Frame header_source_;
+    visage::Frame header_dest_;
+    visage::Frame header_polarity_;
+    visage::Frame header_amount_;
+    visage::Frame header_delete_;
     std::vector<std::unique_ptr<Row>> rows_;
 };
 

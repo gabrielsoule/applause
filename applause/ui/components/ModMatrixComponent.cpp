@@ -1,5 +1,7 @@
 #include "ModMatrixComponent.h"
 
+#include <embedded/applause_fonts.h>
+
 #include "applause/ui/ApplauseEditor.h"
 #include "applause/ui/NativePopupMenu.h"
 
@@ -9,7 +11,7 @@ namespace applause {
 
 VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowHeight, 30.0f);    // height of each row
 VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowGap, 7.0f);       // vertical spacing between rows
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixPadding, 8.0f);      // outer padding of the matrix
+VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixPadding, 20.0f);      // outer padding of the matrix
 VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixColumnGap, 16.0f);    // horizontal gap between columns
 VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixToggleWidth, 30.0f); // bipolar toggle button width
 VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixDeleteWidth, 30.0f); // delete button width
@@ -164,10 +166,61 @@ ModMatrixComponent::ModMatrixComponent(applause::ModMatrix& matrix) : matrix_(ma
     scrollableLayout().setFlex(true);
     scrollableLayout().setFlexRows(true);
     scrollableLayout().setFlexGap(paletteValue(ApplauseModMatrixRowGap));
-    scrollableLayout().setPadding(paletteValue(ApplauseModMatrixPadding));
+    scrollableLayout().setPaddingLeft(paletteValue(ApplauseModMatrixPadding));
+    scrollableLayout().setPaddingRight(paletteValue(ApplauseModMatrixPadding));
     scrollableLayout().setFlexItemAlignment(visage::Layout::ItemAlignment::Stretch);
 
+    setScrollBarRounding(5.0f);
+
+    buildHeader();
+    addScrolledChild(&header_);
     rebuildRows();
+}
+
+void ModMatrixComponent::buildHeader() {
+    header_.setFlexLayout(true);
+    header_.layout().setFlexRows(false);
+    header_.layout().setFlexGap(paletteValue(ApplauseModMatrixColumnGap));
+    header_.layout().setFlexItemAlignment(visage::Layout::ItemAlignment::Stretch);
+    header_.layout().setHeight(paletteValue(ApplauseModMatrixRowHeight));
+    header_.layout().setFlexGrow(0.0f);
+    header_.layout().setFlexShrink(0.0f);
+
+    header_.onDraw() = [&h = header_](visage::Canvas& canvas) {
+        canvas.setColor(0xff444444);
+        canvas.fill(10, h.height() - 4, h.width() - 20, 1);
+    };
+
+    visage::Font header_font(11, applause::fonts::Jost_Regular_ttf);
+    auto setupLabel = [&](visage::Frame& frame, const char* text) {
+        frame.onDraw() = [&frame, text, header_font](visage::Canvas& canvas) {
+            canvas.setColor(0xff888888);
+            canvas.text(text, header_font, visage::Font::kCenter, 0, 0, frame.width(), frame.height());
+        };
+    };
+
+    header_.addChild(&header_source_);
+    header_source_.layout().setFlexGrow(1.0f);
+    setupLabel(header_source_, "SOURCE");
+
+    header_.addChild(&header_dest_);
+    header_dest_.layout().setFlexGrow(1.0f);
+    setupLabel(header_dest_, "DESTINATION");
+
+    header_.addChild(&header_polarity_);
+    header_polarity_.layout().setWidth(paletteValue(ApplauseModMatrixToggleWidth));
+    header_polarity_.layout().setFlexGrow(0.0f);
+    header_polarity_.layout().setFlexShrink(0.0f);
+    setupLabel(header_polarity_, "POL.");
+
+    header_.addChild(&header_amount_);
+    header_amount_.layout().setFlexGrow(1.5f);
+    setupLabel(header_amount_, "AMOUNT");
+
+    header_.addChild(&header_delete_);
+    header_delete_.layout().setWidth(paletteValue(ApplauseModMatrixDeleteWidth));
+    header_delete_.layout().setFlexGrow(0.0f);
+    header_delete_.layout().setFlexShrink(0.0f);
 }
 
 void ModMatrixComponent::rebuildRows() {
@@ -186,12 +239,15 @@ void ModMatrixComponent::rebuildRows() {
 
     addDummyRow();
 
-    computeLayout();
     resized();
 }
 
 void ModMatrixComponent::resized() {
     ScrollableFrame::resized();
+
+    int bar_width = 10;
+    scrollBar().setBounds(width() - bar_width, 0, bar_width, height());
+
     computeLayout();
 
     float contentHeight = 0;
@@ -226,7 +282,6 @@ void ModMatrixComponent::activateRow(Row* row) {
     }
     addDummyRow();
 
-    computeLayout();
     resized();
 }
 
