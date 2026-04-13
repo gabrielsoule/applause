@@ -4,8 +4,8 @@
 #include <visage_graphics/theme.h>
 #include <visage_ui/scroll_bar.h>
 
-#include "ApplauseButton.h"
-#include "Slider.h"
+#include "../ApplauseButton.h"
+#include "../Slider.h"
 
 #include <memory>
 #include <string>

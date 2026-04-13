@@ -1,14 +1,14 @@
 #pragma once
 
-#include "applause/ui/ApplauseEditor.h"
-#include "applause/ui/components/GenericParameterUI.h"
-#include "applause/ui/components/ModMatrixComponent.h"
-#include "applause/ui/components/ParamKnob.h"
-#include "applause/ui/components/ApplauseButton.h"
-#include "applause/ui/components/Slider.h"
-#include "applause/ui/components/Panel.h"
-#include "applause/extensions/ParamsExtension.h"
 #include <memory>
+#include "applause/ui/components/modulation/ModMatrixComponent.h"
+#include "applause/extensions/ParamsExtension.h"
+#include "applause/ui/ApplauseEditor.h"
+#include "applause/ui/components/ApplauseButton.h"
+#include "applause/ui/components/GenericParameterUI.h"
+#include "applause/ui/components/Panel.h"
+#include "applause/ui/components/ParamKnob.h"
+#include "applause/ui/components/Slider.h"
 
 class ExampleShowcaseEditor : public applause::ApplauseEditor
 {
