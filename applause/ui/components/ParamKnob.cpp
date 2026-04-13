@@ -3,14 +3,13 @@
 #include <visage_graphics/font.h>
 #include <visage_graphics/theme.h>
 
-#include "applause/util/DebugHelpers.h"
-#include "embedded/applause_fonts.h"
+#include <applause/util/DebugHelpers.h>
+#include <embedded/applause_fonts.h>
 
 namespace applause {
 
 VISAGE_THEME_IMPLEMENT_COLOR(ParamKnob, ApplauseParamKnobText, 0xffcccccc);
-ParamKnob::ParamKnob(ParamInfo& paramInfo)
-    : param_info_(paramInfo), paramValueText_(paramInfo) {
+ParamKnob::ParamKnob(ParamInfo& paramInfo) : param_info_(paramInfo), paramValueText_(paramInfo) {
     setReceiveChildMouseEvents(true);
     knob_.setName(this->name() + " knob");
     addChild(&knob_);
@@ -24,10 +23,8 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo)
     paramNameText_.setText(param_info_.shortName);
     paramNameText_.setIgnoresMouseEvents(true, false);
     paramNameText_.setMargin(0, 0);
-    name_text_palette_.setColor(visage::TextEditor::TextEditorText,
-                                paletteColor(ApplauseParamKnobText));
-    name_text_palette_.setColor(visage::TextEditor::TextEditorBackground,
-                                visage::Color(0x00000000));
+    name_text_palette_.setColor(visage::TextEditor::TextEditorText, paletteColor(ApplauseParamKnobText));
+    name_text_palette_.setColor(visage::TextEditor::TextEditorBackground, visage::Color(0x00000000));
     paramNameText_.setPalette(&name_text_palette_);
     addChild(&paramNameText_);
 
@@ -43,8 +40,7 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo)
     // Connect knob value changes to parameter
     knob_.onValueChanged.add([this](float value) {
         const float paramValue =
-            this->param_info_.minValue +
-            value * (this->param_info_.maxValue - this->param_info_.minValue);
+            this->param_info_.minValue + value * (this->param_info_.maxValue - this->param_info_.minValue);
         this->param_info_.setValueNotifyingHost(paramValue);
     });
 
@@ -54,14 +50,12 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo)
     knob_.onDragEnded.add([this]() { this->param_info_.endGesture(); });
 
     // Connect to parameter changes from the host
-    param_connection_ =
-        param_info_.on_value_changed.connect([this](float value) {
-            // Update knob when parameter changes externally
-            const float normalizedValue =
-                (value - this->param_info_.minValue) /
-                (this->param_info_.maxValue - this->param_info_.minValue);
-            this->knob_.setValue(normalizedValue);
-        });
+    param_connection_ = param_info_.on_value_changed.connect([this](float value) {
+        // Update knob when parameter changes externally
+        const float normalizedValue =
+            (value - this->param_info_.minValue) / (this->param_info_.maxValue - this->param_info_.minValue);
+        this->knob_.setValue(normalizedValue);
+    });
 }
 
 void ParamKnob::draw(visage::Canvas& canvas) {
@@ -90,4 +84,4 @@ void ParamKnob::mouseExit(const visage::MouseEvent& e) {
     paramValueText_.setVisible(false);
     paramNameText_.setVisible(true);
 }
-}
+}  // namespace applause

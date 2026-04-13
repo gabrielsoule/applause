@@ -1,7 +1,7 @@
 #include "ExampleManualPluginEntryPlugin.h"
 #include <clap/clap.h>
 #include <cstring>
-#include "applause/util/DebugHelpers.h"
+#include <applause/util/DebugHelpers.h>
 
 // Plugin features
 static const char* features[] = {

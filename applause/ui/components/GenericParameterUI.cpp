@@ -5,7 +5,7 @@
 
 #include <algorithm>
 
-#include "applause/util/DebugHelpers.h"
+#include <applause/util/DebugHelpers.h>
 
 using namespace visage::dimension;
 

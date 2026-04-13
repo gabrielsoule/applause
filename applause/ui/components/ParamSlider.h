@@ -2,10 +2,10 @@
 
 #include <visage_ui/frame.h>
 
-#include "ParamValueTextBox.h"
-#include "Slider.h"
-#include "applause/extensions/ParamsExtension.h"
-#include "applause/util/thirdparty/rocket.hpp"
+#include <applause/extensions/ParamsExtension.h>
+#include <applause/ui/components/ParamValueTextBox.h>
+#include <applause/ui/components/Slider.h>
+#include <applause/util/thirdparty/rocket.hpp>
 
 namespace applause {
 
@@ -30,4 +30,4 @@ private:
     rocket::scoped_connection param_connection_;
 };
 
-}
+}  // namespace applause

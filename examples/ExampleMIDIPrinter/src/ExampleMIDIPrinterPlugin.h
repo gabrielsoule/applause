@@ -1,9 +1,9 @@
 #pragma once
 
-#include "applause/core/PluginBase.h"
-#include "applause/extensions/NotePortsExtension.h"
-#include "applause/extensions/AudioPortsExtension.h"
-#include "applause/extensions/StateExtension.h"
+#include <applause/core/PluginBase.h>
+#include <applause/extensions/NotePortsExtension.h>
+#include <applause/extensions/AudioPortsExtension.h>
+#include <applause/extensions/StateExtension.h>
 #include <string>
 
 /**

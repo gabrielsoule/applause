@@ -1,7 +1,7 @@
 #include "ApplauseEditor.h"
 
-#include "Tooltip.h"
-#include "applause/util/DebugHelpers.h"
+#include <applause/ui/Tooltip.h>
+#include <applause/util/DebugHelpers.h>
 
 namespace applause {
 ApplauseEditor::ApplauseEditor(ParamsExtension* params) : params_(params) {

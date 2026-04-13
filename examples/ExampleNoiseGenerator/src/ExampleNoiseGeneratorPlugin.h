@@ -1,11 +1,11 @@
 #pragma once
 
-#include "applause/extensions/StateExtension.h"
+#include <applause/extensions/StateExtension.h>
 
-#include "applause/core/PluginBase.h"
-#include "applause/extensions/AudioPortsExtension.h"
-#include "applause/extensions/NotePortsExtension.h"
-#include "applause/util/DebugHelpers.h"
+#include <applause/core/PluginBase.h>
+#include <applause/extensions/AudioPortsExtension.h>
+#include <applause/extensions/NotePortsExtension.h>
+#include <applause/util/DebugHelpers.h>
 
 class ExampleNoiseGeneratorPlugin : public applause::PluginBase {
 public:

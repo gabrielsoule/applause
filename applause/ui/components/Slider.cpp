@@ -40,8 +40,7 @@ void Slider::mouseUp(const visage::MouseEvent& event) {
     dragging_ = false;
     on_drag_ended.callback();
     processDrag(event.position.x);
-    if (!hovering_)
-        glow_amount_.target(false);
+    if (!hovering_) glow_amount_.target(false);
     redraw();
 }
 
@@ -104,8 +103,7 @@ void Slider::mouseEnter(const visage::MouseEvent& event) {
 void Slider::mouseExit(const visage::MouseEvent& event) {
     if (!active_) return;
     hovering_ = false;
-    if (!dragging_)
-        glow_amount_.target(false);
+    if (!dragging_) glow_amount_.target(false);
     redraw();
 }
 
@@ -148,9 +146,9 @@ void Slider::draw(visage::Canvas& canvas) {
             canvas.roundedRectangle(0, trackY, tcx, kTrackHeight, trackRounding);
         }
 
-        canvas.setColor(visage::Brush::vertical(
-            sample(ApplauseSliderThumbTop).interpolateWith(black, kInactiveDim),
-            sample(ApplauseSliderThumbBottom).interpolateWith(black, kInactiveDim)));
+        canvas.setColor(
+            visage::Brush::vertical(sample(ApplauseSliderThumbTop).interpolateWith(black, kInactiveDim),
+                                    sample(ApplauseSliderThumbBottom).interpolateWith(black, kInactiveDim)));
         canvas.circle(thumbX, thumbY, kThumbDiameter);
 
         canvas.setColor(sample(ApplauseSliderThumbBorder).interpolateWith(black, kInactiveDim));
@@ -190,13 +188,11 @@ void Slider::draw(visage::Canvas& canvas) {
     float shadowPad = 2.0f;
     float shadowDiameter = kThumbDiameter + shadowPad * 2.0f;
     canvas.setColor(0x88000000);
-    canvas.fadeCircle(tcx - shadowDiameter * 0.5f,
-                      centerY - shadowDiameter * 0.5f + shadowOffset,
-                      shadowDiameter, 8.0f);
+    canvas.fadeCircle(tcx - shadowDiameter * 0.5f, centerY - shadowDiameter * 0.5f + shadowOffset, shadowDiameter,
+                      8.0f);
 
     // Thumb body (vertical gradient)
-    canvas.setColor(visage::Brush::vertical(
-        sample(ApplauseSliderThumbTop), sample(ApplauseSliderThumbBottom)));
+    canvas.setColor(visage::Brush::vertical(sample(ApplauseSliderThumbTop), sample(ApplauseSliderThumbBottom)));
     canvas.circle(thumbX, thumbY, kThumbDiameter);
 
     // Thumb border ring

@@ -4,8 +4,8 @@
 #include <visage_graphics/theme.h>
 #include <visage_ui/scroll_bar.h>
 
-#include "../ApplauseButton.h"
-#include "../Slider.h"
+#include <applause/ui/components/ApplauseButton.h>
+#include <applause/ui/components/Slider.h>
 
 #include <memory>
 #include <string>
@@ -33,9 +33,9 @@ public:
         void bindToConnection(const ModConnection& conn);
 
         bool is_dummy;
-        int src_list_id = -1; // ModMatrix source index, or -1 if unset
+        int src_list_id = -1;  // ModMatrix source index, or -1 if unset
         int dst_list_id = 0;  // 0 = unset, positive = ModMatrix dest index + 1, negative = -(depth_slot + 1)
-        ModConnection conn;   // Copied from matrix on bind; only valid when !is_dummy
+        ModConnection conn;  // Copied from matrix on bind; only valid when !is_dummy
 
     private:
         void setControlsActive(bool active);

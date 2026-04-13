@@ -1,6 +1,6 @@
 #pragma once
 
-#include "MSEGCurve.h"
+#include <applause/dsp/modulation/MSEGCurve.h>
 #include <algorithm>
 #include <cmath>
 

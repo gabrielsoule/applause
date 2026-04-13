@@ -13,12 +13,12 @@
 #include <unordered_map>
 #include <vector>
 
-#include "applause/core/Extension.h"
-#include "applause/util/DebugHelpers.h"
-#include "applause/util/Json.h"
-#include "applause/util/ParamMessageQueue.h"
-#include "applause/util/thirdparty/rocket.hpp"
-#include "../util/ValueScaling.h"
+#include <applause/core/Extension.h>
+#include <applause/util/DebugHelpers.h>
+#include <applause/util/Json.h>
+#include <applause/util/ParamMessageQueue.h>
+#include <applause/util/thirdparty/rocket.hpp>
+#include <applause/util/ValueScaling.h>
 
 namespace applause {
 class ParamsExtension;

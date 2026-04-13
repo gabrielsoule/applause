@@ -2,7 +2,7 @@
 #include <clap/events.h>
 #include <cmath>
 
-#include "applause/util/DebugHelpers.h"
+#include <applause/util/DebugHelpers.h>
 
 namespace applause {
 /**
@@ -23,20 +23,20 @@ struct Note {
         Pan = 1,
         Tuning = 2,
         Vibrato = 3,
-        Dynamics = 4,     // MIDI CC 11 - Expression/Dynamics
-        Timbre = 5,      // Brightness/Y-axis in MPE
-        Pressure = 6,    // Aftertouch/Z-axis in MPE
+        Dynamics = 4,  // MIDI CC 11 - Expression/Dynamics
+        Timbre = 5,  // Brightness/Y-axis in MPE
+        Pressure = 6,  // Aftertouch/Z-axis in MPE
     };
 
     // Immutable identifiers (set at note on, never change)
-    int32_t note_id = -1; // Host-provided unique ID, or -1 if not specified
-    int16_t port_index = 0; // CLAP port index
-    int16_t channel = 0; // MIDI channel 0-15
-    int16_t key = 0; // MIDI note number 0-127 (60 = Middle C)
+    int32_t note_id = -1;  // Host-provided unique ID, or -1 if not specified
+    int16_t port_index = 0;  // CLAP port index
+    int16_t channel = 0;  // MIDI channel 0-15
+    int16_t key = 0;  // MIDI note number 0-127 (60 = Middle C)
 
     // Immutable velocities. These are directly translated from original MIDI, and never change over a note's lifetime.
-    double note_on_velocity = 0.0; // 0..1, set at note on
-    double note_off_velocity = 0.0; // 0..1, set at note off
+    double note_on_velocity = 0.0;  // 0..1, set at note on
+    double note_off_velocity = 0.0;  // 0..1, set at note off
 
     // The CLAP spec defines several note expressions, which can change during the lifetime of a note.
     // Some of these are similar to MPE expressions, and map neatly tom those parameters.
@@ -86,9 +86,7 @@ struct Note {
     /**
      * Update the note off velocity from a CLAP note off event.
      */
-    void setNoteOff(const clap_event_note_t* event) {
-        note_off_velocity = event->velocity;
-    }
+    void setNoteOff(const clap_event_note_t* event) { note_off_velocity = event->velocity; }
 
     /**
      * Calculate the frequency in Hz, accounting for the base key and tuning expression.
@@ -103,8 +101,8 @@ struct Note {
      * Check if this note matches the given identifiers using CLAP wildcard rules.
      * A value of -1 in any field means "wildcard" (matches any value).
      */
-    bool matches(int16_t event_key, int32_t event_note_id = -1,
-                 int16_t event_port = -1, int16_t event_channel = -1) const {
+    bool matches(int16_t event_key, int32_t event_note_id = -1, int16_t event_port = -1,
+                 int16_t event_channel = -1) const {
         bool key_match = (event_key == -1 || event_key == key);
         bool id_match = (event_note_id == -1 || event_note_id == note_id);
         bool port_match = (event_port == -1 || event_port == port_index);
@@ -117,30 +115,30 @@ struct Note {
      */
     void applyExpression(Expression expression_id, double value) {
         switch (expression_id) {
-            case Expression::Volume:
-                volume = value;
-                break;
-            case Expression::Pan:
-                pan = value;
-                break;
-            case Expression::Tuning:
-                tuning = value;
-                break;
-            case Expression::Vibrato:
-                vibrato = value;
-                break;
-            case Expression::Dynamics:
-                expression = value;
-                break;
-            case Expression::Timbre:
-                brightness = value;
-                break;
-            case Expression::Pressure:
-                pressure = value;
-                break;
-            default:
-                ASSERT_FALSE("Invalid expression ID ({}); this should never happen!", static_cast<int>(expression_id));
-                break;
+        case Expression::Volume:
+            volume = value;
+            break;
+        case Expression::Pan:
+            pan = value;
+            break;
+        case Expression::Tuning:
+            tuning = value;
+            break;
+        case Expression::Vibrato:
+            vibrato = value;
+            break;
+        case Expression::Dynamics:
+            expression = value;
+            break;
+        case Expression::Timbre:
+            brightness = value;
+            break;
+        case Expression::Pressure:
+            pressure = value;
+            break;
+        default:
+            ASSERT_FALSE("Invalid expression ID ({}); this should never happen!", static_cast<int>(expression_id));
+            break;
         }
     }
 
@@ -149,8 +147,8 @@ struct Note {
      * CLAP volume is linear amplitude where 1.0 = unity.
      */
     double getVolumeDb() const {
-        if (volume <= 0.0) return -100.0; // Effectively -infinity
+        if (volume <= 0.0) return -100.0;  // Effectively -infinity
         return 20.0 * std::log10(volume);
     }
 };
-} // namespace applause
+}  // namespace applause

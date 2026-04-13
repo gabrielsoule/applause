@@ -1,6 +1,6 @@
 #include "GenericParameterUIEditor.h"
 
-#include "applause/util/DebugHelpers.h"
+#include <applause/util/DebugHelpers.h>
 
 namespace applause {
 GenericParameterUIEditor::GenericParameterUIEditor(ParamsExtension* params) :

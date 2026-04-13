@@ -1,7 +1,7 @@
 #include "StateExtension.h"
 
-#include "applause/core/PluginBase.h"
-#include "applause/util/DebugHelpers.h"
+#include <applause/core/PluginBase.h>
+#include <applause/util/DebugHelpers.h>
 
 namespace applause {
 StateExtension::StateExtension() {

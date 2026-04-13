@@ -1,9 +1,9 @@
 #pragma once
 
-#include "applause/ui/ApplauseEditor.h"
-#include "applause/ui/components/GenericParameterUI.h"
-#include "applause/ui/components/ParamKnob.h"
-#include "applause/extensions/ParamsExtension.h"
+#include <applause/ui/ApplauseEditor.h>
+#include <applause/ui/components/GenericParameterUI.h>
+#include <applause/ui/components/ParamKnob.h>
+#include <applause/extensions/ParamsExtension.h>
 #include <memory>
 
 class ExampleManualPluginEntryEditor : public applause::ApplauseEditor

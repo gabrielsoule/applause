@@ -1,15 +1,13 @@
 #pragma once
 
-#include <applause/util/MemoryArena.h>
-#include <applause/core/ProcessInfo.h>
-#include <clap/clap.h>
 #include <applause/core/ModMatrix.h>
+#include <applause/core/ProcessInfo.h>
+#include <applause/util/MemoryArena.h>
+#include <clap/clap.h>
 #include <string>
 #include <unordered_map>
 
-#include <applause/core/ModMatrix.h>
-
-#include "Extension.h"
+#include <applause/core/Extension.h>
 
 namespace applause {
 
@@ -48,15 +46,11 @@ private:
         delete self;
     }
 
-    static bool clapActivate(const clap_plugin_t* plugin, double sample_rate,
-                             uint32_t min_frames_count,
+    static bool clapActivate(const clap_plugin_t* plugin, double sample_rate, uint32_t min_frames_count,
                              uint32_t max_frames_count) noexcept {
         auto* self = static_cast<PluginBase*>(plugin->plugin_data);
         const ProcessInfo info{
-            .sample_rate = sample_rate,
-            .min_frame_size = min_frames_count,
-            .max_frame_size = max_frames_count
-        };
+            .sample_rate = sample_rate, .min_frame_size = min_frames_count, .max_frame_size = max_frames_count};
         return self->activate(info);
     }
 
@@ -80,19 +74,15 @@ private:
         self->reset();
     }
 
-    static clap_process_status clapProcess(
-        const clap_plugin_t* plugin, const clap_process_t* process) noexcept {
+    static clap_process_status clapProcess(const clap_plugin_t* plugin, const clap_process_t* process) noexcept {
         auto* self = static_cast<PluginBase*>(plugin->plugin_data);
         return self->process(process);
     }
 
-    static const void* clapGetExtension(const clap_plugin_t* plugin,
-                                        const char* id) noexcept {
+    static const void* clapGetExtension(const clap_plugin_t* plugin, const char* id) noexcept {
         auto* self = static_cast<PluginBase*>(plugin->plugin_data);
         auto it = self->_extensions.find(id);
-        return it != self->_extensions.end()
-                   ? it->second->getClapExtensionStruct()
-                   : nullptr;
+        return it != self->_extensions.end() ? it->second->getClapExtensionStruct() : nullptr;
     }
 
     static void clapOnMainThread(const clap_plugin_t* plugin) noexcept {
@@ -101,8 +91,7 @@ private:
     }
 
 protected:
-    PluginBase(const clap_plugin_descriptor_t* desc, const clap_host_t* host)
-        : _host(host) {
+    PluginBase(const clap_plugin_descriptor_t* desc, const clap_host_t* host) : _host(host) {
         // Initialize the C struct with our static dispatchers
         _plugin = {};
         _plugin.desc = desc;
@@ -150,8 +139,7 @@ protected:
     template <typename ExtType>
     ExtType* getExtension() {
         auto it = _extensions.find(ExtType::ID);
-        return it != _extensions.end() ? static_cast<ExtType*>(it->second)
-                                       : nullptr;
+        return it != _extensions.end() ? static_cast<ExtType*>(it->second) : nullptr;
     }
 
     /**
@@ -160,9 +148,7 @@ protected:
     template <typename ExtType>
     const ExtType* getExtension() const {
         auto it = _extensions.find(ExtType::ID);
-        return it != _extensions.end()
-                   ? static_cast<const ExtType*>(it->second)
-                   : nullptr;
+        return it != _extensions.end() ? static_cast<const ExtType*>(it->second) : nullptr;
     }
 
     // Access to host
@@ -198,9 +184,7 @@ public:
      * @param info Processing configuration from the host
      * @return true if activation succeeded, false otherwise
      */
-    virtual bool activate(const ProcessInfo& info) {
-        return true;
-    }
+    virtual bool activate(const ProcessInfo& info) { return true; }
 
     virtual void deactivate() {}
 

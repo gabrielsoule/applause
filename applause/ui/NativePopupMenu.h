@@ -1,6 +1,6 @@
 #pragma once
 
-#include "visage_utils/events.h"
+#include <visage_utils/events.h>
 
 #include <string>
 #include <vector>

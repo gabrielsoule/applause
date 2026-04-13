@@ -3,7 +3,7 @@
 #include <cstring>
 #include <string_view>
 
-#include "applause/core/PluginBase.h"
+#include <applause/core/PluginBase.h>
 
 namespace applause {
 NotePortConfig NotePortConfig::midi(std::string_view name) {

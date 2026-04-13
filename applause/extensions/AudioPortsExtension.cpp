@@ -2,7 +2,7 @@
 
 #include <cstring>
 
-#include "applause/core/PluginBase.h"
+#include <applause/core/PluginBase.h>
 
 namespace applause {
 uint32_t AudioPortsExtension::clap_audio_ports_count(const clap_plugin_t* plugin, bool is_input) noexcept {

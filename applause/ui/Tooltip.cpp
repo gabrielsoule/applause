@@ -1,6 +1,6 @@
 #include "Tooltip.h"
 
-#include "ApplauseEditor.h"
+#include <applause/ui/ApplauseEditor.h>
 
 #include <embedded/applause_fonts.h>
 

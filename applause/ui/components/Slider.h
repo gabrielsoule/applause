@@ -34,7 +34,10 @@ public:
     void setBipolar(bool bipolar);
     bool isBipolar() const { return bipolar_; }
 
-    void setActive(bool active) { active_ = active; redraw(); }
+    void setActive(bool active) {
+        active_ = active;
+        redraw();
+    }
     bool isActive() const { return active_; }
 
     visage::CallbackList<void(float)> on_value_changed;

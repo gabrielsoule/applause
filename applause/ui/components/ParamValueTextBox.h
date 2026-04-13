@@ -9,8 +9,8 @@
 #include <visage_ui/frame.h>
 #include <visage_widgets/text_editor.h>
 
-#include "applause/extensions/ParamsExtension.h"
-#include "applause/util/thirdparty/rocket.hpp"
+#include <applause/extensions/ParamsExtension.h>
+#include <applause/util/thirdparty/rocket.hpp>
 
 namespace applause {
 
@@ -51,4 +51,4 @@ private:
     bool is_editing_ = false;
 };
 
-}
+}  // namespace applause

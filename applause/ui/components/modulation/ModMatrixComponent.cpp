@@ -2,19 +2,19 @@
 
 #include <embedded/applause_fonts.h>
 
-#include "applause/ui/ApplauseEditor.h"
-#include "applause/ui/NativePopupMenu.h"
+#include <applause/ui/ApplauseEditor.h>
+#include <applause/ui/NativePopupMenu.h>
 
 using namespace visage::dimension;
 
 namespace applause {
 
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowHeight, 30.0f);    // height of each row
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowGap, 7.0f);       // vertical spacing between rows
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixPadding, 20.0f);      // outer padding of the matrix
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixColumnGap, 16.0f);    // horizontal gap between columns
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixToggleWidth, 30.0f); // bipolar toggle button width
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixDeleteWidth, 30.0f); // delete button width
+VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowHeight, 30.0f);  // height of each row
+VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowGap, 7.0f);  // vertical spacing between rows
+VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixPadding, 20.0f);  // outer padding of the matrix
+VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixColumnGap, 16.0f);  // horizontal gap between columns
+VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixToggleWidth, 30.0f);  // bipolar toggle button width
+VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixDeleteWidth, 30.0f);  // delete button width
 
 static std::string connectionLabel(const ModMatrix& matrix, const ModConnection& conn) {
     return matrix.getSource(conn.src_idx).name + " -> " + conn.destination()->name;
@@ -41,7 +41,10 @@ ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(
 
         bool has_connections = false;
         for (auto& conn : owner_.matrix_.getConnections()) {
-            if (!conn.isDepthMod()) { has_connections = true; break; }
+            if (!conn.isDepthMod()) {
+                has_connections = true;
+                break;
+            }
         }
         if (has_connections) {
             menu.addBreak();
@@ -293,11 +296,9 @@ void ModMatrixComponent::deleteRow(Row* row) {
         uint16_t target_slot = row->conn.depth_slot;
         std::vector<ModConnection> depth_mods_to_remove;
         for (auto& c : matrix_.getConnections()) {
-            if (c.isDepthMod() && c.dst_idx == target_slot)
-                depth_mods_to_remove.push_back(c);
+            if (c.isDepthMod() && c.dst_idx == target_slot) depth_mods_to_remove.push_back(c);
         }
-        for (auto& dm : depth_mods_to_remove)
-            matrix_.removeConnection(dm);
+        for (auto& dm : depth_mods_to_remove) matrix_.removeConnection(dm);
 
         matrix_.removeConnection(row->conn);
     }

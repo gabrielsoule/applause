@@ -1,6 +1,6 @@
 #include "ExampleGenericParameterUIPlugin.h"
-#include "applause/util/DebugHelpers.h"
-#include "applause/util/Json.h"
+#include <applause/util/DebugHelpers.h>
+#include <applause/util/Json.h>
 #include <cstring>
 
 ExampleGenericParameterUIPlugin::ExampleGenericParameterUIPlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)

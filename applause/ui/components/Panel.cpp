@@ -13,8 +13,7 @@ VISAGE_THEME_IMPLEMENT_VALUE(Panel, ApplausePanelBorderWidth, 1.0f);
 VISAGE_THEME_IMPLEMENT_VALUE(Panel, ApplausePanelTitleHeight, 40.0f);
 VISAGE_THEME_IMPLEMENT_VALUE(Panel, ApplausePanelContentMargin, 4.0f);
 
-Panel::Panel(const std::string& title)
-    : title_(title, visage::Font(15, applause::fonts::Jost_Medium_ttf)) {
+Panel::Panel(const std::string& title) : title_(title, visage::Font(15, applause::fonts::Jost_Medium_ttf)) {
     addChild(&content_);
 }
 

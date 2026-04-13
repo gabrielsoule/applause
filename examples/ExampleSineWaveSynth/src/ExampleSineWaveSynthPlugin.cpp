@@ -1,6 +1,6 @@
 #include "ExampleSineWaveSynthPlugin.h"
 
-#include "applause/util/DebugHelpers.h"
+#include <applause/util/DebugHelpers.h>
 
 ExampleSineWaveSynthPlugin::ExampleSineWaveSynthPlugin(
     const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)

@@ -6,7 +6,7 @@
 #include <string_view>
 #include <vector>
 
-#include "applause/core/Extension.h"
+#include <applause/core/Extension.h>
 
 namespace applause {
 /**

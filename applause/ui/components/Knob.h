@@ -35,6 +35,7 @@ public:
 
     void setDragSensitivity(float sensitivity) { drag_sensitivity_ = sensitivity; }
     void setWheelSensitivity(float sensitivity) { wheel_sensitivity_ = sensitivity; }
+
 protected:
     void draw(visage::Canvas& canvas) override;
     void mouseDown(const visage::MouseEvent& e) override;

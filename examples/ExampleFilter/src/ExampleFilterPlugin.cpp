@@ -1,8 +1,8 @@
 #include "ExampleFilterPlugin.h"
 #include "ExampleFilterEditor.h"
 #include <cstring>
-#include "applause/util/DebugHelpers.h"
-#include "applause/util/Json.h"
+#include <applause/util/DebugHelpers.h>
+#include <applause/util/Json.h>
 #include <clap/events.h>
 
 ExampleFilterPlugin::ExampleFilterPlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)

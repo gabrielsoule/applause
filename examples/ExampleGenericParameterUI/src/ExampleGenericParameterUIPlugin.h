@@ -1,12 +1,12 @@
 #pragma once
 
-#include "applause/core/PluginBase.h"
-#include "applause/extensions/ParamsExtension.h"
-#include "applause/extensions/AudioPortsExtension.h"
-#include "applause/extensions/NotePortsExtension.h"
-#include "applause/extensions/StateExtension.h"
-#include "applause/extensions/GUIExtension.h"
-#include "applause/ui/GenericParameterUIEditor.h"
+#include <applause/core/PluginBase.h>
+#include <applause/extensions/ParamsExtension.h>
+#include <applause/extensions/AudioPortsExtension.h>
+#include <applause/extensions/NotePortsExtension.h>
+#include <applause/extensions/StateExtension.h>
+#include <applause/extensions/GUIExtension.h>
+#include <applause/ui/GenericParameterUIEditor.h>
 
 class ExampleGenericParameterUIPlugin : public applause::PluginBase
 {

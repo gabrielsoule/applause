@@ -21,8 +21,8 @@
 
 #include "ApplauseButton.h"
 
-#include "applause/ui/ApplauseEditor.h"
-#include "applause/ui/NativePopupMenu.h"
+#include <applause/ui/ApplauseEditor.h>
+#include <applause/ui/NativePopupMenu.h>
 
 #include <embedded/applause_fonts.h>
 #include <visage_graphics/theme.h>
@@ -78,9 +78,8 @@ void Button::draw(visage::Canvas& canvas) {
     if (hover > 0.0f) {
         visage::Color accent = canvas.color(ApplauseButtonGlow).gradient().sample(0.0f);
         visage::Point center = {width() * 0.5f, height() * 0.5f};
-        canvas.setColor(visage::Brush::radial(accent.withAlpha(hover * 0.30f),
-                                              visage::Color(0x00000000),
-                                              center, width() * 0.5f, height() * 0.5f));
+        canvas.setColor(visage::Brush::radial(accent.withAlpha(hover * 0.30f), visage::Color(0x00000000), center,
+                                              width() * 0.5f, height() * 0.5f));
         canvas.rectangle(0, 0, width(), height());
     }
 
@@ -140,9 +139,9 @@ void UiButton::drawBackground(visage::Canvas& canvas, float hover_amount) {
     if (!isActive()) {
         constexpr float kInactiveDim = 0.2f;
         visage::Color black(0xff000000);
-        canvas.setColor(visage::Brush::vertical(
-            sample(ApplauseButtonBackgroundTop).interpolateWith(black, kInactiveDim),
-            sample(ApplauseButtonBackgroundBottom).interpolateWith(black, kInactiveDim)));
+        canvas.setColor(
+            visage::Brush::vertical(sample(ApplauseButtonBackgroundTop).interpolateWith(black, kInactiveDim),
+                                    sample(ApplauseButtonBackgroundBottom).interpolateWith(black, kInactiveDim)));
         canvas.roundedRectangle(0, 0, w, h, r);
         canvas.setColor(sample(ApplauseButtonBorder).interpolateWith(black, kInactiveDim));
         canvas.roundedRectangleBorder(0, 0, w, h, r, canvas.value(ApplauseButtonBorderWidth));
@@ -156,8 +155,8 @@ void UiButton::drawBackground(visage::Canvas& canvas, float hover_amount) {
                                                     sample(ApplauseActionButtonBackgroundTop)));
         } else {
             // Regular pressed: invert the shared gradient
-            canvas.setColor(visage::Brush::vertical(sample(ApplauseButtonBackgroundBottom),
-                                                    sample(ApplauseButtonBackgroundTop)));
+            canvas.setColor(
+                visage::Brush::vertical(sample(ApplauseButtonBackgroundBottom), sample(ApplauseButtonBackgroundTop)));
         }
     } else {
         if (action_) {
@@ -167,8 +166,8 @@ void UiButton::drawBackground(visage::Canvas& canvas, float hover_amount) {
                                                           sample(ApplauseActionButtonBackgroundBottomHover));
             canvas.setColor(normal.interpolateWith(hover, hover_amount));
         } else {
-            visage::Brush normal = visage::Brush::vertical(sample(ApplauseButtonBackgroundTop),
-                                                           sample(ApplauseButtonBackgroundBottom));
+            visage::Brush normal =
+                visage::Brush::vertical(sample(ApplauseButtonBackgroundTop), sample(ApplauseButtonBackgroundBottom));
             visage::Brush hover = visage::Brush::vertical(sample(ApplauseButtonBackgroundTopHover),
                                                           sample(ApplauseButtonBackgroundBottomHover));
             canvas.setColor(normal.interpolateWith(hover, hover_amount));
@@ -257,19 +256,19 @@ void ToggleTextButton::drawBackground(visage::Canvas& canvas, float hover_amount
     if (!isActive()) {
         constexpr float kInactiveDim = 0.2f;
         visage::Color black(0xff000000);
-        canvas.setColor(visage::Brush::vertical(
-            sample(ApplauseButtonBackgroundTop).interpolateWith(black, kInactiveDim),
-            sample(ApplauseButtonBackgroundBottom).interpolateWith(black, kInactiveDim)));
+        canvas.setColor(
+            visage::Brush::vertical(sample(ApplauseButtonBackgroundTop).interpolateWith(black, kInactiveDim),
+                                    sample(ApplauseButtonBackgroundBottom).interpolateWith(black, kInactiveDim)));
         canvas.roundedRectangle(0, 0, w, h, r);
         canvas.setColor(sample(ApplauseButtonBorder).interpolateWith(black, kInactiveDim));
         canvas.roundedRectangleBorder(0, 0, w, h, r, canvas.value(ApplauseButtonBorderWidth));
         return;
     }
 
-    visage::Brush normal = visage::Brush::vertical(sample(ApplauseButtonBackgroundTop),
-                                                   sample(ApplauseButtonBackgroundBottom));
-    visage::Brush hover = visage::Brush::vertical(sample(ApplauseButtonBackgroundTopHover),
-                                                  sample(ApplauseButtonBackgroundBottomHover));
+    visage::Brush normal =
+        visage::Brush::vertical(sample(ApplauseButtonBackgroundTop), sample(ApplauseButtonBackgroundBottom));
+    visage::Brush hover =
+        visage::Brush::vertical(sample(ApplauseButtonBackgroundTopHover), sample(ApplauseButtonBackgroundBottomHover));
     canvas.setColor(normal.interpolateWith(hover, hover_amount));
     canvas.roundedRectangle(0, 0, w, h, r);
 
@@ -319,9 +318,7 @@ void PopupMenuButton::showPopup() {
     NativePopupMenu menu("Select");
     on_build_menu_(menu);
 
-    menu.onSelection() += [this](int id) {
-        on_item_selected_.callback(id);
-    };
+    menu.onSelection() += [this](int id) { on_item_selected_.callback(id); };
 
     auto pos = positionInWindow();
     menu.show(native_handle, pos.x, pos.y + height());

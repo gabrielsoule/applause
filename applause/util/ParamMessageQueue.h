@@ -1,6 +1,6 @@
 #pragma once
 
-#include "thirdparty/readerwriterqueue.h"
+#include <applause/util/thirdparty/readerwriterqueue.h>
 
 namespace applause {
 /**

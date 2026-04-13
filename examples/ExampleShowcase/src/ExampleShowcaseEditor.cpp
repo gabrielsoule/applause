@@ -1,18 +1,18 @@
 #include "ExampleShowcaseEditor.h"
 #ifdef __APPLE__
-#include "applause/ui/NativePopupMenu.h"
+#include <applause/ui/NativePopupMenu.h>
 #endif
-#include "applause/ui/Tooltip.h"
-#include "applause/util/DebugHelpers.h"
-#include <visage_graphics/canvas.h>
-#include <nfd.hpp>
+#include <applause/ui/Tooltip.h>
+#include <applause/util/DebugHelpers.h>
 #include <fstream>
+#include <nfd.hpp>
 #include <sstream>
+#include <visage_graphics/canvas.h>
 
 using namespace visage::dimension;
 
-ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params, applause::ModMatrix* mod_matrix)
-    : applause::ApplauseEditor(params) {
+ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params, applause::ModMatrix* mod_matrix) :
+    applause::ApplauseEditor(params) {
     ApplauseEditor::setFixedAspectRatio(true);
 
     // --- Parameters Panel (left column) ---
@@ -46,58 +46,41 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params, 
     addChild(&buttons_panel_);
 
     ui_button_ = std::make_unique<applause::UiButton>("BUTTON");
-    ui_button_->onToggle() += [](applause::Button* button, bool on) {
-        LOG_INFO("UI Button clicked!");
-    };
+    ui_button_->onToggle() += [](applause::Button* button, bool on) { LOG_INFO("UI Button clicked!"); };
     buttons_panel_.content().addChild(ui_button_.get());
 
     action_button_ = std::make_unique<applause::UiButton>("Action");
     action_button_->setActionButton();
-    action_button_->onToggle() += [](applause::Button* button, bool on) {
-        LOG_INFO("Action Button clicked!");
-    };
+    action_button_->onToggle() += [](applause::Button* button, bool on) { LOG_INFO("Action Button clicked!"); };
     buttons_panel_.content().addChild(action_button_.get());
 
     toggle_button_ = std::make_unique<applause::ToggleTextButton>("TOGGLE");
-    toggle_button_->onToggle() += [](applause::Button* button, bool on) {
-        LOG_INFO("Toggle button state: {}", on ? "ON" : "OFF");
-    };
+    toggle_button_->onToggle() +=
+        [](applause::Button* button, bool on) { LOG_INFO("Toggle button state: {}", on ? "ON" : "OFF"); };
     buttons_panel_.content().addChild(toggle_button_.get());
 
     load_file_button_ = std::make_unique<applause::UiButton>("Load File");
-    load_file_button_->onToggle() += [this](applause::Button* button, bool on) {
-        onLoadFileClicked();
-    };
+    load_file_button_->onToggle() += [this](applause::Button* button, bool on) { onLoadFileClicked(); };
     buttons_panel_.content().addChild(load_file_button_.get());
 
 #ifdef __APPLE__
     popup_menu_button_ = std::make_unique<applause::UiButton>("Show Menu");
     popup_menu_button_->onToggle() += [this](applause::Button* button, bool on) {
-applause::NativePopupMenu menu("Demo Menu");
+        applause::NativePopupMenu menu("Demo Menu");
 
-        menu.addOption(1, "Option 1")
-            .select(true)
-            .withKeyboardShortcut(applause::NativePopupMenu::Modifier::Cmd, "1");
+        menu.addOption(1, "Option 1").select(true).withKeyboardShortcut(applause::NativePopupMenu::Modifier::Cmd, "1");
 
-        menu.addOption(2, "Option 2")
-            .withKeyboardShortcut(applause::NativePopupMenu::Modifier::Cmd, "2");
+        menu.addOption(2, "Option 2").withKeyboardShortcut(applause::NativePopupMenu::Modifier::Cmd, "2");
 
-        menu.addOption(3, "Disabled Option")
-            .enable(false);
+        menu.addOption(3, "Disabled Option").enable(false);
 
         menu.addBreak();
 
-        menu.addSubMenu("Submenu")
-            .addOption(10, "Sub Option A")
-            .addOption(11, "Sub Option B");
+        menu.addSubMenu("Submenu").addOption(10, "Sub Option A").addOption(11, "Sub Option B");
 
-        menu.onSelection() += [](int id) {
-            LOG_INFO("Popup menu selected: {}", id);
-        };
+        menu.onSelection() += [](int id) { LOG_INFO("Popup menu selected: {}", id); };
 
-        menu.onCancel() += []() {
-            LOG_INFO("Popup menu cancelled");
-        };
+        menu.onCancel() += []() { LOG_INFO("Popup menu cancelled"); };
 
         if (void* native_handle = getNativeHandle()) {
             auto pos = popup_menu_button_->positionInWindow();
@@ -112,15 +95,12 @@ applause::NativePopupMenu menu("Demo Menu");
     buttons_panel_.content().addChild(inactive_button_.get());
 
     small_button_ = std::make_unique<applause::UiButton>("TINY");
-    small_button_->onToggle() += [](applause::Button* button, bool on) {
-        LOG_INFO("Small button clicked!");
-    };
+    small_button_->onToggle() += [](applause::Button* button, bool on) { LOG_INFO("Small button clicked!"); };
     buttons_panel_.content().addChild(small_button_.get());
 
     small_toggle_button_ = std::make_unique<applause::ToggleTextButton>("TINY");
-    small_toggle_button_->onToggle() += [](applause::Button* button, bool on) {
-        LOG_INFO("Small toggle state: {}", on ? "ON" : "OFF");
-    };
+    small_toggle_button_->onToggle() +=
+        [](applause::Button* button, bool on) { LOG_INFO("Small toggle state: {}", on ? "ON" : "OFF"); };
     buttons_panel_.content().addChild(small_toggle_button_.get());
 
     // --- Sliders Panel (right column) ---
@@ -222,7 +202,10 @@ void ExampleShowcaseEditor::resized() {
             float y = row * (bh + row_gap);
             btn->setBounds(x, y, bw, bh);
             col++;
-            if (col >= 2) { col = 0; row++; }
+            if (col >= 2) {
+                col = 0;
+                row++;
+            }
         };
 
         placeButton(ui_button_.get());
@@ -235,40 +218,34 @@ void ExampleShowcaseEditor::resized() {
         placeButton(inactive_button_.get());
 
         // Small buttons on their own row at reduced size
-        if (col != 0) { col = 0; row++; }
+        if (col != 0) {
+            col = 0;
+            row++;
+        }
         float small_bw = 70.0f;
         float small_bh = 24.0f;
         float small_y = row * (bh + row_gap);
-        if (small_button_)
-            small_button_->setBounds(btn_pad, small_y, small_bw, small_bh);
+        if (small_button_) small_button_->setBounds(btn_pad, small_y, small_bw, small_bh);
         if (small_toggle_button_)
             small_toggle_button_->setBounds(btn_pad + small_bw + kGap, small_y, small_bw, small_bh);
     }
 
     // Parameter UI fills its panel's content area
     if (parameter_ui_)
-        parameter_ui_->setBounds(0, 0,
-                                 params_panel_.content().width(),
-                                 params_panel_.content().height());
+        parameter_ui_->setBounds(0, 0, params_panel_.content().width(), params_panel_.content().height());
 
     // Mod Matrix panel at the bottom (full width)
     float mod_y = kPadding + top_area_h + kGap;
-    mod_matrix_panel_.setBounds(kPadding, mod_y,
-                                width() - 2 * kPadding, kModMatrixHeight);
+    mod_matrix_panel_.setBounds(kPadding, mod_y, width() - 2 * kPadding, kModMatrixHeight);
     if (mod_matrix_ui_)
-        mod_matrix_ui_->setBounds(0, 0,
-                                  mod_matrix_panel_.content().width(),
-                                  mod_matrix_panel_.content().height());
+        mod_matrix_ui_->setBounds(0, 0, mod_matrix_panel_.content().width(), mod_matrix_panel_.content().height());
 }
 
 void ExampleShowcaseEditor::onLoadFileClicked() {
     NFD::Guard nfdGuard;
 
     NFD::UniquePathU8 outPath;
-    nfdu8filteritem_t filters[] = {
-        {"Text Files", "txt,md,json,xml"},
-        {"All Files", "*"}
-    };
+    nfdu8filteritem_t filters[] = {{"Text Files", "txt,md,json,xml"}, {"All Files", "*"}};
 
     nfdresult_t result = NFD::OpenDialog(outPath, filters, 2);
 

@@ -1,9 +1,9 @@
 #include "ExampleManualPluginEntryPlugin.h"
 #include <cstring>
 #include <ExampleManualPluginEntryEditor.h>
-#include "applause/util/DebugHelpers.h"
-#include "applause/ui/ApplauseEditor.h"
-#include "applause/util/Json.h"
+#include <applause/util/DebugHelpers.h>
+#include <applause/ui/ApplauseEditor.h>
+#include <applause/util/Json.h>
 
 ExampleManualPluginEntryPlugin::ExampleManualPluginEntryPlugin(const clap_plugin_descriptor_t* descriptor,
                                                                const clap_host_t* host)

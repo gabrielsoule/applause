@@ -4,10 +4,10 @@
 #include <visage_ui/frame.h>
 #include <visage_widgets/text_editor.h>
 
-#include "Knob.h"
-#include "ParamValueTextBox.h"
-#include "applause/extensions/ParamsExtension.h"
-#include "applause/util/thirdparty/rocket.hpp"
+#include <applause/extensions/ParamsExtension.h>
+#include <applause/ui/components/Knob.h>
+#include <applause/ui/components/ParamValueTextBox.h>
+#include <applause/util/thirdparty/rocket.hpp>
 
 namespace applause {
 
@@ -40,4 +40,4 @@ private:
     bool mouseOver_ = false;
 };
 
-}
+}  // namespace applause

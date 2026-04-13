@@ -2,11 +2,11 @@
 #include <functional>
 #include <memory>
 
-#include "IEditor.h"
-#include "applause/extensions/ParamsExtension.h"
-#include "applause/util/ParamMessageQueue.h"
-#include "visage_app/application_window.h"
-#include "visage_graphics/palette.h"
+#include <applause/ui/IEditor.h>
+#include <applause/extensions/ParamsExtension.h>
+#include <applause/util/ParamMessageQueue.h>
+#include <visage_app/application_window.h>
+#include <visage_graphics/palette.h>
 
 namespace applause {
 class TooltipDisplay;

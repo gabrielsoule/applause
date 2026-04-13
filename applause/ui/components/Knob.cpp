@@ -5,7 +5,7 @@
 
 #include <visage_graphics/theme.h>
 
-#include "applause/util/DebugHelpers.h"
+#include <applause/util/DebugHelpers.h>
 
 namespace applause {
 
@@ -51,9 +51,8 @@ void Knob::draw(visage::Canvas& canvas) {
     float shadowPad = 3.0f;
     float shadowDiameter = bodyDiameter + shadowPad * 2.0f;
     canvas.setColor(0x88000000);
-    canvas.fadeCircle(centerX - bodyRadius - shadowPad,
-                      centerY - bodyRadius - shadowPad + shadowOffset,
-                      shadowDiameter, 10.0f);
+    canvas.fadeCircle(centerX - bodyRadius - shadowPad, centerY - bodyRadius - shadowPad + shadowOffset, shadowDiameter,
+                      10.0f);
 
     // Draw knob body
     float bodyX = centerX - bodyRadius;
@@ -90,8 +89,7 @@ void Knob::draw(visage::Canvas& canvas) {
     // Draw arc track
     canvas.setColor(ApplauseKnobArcTrack);
     float trackDiameter = trackCenter * 2.0f;
-    canvas.arc(centerX - trackCenter, centerY - trackCenter, trackDiameter,
-               arcThickness, kTopCenter, halfSweep, true);
+    canvas.arc(centerX - trackCenter, centerY - trackCenter, trackDiameter, arcThickness, kTopCenter, halfSweep, true);
 
     // Tracking dot on the arc
     float trackAngleRad = startAngle + value_ * sweep_;
@@ -105,17 +103,13 @@ void Knob::draw(visage::Canvas& canvas) {
     float angle = startAngle + value_ * sweep_;
 
     float needle_radius = bodyDiameter * 0.5f - 2.0f;
-    float lineEndX =
-        centerX + static_cast<float>(std::cos(angle)) * needle_radius;
-    float lineEndY =
-        centerY + static_cast<float>(std::sin(angle)) * needle_radius;
+    float lineEndX = centerX + static_cast<float>(std::cos(angle)) * needle_radius;
+    float lineEndY = centerY + static_cast<float>(std::sin(angle)) * needle_radius;
 
     // draw it!
     float needleStartRadius = 5.0f;
-    float lineStartX =
-        centerX + static_cast<float>(std::cos(angle)) * needleStartRadius;
-    float lineStartY =
-        centerY + static_cast<float>(std::sin(angle)) * needleStartRadius;
+    float lineStartX = centerX + static_cast<float>(std::cos(angle)) * needleStartRadius;
+    float lineStartY = centerY + static_cast<float>(std::sin(angle)) * needleStartRadius;
     canvas.setColor(ApplauseKnobAccent);
     canvas.segment(lineStartX, lineStartY, lineEndX, lineEndY, 3.0f, true);
 }
@@ -193,8 +187,7 @@ void Knob::processDrag(float mouseY) {
     const float delta_y = drag_start_y_ - mouseY;
     const float delta_value = delta_y * drag_sensitivity_;
 
-    const float newValue =
-        std::clamp(drag_start_value_ + delta_value, 0.0f, 1.0f);
+    const float newValue = std::clamp(drag_start_value_ + delta_value, 0.0f, 1.0f);
 
     if (newValue != value_) {
         value_ = newValue;

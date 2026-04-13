@@ -1,6 +1,6 @@
 #include "ThreadPoolExtension.h"
 
-#include "applause/core/PluginBase.h"
+#include <applause/core/PluginBase.h>
 
 namespace applause {
 void ThreadPoolExtension::onHostReady() noexcept {

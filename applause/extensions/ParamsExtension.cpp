@@ -9,8 +9,8 @@
 #include <iomanip>
 #include <sstream>
 
-#include "applause/core/PluginBase.h"
-#include "applause/util/DebugHelpers.h"
+#include <applause/core/PluginBase.h>
+#include <applause/util/DebugHelpers.h>
 
 namespace applause {
 // This default converter function tries to fit the number into five digits,

@@ -4,8 +4,8 @@
 #include <cstring>
 #include <numeric>
 
-#include "applause/core/PluginBase.h"
-#include "applause/util/DebugHelpers.h"
+#include <applause/core/PluginBase.h>
+#include <applause/util/DebugHelpers.h>
 
 namespace applause {
 GUIExtension::GUIExtension(EditorFactory factory, uint32_t defaultWidth, uint32_t defaultHeight, bool fixedAspectRatio)

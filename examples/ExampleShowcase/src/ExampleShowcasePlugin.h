@@ -1,30 +1,30 @@
 #pragma once
 
-#include "applause/core/PluginBase.h"
-#include "applause/core/ModMatrix.h"
-#include "applause/extensions/AudioPortsExtension.h"
-#include "applause/extensions/NotePortsExtension.h"
-#include "applause/extensions/StateExtension.h"
-#include "applause/extensions/ParamsExtension.h"
-#include "applause/extensions/GUIExtension.h"
-#include "applause/ui/ApplauseEditor.h"
+#include <applause/core/ModMatrix.h>
+#include <applause/core/PluginBase.h>
+#include <applause/extensions/AudioPortsExtension.h>
+#include <applause/extensions/GUIExtension.h>
+#include <applause/extensions/NotePortsExtension.h>
+#include <applause/extensions/ParamsExtension.h>
+#include <applause/extensions/StateExtension.h>
+#include <applause/ui/ApplauseEditor.h>
+#include <applause/util/DebugHelpers.h>
 #include "ExampleShowcaseEditor.h"
-#include "applause/util/DebugHelpers.h"
 
 class ExampleShowcasePlugin : public applause::PluginBase {
 public:
-     explicit ExampleShowcasePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host);
+    explicit ExampleShowcasePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host);
     ~ExampleShowcasePlugin() override = default;
-    
+
     // Plugin lifecycle
     bool init() noexcept override;
     void destroy() noexcept override;
     bool activate(const applause::ProcessInfo& info) noexcept override;
     void deactivate() noexcept override;
-    
+
     // Audio processing
     clap_process_status process(const clap_process_t* process) noexcept override;
-    
+
 private:
     // Extensions
     applause::NotePortsExtension note_ports_;

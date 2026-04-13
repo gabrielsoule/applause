@@ -6,9 +6,9 @@
 #include <memory>
 #include <vector>
 
-#include "ParamSlider.h"
+#include <applause/ui/components/ParamSlider.h>
 
-namespace applause{
+namespace applause {
 /**
  * A Frame that wraps a ParamSlider while placing
  * label text, with the name of the parameter, to the left of the ParamSlider.
@@ -16,8 +16,7 @@ namespace applause{
  * and adjusts the ParamSlider to fit the rest of the horizontal space.
  * The ParamSlider inherits the full height of the GenericParameterEntry.
  */
-class GenericParameterEntry : public visage::Frame
-{
+class GenericParameterEntry : public visage::Frame {
 public:
     GenericParameterEntry(ParamInfo& paramInfo);
 
@@ -35,8 +34,7 @@ private:
     float labelWidth_ = 100.0;
 };
 
-class GenericParameterUI : public visage::ScrollableFrame
-{
+class GenericParameterUI : public visage::ScrollableFrame {
 public:
     GenericParameterUI();
 
@@ -53,4 +51,4 @@ private:
 
     std::vector<std::unique_ptr<GenericParameterEntry>> entries_;
 };
-}
+}  // namespace applause

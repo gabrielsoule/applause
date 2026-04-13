@@ -1,8 +1,8 @@
 #pragma once
 
-#include "ApplauseEditor.h"
-#include "applause/extensions/ParamsExtension.h"
-#include "components/GenericParameterUI.h"
+#include <applause/ui/ApplauseEditor.h>
+#include <applause/extensions/ParamsExtension.h>
+#include <applause/ui/components/GenericParameterUI.h>
 
 namespace applause{
 /**

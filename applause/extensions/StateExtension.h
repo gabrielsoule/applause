@@ -6,8 +6,8 @@
 #include <functional>
 #include <vector>
 
-#include "applause/core/Extension.h"
-#include "applause/util/Json.h"
+#include <applause/core/Extension.h>
+#include <applause/util/Json.h>
 
 namespace applause {
 /**

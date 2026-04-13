@@ -75,11 +75,12 @@ public:
     void mouseDown(const visage::MouseEvent& e) override;
     void mouseUp(const visage::MouseEvent& e) override;
 
-    void setToggleOnMouseDown(bool mouse_down) {
-        toggle_on_mouse_down_ = mouse_down;
-    }
+    void setToggleOnMouseDown(bool mouse_down) { toggle_on_mouse_down_ = mouse_down; }
     float hoverAmount() const { return hover_amount_.value(); }
-    void setActive(bool active) { active_ = active; redraw(); }
+    void setActive(bool active) {
+        active_ = active;
+        redraw();
+    }
     bool isActive() const { return active_; }
     bool isPressed() const { return pressed_; }
 
@@ -158,8 +159,7 @@ public:
         initSettings(shadow);
     }
 
-    explicit IconButton(const visage::EmbeddedFile& icon_file,
-                        bool shadow = false) {
+    explicit IconButton(const visage::EmbeddedFile& icon_file, bool shadow = false) {
         setIcon(icon_file);
         initSettings(shadow);
     }
@@ -169,13 +169,9 @@ public:
         initSettings(shadow);
     }
 
-    void setIcon(const visage::EmbeddedFile& icon_file) {
-        setIcon({icon_file.data, icon_file.size});
-    }
+    void setIcon(const visage::EmbeddedFile& icon_file) { setIcon({icon_file.data, icon_file.size}); }
 
-    void setIcon(const unsigned char* svg, int svg_size) {
-        setIcon({svg, svg_size});
-    }
+    void setIcon(const unsigned char* svg, int svg_size) { setIcon({svg, svg_size}); }
 
     void setIcon(const visage::Svg& icon) {
         icon_.load(icon);
@@ -211,9 +207,7 @@ private:
     }
 
     void computeShadowRadius() {
-        float r = shadow_radius_.compute(dpiScale(), nativeWidth(),
-                                         nativeHeight(), 0.0f) /
-                  dpiScale();
+        float r = shadow_radius_.compute(dpiScale(), nativeWidth(), nativeHeight(), 0.0f) / dpiScale();
         shadow_.setVisible(r > 0.0f);
         shadow_.setBlurRadius(r);
     }
@@ -266,8 +260,7 @@ private:
 
 class ButtonChangeAction : public visage::UndoableAction {
 public:
-    ButtonChangeAction(ToggleButton* button, bool toggled_on)
-        : button_(button), toggled_on_(toggled_on) {}
+    ButtonChangeAction(ToggleButton* button, bool toggled_on) : button_(button), toggled_on_(toggled_on) {}
 
     void undo() override { button_->setToggledAndNotify(!toggled_on_); }
     void redo() override { button_->setToggledAndNotify(toggled_on_); }
@@ -281,29 +274,23 @@ class ToggleIconButton : public ToggleButton {
 public:
     static constexpr float kDefaultShadowRadius = 3.0f;
 
-    explicit ToggleIconButton(const visage::Svg& icon, bool shadow = false)
-        : ToggleButton() {
+    explicit ToggleIconButton(const visage::Svg& icon, bool shadow = false) : ToggleButton() {
         setIcon(icon);
         initSettings(shadow);
     }
 
-    ToggleIconButton(const std::string& name, const visage::Svg& icon,
-                     bool shadow = false)
-        : ToggleButton(name) {
+    ToggleIconButton(const std::string& name, const visage::Svg& icon, bool shadow = false) : ToggleButton(name) {
         setIcon(icon);
         initSettings(shadow);
     }
 
-    ToggleIconButton(const unsigned char* svg, int svg_size,
-                     bool shadow = false)
-        : ToggleButton() {
+    ToggleIconButton(const unsigned char* svg, int svg_size, bool shadow = false) : ToggleButton() {
         setIcon({svg, svg_size});
         initSettings(shadow);
     }
 
-    ToggleIconButton(const std::string& name, const unsigned char* svg,
-                     int svg_size, bool shadow = false)
-        : ToggleButton(name) {
+    ToggleIconButton(const std::string& name, const unsigned char* svg, int svg_size, bool shadow = false) :
+        ToggleButton(name) {
         setIcon({svg, svg_size});
         initSettings(shadow);
     }
@@ -342,9 +329,7 @@ private:
     }
 
     void computeShadowRadius() {
-        float r = shadow_radius_.compute(dpiScale(), nativeWidth(),
-                                         nativeHeight(), 0.0f) /
-                  dpiScale();
+        float r = shadow_radius_.compute(dpiScale(), nativeWidth(), nativeHeight(), 0.0f) / dpiScale();
         shadow_.setVisible(r > 0.0f);
         shadow_.setBlurRadius(r);
     }
@@ -366,8 +351,7 @@ public:
     VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBorderOnHover);
 
     explicit ToggleTextButton(const std::string& name);
-    explicit ToggleTextButton(const std::string& name,
-                              const visage::Font& font);
+    explicit ToggleTextButton(const std::string& name, const visage::Font& font);
 
     virtual void drawBackground(visage::Canvas& canvas, float hover_amount);
     void draw(visage::Canvas& canvas, float hover_amount) override;
@@ -378,9 +362,7 @@ public:
     }
 
     void setText(const std::string& text) { text_.setText(text); }
-    void setDrawBackground(bool draw_background) {
-        draw_background_ = draw_background;
-    }
+    void setDrawBackground(bool draw_background) { draw_background_ = draw_background; }
 
 private:
     bool draw_background_ = true;

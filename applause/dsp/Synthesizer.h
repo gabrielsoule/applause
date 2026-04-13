@@ -1,6 +1,6 @@
 #pragma once
-#include <applause/util/SampleType.h>
 #include <applause/core/ProcessInfo.h>
+#include <applause/util/SampleType.h>
 
 #include <algorithm>
 #include <array>
@@ -9,8 +9,8 @@
 
 #include <clap/events.h>
 
-#include "BufferView.h"
-#include "Note.h"
+#include <applause/dsp/BufferView.h>
+#include <applause/dsp/Note.h>
 
 namespace applause {
 /**
@@ -33,8 +33,7 @@ class SynthesizerVoice {
 public:
     virtual ~SynthesizerVoice() = default;
 
-    virtual void process(BufferView<T, MaxChannels> buffer,
-                         int start_sample, int num_samples) = 0;
+    virtual void process(BufferView<T, MaxChannels> buffer, int start_sample, int num_samples) = 0;
     /**
      * Terminates the voice immediately, releasing it back into the pool
      * for reuse. The voice should call its own terminateVoice() function
@@ -44,8 +43,7 @@ public:
      * Make sure to fade out your voice's audio before terminating the voice!
      */
 
-    virtual void noteOn() {
-    }
+    virtual void noteOn() {}
 
     /**
      * Called when this voice's MIDI note is released.
@@ -100,9 +98,7 @@ public:
 
     double getSampleRate() const noexcept { return sample_rate_; }
 
-    void setSampleRate(double sample_rate) noexcept {
-        sample_rate_ = sample_rate;
-    }
+    void setSampleRate(double sample_rate) noexcept { sample_rate_ = sample_rate; }
 
     /**
      * The note data for this voice, including all CLAP note expressions.
@@ -116,10 +112,10 @@ public:
     int play_order_ = 0;
 
     enum class State {
-        Idle, // the voice is idle and ready to play a note
-        KeyDown, // the note is actively playing a note, and the corresponding key is down
-        Sustained, // the voice is no longer playing a note, but the sustain pedal is still down
-        Released, // the voice is still playing a note, but the corresponding key is released (e.g. release phase)
+        Idle,  // the voice is idle and ready to play a note
+        KeyDown,  // the note is actively playing a note, and the corresponding key is down
+        Sustained,  // the voice is no longer playing a note, but the sustain pedal is still down
+        Released,  // the voice is still playing a note, but the corresponding key is released (e.g. release phase)
     };
 
     State state_ = State::Idle;
@@ -142,13 +138,11 @@ are templated at compile time. Sorry!
 @tparam NumVoices Maximum number of polyphonic voices
 @tparam VoiceType The concrete voice class (must derive from SynthesizerVoice)
 */
-template <Scalar T, size_t MaxChannels = 8, size_t NumVoices = 16, typename
-                    VoiceType = SynthesizerVoice<
-                        T, MaxChannels>>
+template <Scalar T, size_t MaxChannels = 8, size_t NumVoices = 16,
+          typename VoiceType = SynthesizerVoice<T, MaxChannels>>
 class Synthesizer {
-    static_assert(
-        std::is_base_of_v<SynthesizerVoice<T, MaxChannels>, VoiceType>,
-        "VoiceType must derive from SynthesizerVoice<T, MaxChannels>");
+    static_assert(std::is_base_of_v<SynthesizerVoice<T, MaxChannels>, VoiceType>,
+                  "VoiceType must derive from SynthesizerVoice<T, MaxChannels>");
 
 public:
     [[nodiscard]] int getNumVoices() const noexcept { return NumVoices; }
@@ -159,19 +153,17 @@ public:
     void noteChoke(const clap_event_note_t* event);
     VoiceType& findFreeVoice();
     VoiceType& stealVoice();
-    void process(BufferView<T, MaxChannels> buffer,
-                 const clap_input_events_t* events);
+    void process(BufferView<T, MaxChannels> buffer, const clap_input_events_t* events);
     [[nodiscard]] std::span<VoiceType> getVoices() noexcept { return voices_; }
 
 private:
     std::array<VoiceType, NumVoices> voices_;
-    int notes_played_ = 0; // count the number of notes; used for finding the
+    int notes_played_ = 0;  // count the number of notes; used for finding the
     // oldest voice during voice stealing
 };
 
 template <Scalar T, size_t MaxChannels, size_t NumVoices, typename VoiceType>
-void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::activate(
-    ProcessInfo info) {
+void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::activate(ProcessInfo info) {
     for (auto& voice : voices_) {
         voice.setSampleRate(info.sample_rate);
     }
@@ -180,8 +172,7 @@ void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::activate(
 template <Scalar T, size_t MaxChannels, size_t NumVoices, typename VoiceType>
 VoiceType& Synthesizer<T, MaxChannels, NumVoices, VoiceType>::findFreeVoice() {
     for (auto& voice : voices_) {
-        if (!voice.active_ || voice.state_ == SynthesizerVoice<
-                T, MaxChannels>::State::Idle) {
+        if (!voice.active_ || voice.state_ == SynthesizerVoice<T, MaxChannels>::State::Idle) {
             return voice;
         }
     }
@@ -237,7 +228,7 @@ void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::noteChoke(const clap_eve
         if (voice.active_) {
             // Use CLAP wildcard matching: (port, channel, key, note_id)
             if (voice.note_.matches(event->key, event->note_id, event->port_index, event->channel)) {
-                voice.noteOff(true); // Terminate immediately
+                voice.noteOff(true);  // Terminate immediately
                 // If specific note_id provided, only choke that one voice
                 if (event->note_id != -1) break;
             }
@@ -246,9 +237,8 @@ void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::noteChoke(const clap_eve
 }
 
 template <Scalar T, size_t MaxChannels, size_t NumVoices, typename VoiceType>
-void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::process(
-    BufferView<T, MaxChannels> buffer,
-    const clap_input_events_t* events) {
+void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::process(BufferView<T, MaxChannels> buffer,
+                                                                const clap_input_events_t* events) {
     buffer.clear();
 
     const uint32_t total_frames = buffer.numFrames();
@@ -289,8 +279,9 @@ void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::process(
                 const auto* expr_event = reinterpret_cast<const clap_event_note_expression_t*>(header);
                 // Apply expression to all matching voices (supports wildcards)
                 for (auto& voice : voices_) {
-                    if (voice.active_ && voice.note_.matches(expr_event->key, expr_event->note_id,
-                                                             expr_event->port_index, expr_event->channel)) {
+                    if (voice.active_ &&
+                        voice.note_.matches(expr_event->key, expr_event->note_id, expr_event->port_index,
+                                            expr_event->channel)) {
                         // Cast from CLAP expression ID to our enum (values match by design)
                         auto expression_id = static_cast<Note::Expression>(expr_event->expression_id);
                         // Update note data
@@ -315,4 +306,4 @@ void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::process(
         }
     }
 }
-} // namespace applause
+}  // namespace applause

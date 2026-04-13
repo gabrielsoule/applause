@@ -2,7 +2,7 @@
 
 #include <clap/ext/gui.h>
 
-#include "applause/core/Extension.h"
+#include <applause/core/Extension.h>
 #ifdef __linux__
 #include <clap/ext/posix-fd-support.h>
 #endif
@@ -10,7 +10,7 @@
 #include <memory>
 #include <string>
 
-#include "applause/ui/IEditor.h"
+#include <applause/ui/IEditor.h>
 
 namespace applause {
 /**
