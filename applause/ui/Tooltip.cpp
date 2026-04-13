@@ -10,8 +10,17 @@ VISAGE_THEME_IMPLEMENT_COLOR(TooltipDisplay, TooltipBackground, 0xee1e1e24);
 VISAGE_THEME_IMPLEMENT_COLOR(TooltipDisplay, TooltipText, 0xffcccccc);
 VISAGE_THEME_IMPLEMENT_COLOR(TooltipDisplay, TooltipBorder, 0xff3a3a42);
 
-static std::unordered_map<visage::Frame*, std::string> tooltip_texts;
-static std::unordered_set<visage::Frame*> hooked_frames;
+namespace {
+
+struct TooltipBinding {
+    std::string text;
+    bool enabled = false;
+    bool hooked = false;
+};
+
+std::unordered_map<visage::Frame*, TooltipBinding> tooltip_bindings;
+
+}  // namespace
 
 TooltipDisplay::TooltipDisplay() : text_("", visage::Font(kFontSize, applause::fonts::Jost_Regular_ttf)) {
     setIgnoresMouseEvents(true, false);
@@ -107,18 +116,21 @@ void TooltipDisplay::draw(visage::Canvas& canvas) {
 }
 
 void setTooltip(visage::Frame& frame, std::string text) {
-    tooltip_texts[&frame] = std::move(text);
+    auto& binding = tooltip_bindings[&frame];
+    binding.text = std::move(text);
+    binding.enabled = true;
 
-    if (!hooked_frames.insert(&frame).second) return;
+    if (binding.hooked) return;
+    binding.hooked = true;
 
     visage::Frame* frame_ptr = &frame;
 
     frame.onMouseEnter() += [frame_ptr](const visage::MouseEvent& e) {
-        auto it = tooltip_texts.find(frame_ptr);
-        if (it == tooltip_texts.end()) return;
+        auto it = tooltip_bindings.find(frame_ptr);
+        if (it == tooltip_bindings.end() || !it->second.enabled) return;
         auto* editor = frame_ptr->findParent<applause::ApplauseEditor>();
         if (!editor) return;
-        editor->tooltipDisplay().showAt(it->second, e.windowPosition());
+        editor->tooltipDisplay().showAt(it->second.text, e.windowPosition());
     };
 
     frame.onMouseExit() += [frame_ptr](const visage::MouseEvent&) {
@@ -135,8 +147,11 @@ void setTooltip(visage::Frame& frame, std::string text) {
 }
 
 void removeTooltip(visage::Frame& frame) {
-    tooltip_texts.erase(&frame);
-    hooked_frames.erase(&frame);
+    auto it = tooltip_bindings.find(&frame);
+    if (it == tooltip_bindings.end()) return;
+
+    it->second.enabled = false;
+    it->second.text.clear();
 }
 
 }  // namespace applause
