@@ -1,24 +1,37 @@
 #include "ApplauseEditor.h"
 
+#include "Tooltip.h"
 #include "applause/util/DebugHelpers.h"
 
 namespace applause {
 ApplauseEditor::ApplauseEditor(ParamsExtension* params) : params_(params) {
-    // Initialize palette with default theme values
-
     // If params provided, connect our message queue and start the timer
     if (params_) {
         params_->setMessageQueue(&message_queue_);
-        startTimer(30);  // ~33Hz update rate
+        startTimer(30);
     } else {
         LOG_WARN(
             "ApplauseEditor instantiated without ParamsExtension! Parameter "
             "sync is disabled. Are you sure you want to do this?");
     }
+
+    tooltip_display_ = std::make_unique<TooltipDisplay>();
+    addChild(tooltip_display_.get());
+    tooltip_display_->setOnTop(true);
+
+    onResize() += [this] {
+        if (tooltip_display_)
+            tooltip_display_->setBounds(localBounds());
+    };
+    tooltip_display_->setBounds(localBounds());
+
+    onResize() += [this] {
+        if (tooltip_display_)
+            tooltip_display_->setBounds(localBounds());
+    };
 }
 
 ApplauseEditor::~ApplauseEditor() {
-    // Disconnect the message queue from params
     if (params_) {
         params_->setMessageQueue(nullptr);
     }

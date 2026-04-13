@@ -2,6 +2,7 @@
 #ifdef __APPLE__
 #include "applause/ui/NativePopupMenu.h"
 #endif
+#include "applause/ui/Tooltip.h"
 #include "applause/util/DebugHelpers.h"
 #include <visage_graphics/canvas.h>
 #include <nfd.hpp>
@@ -135,6 +136,14 @@ applause::NativePopupMenu menu("Demo Menu");
     inactive_slider_.setValue(0.35f);
     inactive_slider_.setActive(false);
     sliders_panel_.content().addChild(&inactive_slider_);
+
+    // --- Tooltips ---
+    if (ui_button_) applause::setTooltip(*ui_button_, "A regular button");
+    if (action_button_) applause::setTooltip(*action_button_, "An action button with accent styling");
+    if (toggle_button_) applause::setTooltip(*toggle_button_, "Click to toggle on/off");
+    if (load_file_button_) applause::setTooltip(*load_file_button_, "Open a file dialog");
+    applause::setTooltip(normal_slider_, "A unipolar slider");
+    applause::setTooltip(bipolar_slider_, "A bipolar slider centered at zero");
 
     // --- Mod Matrix Panel (bottom) ---
     addChild(&mod_matrix_panel_);

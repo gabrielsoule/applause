@@ -1,5 +1,6 @@
 #pragma once
 #include <functional>
+#include <memory>
 
 #include "IEditor.h"
 #include "applause/extensions/ParamsExtension.h"
@@ -8,6 +9,7 @@
 #include "visage_graphics/palette.h"
 
 namespace applause {
+class TooltipDisplay;
 /**
  * @class ApplauseEditor
  * @brief The default Applause framework editor implementation using Visage.
@@ -53,8 +55,11 @@ public:
 
     void timerCallback() override;
 
+    TooltipDisplay& tooltipDisplay() { return *tooltip_display_; }
+
 private:
     ParamMessageQueue message_queue_;  // Owned by the editor
     ParamsExtension* params_ = nullptr;
+    std::unique_ptr<TooltipDisplay> tooltip_display_;
 };
 }  // namespace applause
