@@ -8,7 +8,7 @@ ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* des
     note_ports_(),
     params_(),
     mod_matrix_({.num_voices = 8, .max_sources = 16, .max_destinations = 32, .max_connections = 32}),
-    gui_ext_([this]() { return std::make_unique<ExampleShowcaseEditor>(&params_, &mod_matrix_); }, 800, 800) {
+    gui_ext_([this]() { return std::make_unique<ExampleShowcaseEditor>(&params_, &mod_matrix_); }, 1350, 600) {
     LOG_INFO("ExampleShowcase constructor");
 
     // Configure extensions

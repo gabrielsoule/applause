@@ -125,6 +125,22 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params, 
     applause::setTooltip(normal_slider_, "A unipolar slider");
     applause::setTooltip(bipolar_slider_, "A bipolar slider centered at zero");
 
+    // --- MSEG Panel ---
+    addChild(&mseg_panel_);
+
+    demo_curve_.points[0] = {0.0f, 0.0f};
+    demo_curve_.points[1] = {0.2f, 0.8f};
+    demo_curve_.points[2] = {0.5f, 1.0f};
+    demo_curve_.points[3] = {0.8f, 0.3f};
+    demo_curve_.points[4] = {1.0f, 0.0f};
+    demo_curve_.num_points = 5;
+    demo_curve_.curvature_power[0] = -2.0f; // concave rise
+    demo_curve_.curvature_power[3] = 3.0f;  // convex tail
+    demo_curve_.loop = true;
+
+    mseg_display_.setCurve(&demo_curve_);
+    mseg_panel_.content().addChild(&mseg_display_);
+
     // --- Mod Matrix Panel (bottom) ---
     addChild(&mod_matrix_panel_);
 
@@ -138,23 +154,21 @@ void ExampleShowcaseEditor::resized() {
     static constexpr float kPadding = 12.0f;
     static constexpr float kGap = 10.0f;
 
-    // Mod matrix panel at the bottom (full width)
-    static constexpr float kModMatrixHeight = 200.0f;
-    float top_area_h = height() - kModMatrixHeight - kGap - 2 * kPadding;
+    float col_h = height() - 2 * kPadding;
 
-    // Left column: Parameters panel (top portion)
-    float left_w = 380.0f;
-    params_panel_.setBounds(kPadding, kPadding, left_w, top_area_h);
+    // --- Column 1 (left): Parameters ---
+    float col1_w = 340.0f;
+    params_panel_.setBounds(kPadding, kPadding, col1_w, col_h);
+    if (parameter_ui_)
+        parameter_ui_->setBounds(0, 0, params_panel_.content().width(), params_panel_.content().height());
 
-    // Right column
-    float right_x = kPadding + left_w + kGap;
-    float right_w = width() - right_x - kPadding;
+    // --- Column 2 (middle): Knobs, Sliders, Buttons ---
+    float col2_x = kPadding + col1_w + kGap;
+    float col2_w = 320.0f;
 
-    // Knobs panel: top-right — 3 knobs in a row
     static constexpr float kKnobPanelHeight = 120.0f;
-    knobs_panel_.setBounds(right_x, kPadding, right_w, kKnobPanelHeight);
+    knobs_panel_.setBounds(col2_x, kPadding, col2_w, kKnobPanelHeight);
 
-    // Layout knobs horizontally inside the knobs panel content area
     if (param1_knob_ && param2_knob_ && filter_mode_knob_) {
         auto& kc = knobs_panel_.content();
         float knob_w = kc.width() / 3.0f;
@@ -164,12 +178,10 @@ void ExampleShowcaseEditor::resized() {
         filter_mode_knob_->setBounds(knob_w * 2, 0, knob_w, knob_h);
     }
 
-    // Sliders panel: below knobs
-    static constexpr float kSlidersPanelHeight = 150.0f;
+    static constexpr float kSlidersPanelHeight = 160.0f;
     float sliders_y = kPadding + kKnobPanelHeight + kGap;
-    sliders_panel_.setBounds(right_x, sliders_y, right_w, kSlidersPanelHeight);
+    sliders_panel_.setBounds(col2_x, sliders_y, col2_w, kSlidersPanelHeight);
 
-    // Layout sliders vertically inside the sliders panel content area
     {
         auto& sc = sliders_panel_.content();
         float slider_pad = 8.0f;
@@ -181,16 +193,14 @@ void ExampleShowcaseEditor::resized() {
         inactive_slider_.setBounds(slider_pad, slider_pad + 2 * (slider_h + slider_gap), sw, slider_h);
     }
 
-    // Buttons panel: below sliders (fills remaining top area)
     float buttons_y = sliders_y + kSlidersPanelHeight + kGap;
-    float buttons_h = top_area_h - kKnobPanelHeight - kSlidersPanelHeight - 2 * kGap;
-    buttons_panel_.setBounds(right_x, buttons_y, right_w, buttons_h);
+    float buttons_h = col_h - kKnobPanelHeight - kSlidersPanelHeight - 2 * kGap;
+    buttons_panel_.setBounds(col2_x, buttons_y, col2_w, buttons_h);
 
-    // Layout buttons in a grid inside the buttons panel content area
     {
         auto& bc = buttons_panel_.content();
         float btn_pad = 6.0f;
-        float bw = (bc.width() - 2 * btn_pad - kGap) / 2.0f;  // 2 columns
+        float bw = (bc.width() - 2 * btn_pad - kGap) / 2.0f;
         float bh = 34.0f;
         float row_gap = 8.0f;
         int col = 0;
@@ -217,7 +227,6 @@ void ExampleShowcaseEditor::resized() {
 #endif
         placeButton(inactive_button_.get());
 
-        // Small buttons on their own row at reduced size
         if (col != 0) {
             col = 0;
             row++;
@@ -230,13 +239,17 @@ void ExampleShowcaseEditor::resized() {
             small_toggle_button_->setBounds(btn_pad + small_bw + kGap, small_y, small_bw, small_bh);
     }
 
-    // Parameter UI fills its panel's content area
-    if (parameter_ui_)
-        parameter_ui_->setBounds(0, 0, params_panel_.content().width(), params_panel_.content().height());
+    // --- Column 3 (right): MSEG, Mod Matrix ---
+    float col3_x = col2_x + col2_w + kGap;
+    float col3_w = width() - col3_x - kPadding;
 
-    // Mod Matrix panel at the bottom (full width)
-    float mod_y = kPadding + top_area_h + kGap;
-    mod_matrix_panel_.setBounds(kPadding, mod_y, width() - 2 * kPadding, kModMatrixHeight);
+    float mseg_h = (col_h - kGap) * 0.45f;
+    mseg_panel_.setBounds(col3_x, kPadding, col3_w, mseg_h);
+    mseg_display_.setBounds(0, 0, mseg_panel_.content().width(), mseg_panel_.content().height());
+
+    float mod_y = kPadding + mseg_h + kGap;
+    float mod_h = col_h - mseg_h - kGap;
+    mod_matrix_panel_.setBounds(col3_x, mod_y, col3_w, mod_h);
     if (mod_matrix_ui_)
         mod_matrix_ui_->setBounds(0, 0, mod_matrix_panel_.content().width(), mod_matrix_panel_.content().height());
 }

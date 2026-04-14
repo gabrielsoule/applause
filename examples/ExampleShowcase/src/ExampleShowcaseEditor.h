@@ -7,7 +7,9 @@
 #include <applause/ui/components/Panel.h>
 #include <applause/ui/components/ParamKnob.h>
 #include <applause/ui/components/Slider.h>
+#include <applause/dsp/modulation/MSEGCurve.h>
 #include <applause/ui/components/modulation/ModMatrixComponent.h>
+#include <applause/ui/components/modulation/MSEGDisplay.h>
 #include <memory>
 
 class ExampleShowcaseEditor : public applause::ApplauseEditor {
@@ -23,7 +25,10 @@ private:
     applause::Panel buttons_panel_{"Buttons"};
     applause::Panel sliders_panel_{"Sliders"};
     applause::Panel params_panel_{"Parameters"};
+    applause::Panel mseg_panel_{"MSEG"};
     applause::Panel mod_matrix_panel_{"Mod Matrix"};
+    applause::MSEGCurve<> demo_curve_;
+    applause::MSEGDisplay mseg_display_;
     std::unique_ptr<applause::GenericParameterUI> parameter_ui_;
     std::unique_ptr<applause::ModMatrixComponent> mod_matrix_ui_;
 
