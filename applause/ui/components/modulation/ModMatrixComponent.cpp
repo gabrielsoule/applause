@@ -103,6 +103,14 @@ void ModMatrixComponent::Row::bindToConnection(const ModConnection& c) {
     conn = c;
     src_list_id = c.src_idx;
 
+    // Drop any handlers left over from the dummy state (or a prior bind) so they
+    // don't re-fire activateRow and stack extra dummy rows on subsequent edits.
+    src_menu_.on_item_selected_.clear();
+    dst_menu_.on_item_selected_.clear();
+    depth_slider_.on_value_changed.clear();
+    bipolar_toggle_.onToggle().clear();
+    delete_button_.onToggle().clear();
+
     src_menu_.setText(owner_.matrix_.getSource(c.src_idx).name);
 
     if (c.isDepthMod()) {
