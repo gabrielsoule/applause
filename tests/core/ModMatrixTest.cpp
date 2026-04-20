@@ -1498,3 +1498,176 @@ TEST_CASE("F6: Remove depth mod connection", "[modmatrix][connections]")
     // Verify the main connection is still there
     REQUIRE(!matrix.getConnections()[0].isDepthMod());
 }
+
+// ---------------------------------------------------------------------------
+// Section M: Modulation offset range tests
+// ---------------------------------------------------------------------------
+
+TEST_CASE("M1: Empty destination has zero offset range", "[modmatrix][offset_range]")
+{
+    ModMatrix matrix(SmallConfig);
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+
+    auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
+    REQUIRE(min_off == Catch::Approx(0.0f));
+    REQUIRE(max_off == Catch::Approx(0.0f));
+}
+
+TEST_CASE("M2: Unipolar mapping contributes [min(0,d), max(0,d)]", "[modmatrix][offset_range]")
+{
+    ModMatrix matrix(SmallConfig);
+    auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+
+    SECTION("Positive depth") {
+        matrix.addConnection(src, dst, 0.5f, false);
+        auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
+        REQUIRE(min_off == Catch::Approx(0.0f));
+        REQUIRE(max_off == Catch::Approx(0.5f));
+    }
+
+    SECTION("Negative depth") {
+        matrix.addConnection(src, dst, -0.3f, false);
+        auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
+        REQUIRE(min_off == Catch::Approx(-0.3f));
+        REQUIRE(max_off == Catch::Approx(0.0f));
+    }
+
+    SECTION("Zero depth") {
+        matrix.addConnection(src, dst, 0.0f, false);
+        auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
+        REQUIRE(min_off == Catch::Approx(0.0f));
+        REQUIRE(max_off == Catch::Approx(0.0f));
+    }
+}
+
+TEST_CASE("M3: Bipolar mapping contributes [-|d|, +|d|] regardless of sign", "[modmatrix][offset_range]")
+{
+    ModMatrix matrix(SmallConfig);
+    auto& src = matrix.registerSource("src", ModSrcType::Mono, true);  // bipolar source
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+
+    SECTION("Positive depth") {
+        matrix.addConnection(src, dst, 0.4f, true);
+        auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
+        REQUIRE(min_off == Catch::Approx(-0.4f));
+        REQUIRE(max_off == Catch::Approx(+0.4f));
+    }
+
+    SECTION("Negative depth gives symmetric range") {
+        matrix.addConnection(src, dst, -0.4f, true);
+        auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
+        REQUIRE(min_off == Catch::Approx(-0.4f));
+        REQUIRE(max_off == Catch::Approx(+0.4f));
+    }
+}
+
+TEST_CASE("M4: Multiple connections sum independently", "[modmatrix][offset_range]")
+{
+    ModMatrix matrix(SmallConfig);
+    auto& s_bi = matrix.registerSource("s_bi", ModSrcType::Mono, true);
+    auto& s_up_pos = matrix.registerSource("s_up_pos", ModSrcType::Mono, false);
+    auto& s_up_neg = matrix.registerSource("s_up_neg", ModSrcType::Mono, false);
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+
+    matrix.addConnection(s_bi, dst, 0.2f, true);       // bipolar   -> [-0.2, +0.2]
+    matrix.addConnection(s_up_pos, dst, 0.3f, false);  // unipolar  -> [0,    +0.3]
+    matrix.addConnection(s_up_neg, dst, -0.1f, false); // unipolar  -> [-0.1,  0 ]
+
+    auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
+    REQUIRE(min_off == Catch::Approx(-0.3f));
+    REQUIRE(max_off == Catch::Approx(+0.5f));
+}
+
+TEST_CASE("M5: Source bipolar flag does not affect range; only connection mapping does",
+          "[modmatrix][offset_range]")
+{
+    ModMatrix matrix(SmallConfig);
+    auto& bipolar_src = matrix.registerSource("bi", ModSrcType::Mono, true);
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+
+    // Bipolar source, but connection uses *unipolar* mapping -> range should be [0, d], not [-d, d].
+    matrix.addConnection(bipolar_src, dst, 0.5f, false);
+
+    auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
+    REQUIRE(min_off == Catch::Approx(0.0f));
+    REQUIRE(max_off == Catch::Approx(0.5f));
+}
+
+TEST_CASE("M6: Depth-mod connections are excluded", "[modmatrix][offset_range]")
+{
+    ModMatrix matrix(SmallConfig);
+    auto& main_src = matrix.registerSource("main", ModSrcType::Mono, false);
+    auto& depth_src = matrix.registerSource("depth", ModSrcType::Mono, false);
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+
+    auto conn = matrix.addConnection(main_src, dst, 0.4f, false);  // [0, 0.4]
+
+    auto before = matrix.getModOffsetRange(dst.index);
+
+    // Adding depth modulation on conn should NOT change dst's static range.
+    matrix.addDepthModulation(depth_src, conn, 0.9f);
+
+    auto after = matrix.getModOffsetRange(dst.index);
+    REQUIRE(after.first == Catch::Approx(before.first));
+    REQUIRE(after.second == Catch::Approx(before.second));
+    REQUIRE(after.first == Catch::Approx(0.0f));
+    REQUIRE(after.second == Catch::Approx(0.4f));
+}
+
+TEST_CASE("M7: Only connections targeting the queried destination are counted",
+          "[modmatrix][offset_range]")
+{
+    ModMatrix matrix(SmallConfig);
+    auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
+    auto& dst_a = matrix.registerDestination("dst_a", ModDstMode::Mono);
+    auto& dst_b = matrix.registerDestination("dst_b", ModDstMode::Mono);
+
+    matrix.addConnection(src, dst_a, 0.5f, false);
+    matrix.addConnection(src, dst_b, 0.2f, false);
+
+    auto range_a = matrix.getModOffsetRange(dst_a.index);
+    auto range_b = matrix.getModOffsetRange(dst_b.index);
+
+    REQUIRE(range_a.second == Catch::Approx(0.5f));
+    REQUIRE(range_b.second == Catch::Approx(0.2f));
+}
+
+TEST_CASE("M8: Reported range bounds process() output at source extremes",
+          "[modmatrix][offset_range]")
+{
+    // Cross-check: with sources pinned to their extreme values, process() output minus base
+    // must fall within the reported [min, max]. Guards against drift if process()'s
+    // per-connection contribution math is ever changed.
+    ModMatrix matrix(SmallConfig);
+    auto& s_bi = matrix.registerSource("s_bi", ModSrcType::Mono, true);
+    auto& s_up = matrix.registerSource("s_up", ModSrcType::Mono, false);
+
+    // Use a linear 0..1 scale so plain == normalized; no un-scaling math needed.
+    applause::ValueScaleInfo identity{0.0f, 1.0f, applause::ValueScaling::linear()};
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity);
+
+    matrix.addConnection(s_bi, dst, 0.3f, true);    // [-0.3, +0.3]
+    matrix.addConnection(s_up, dst, 0.2f, false);   // [ 0,   +0.2]
+
+    const float base = 0.5f;
+    matrix.setBaseValue(dst.index, base);
+
+    auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
+    REQUIRE(min_off == Catch::Approx(-0.3f));
+    REQUIRE(max_off == Catch::Approx(+0.5f));
+
+    // Drive toward the reported maximum: s_bi=+1 (full positive bipolar), s_up=+1.
+    matrix.setMonoSourceValue(s_bi.index, +1.0f);
+    matrix.setMonoSourceValue(s_up.index, +1.0f);
+    matrix.process();
+    float out_max_offset = matrix.getModValue(dst.index) - base;
+    REQUIRE(out_max_offset <= max_off + 1e-5f);
+
+    // Drive toward the reported minimum: s_bi=-1, s_up=0 (unipolar min).
+    matrix.setMonoSourceValue(s_bi.index, -1.0f);
+    matrix.setMonoSourceValue(s_up.index, 0.0f);
+    matrix.process();
+    float out_min_offset = matrix.getModValue(dst.index) - base;
+    REQUIRE(out_min_offset >= min_off - 1e-5f);
+}
