@@ -20,6 +20,10 @@ public:
     VISAGE_THEME_DEFINE_COLOR(ApplauseKnobArcTrack);
     VISAGE_THEME_DEFINE_COLOR(ApplauseKnobAccent);
 
+    VISAGE_THEME_DEFINE_VALUE(ApplauseKnobArcThickness);
+    VISAGE_THEME_DEFINE_VALUE(ApplauseKnobTrackInset);
+    VISAGE_THEME_DEFINE_VALUE(ApplauseKnobSweep);
+
     Knob();
     ~Knob() override = default;
 
@@ -56,7 +60,6 @@ private:
     float drag_start_value_ = 0.0f;
     float drag_sensitivity_ = 0.005f;
     float wheel_sensitivity_ = 0.015f;
-    float sweep_ = 300.0f * (static_cast<float>(M_PI) / 180.0f);
     visage::Animation<float> glow_amount_;
 };
 

@@ -15,6 +15,10 @@ VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobBodyBorder, 0xFF444444);
 VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobArcTrack, 0xFF2a2a2e);
 VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobAccent, 0xff9966ff);
 
+VISAGE_THEME_IMPLEMENT_VALUE(Knob, ApplauseKnobArcThickness, 3.0f);
+VISAGE_THEME_IMPLEMENT_VALUE(Knob, ApplauseKnobTrackInset, 1.5f);
+VISAGE_THEME_IMPLEMENT_VALUE(Knob, ApplauseKnobSweep, 300.0f * (static_cast<float>(M_PI) / 180.0f));
+
 Knob::Knob() {
     glow_amount_.setSourceValue(0.0f);
     glow_amount_.setTargetValue(1.0f);
@@ -38,11 +42,11 @@ void Knob::draw(visage::Canvas& canvas) {
     float radius = size * 0.5f;
 
     constexpr float kTopCenter = 1.5f * static_cast<float>(M_PI);  // 270° = 3π/2
-    float halfSweep = sweep_ * 0.5f;
+    float sweep = canvas.value(ApplauseKnobSweep);
+    float arcThickness = canvas.value(ApplauseKnobArcThickness);
+    float trackCenter = radius - canvas.value(ApplauseKnobTrackInset);
+    float halfSweep = sweep * 0.5f;
     float startAngle = kTopCenter - halfSweep;
-
-    float arcThickness = 3.0f;
-    float trackCenter = radius - 1.5f;
     float bodyRadius = radius - 6.0f;
     float bodyDiameter = bodyRadius * 2.0f;
 
@@ -80,8 +84,8 @@ void Knob::draw(visage::Canvas& canvas) {
 
     // Draw accent arc on body ring from default position to current value
     if (value_ != default_value_) {
-        float accentCenter = startAngle + (value_ + default_value_) * 0.5f * sweep_;
-        float accentHalfSpan = std::abs(value_ - default_value_) * 0.5f * sweep_;
+        float accentCenter = startAngle + (value_ + default_value_) * 0.5f * sweep;
+        float accentHalfSpan = std::abs(value_ - default_value_) * 0.5f * sweep;
         canvas.setColor(ApplauseKnobAccent);
         canvas.arc(bodyX, bodyY, bodyDiameter, 1.0f, accentCenter, accentHalfSpan, false);
     }
@@ -92,7 +96,7 @@ void Knob::draw(visage::Canvas& canvas) {
     canvas.arc(centerX - trackCenter, centerY - trackCenter, trackDiameter, arcThickness, kTopCenter, halfSweep, true);
 
     // Tracking dot on the arc
-    float trackAngleRad = startAngle + value_ * sweep_;
+    float trackAngleRad = startAngle + value_ * sweep;
     float dotDiameter = arcThickness;
     float dotTrackRadius = trackCenter - arcThickness * 0.5f;
     float dotCenterX = centerX + std::cos(trackAngleRad) * dotTrackRadius;
@@ -100,7 +104,7 @@ void Knob::draw(visage::Canvas& canvas) {
     canvas.setColor(ApplauseKnobAccent);
     canvas.circle(dotCenterX - dotDiameter * 0.5f, dotCenterY - dotDiameter * 0.5f, dotDiameter);
 
-    float angle = startAngle + value_ * sweep_;
+    float angle = startAngle + value_ * sweep;
 
     float needle_radius = bodyDiameter * 0.5f - 2.0f;
     float lineEndX = centerX + static_cast<float>(std::cos(angle)) * needle_radius;
