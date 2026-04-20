@@ -14,6 +14,7 @@ VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobBodyBottom, 0xFF1a1a1e);
 VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobBodyBorder, 0xFF444444);
 VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobArcTrack, 0xFF2a2a2e);
 VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobAccent, 0xff9966ff);
+VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobShadow, 0x88000000);
 
 VISAGE_THEME_IMPLEMENT_VALUE(Knob, ApplauseKnobArcThickness, 3.0f);
 VISAGE_THEME_IMPLEMENT_VALUE(Knob, ApplauseKnobTrackInset, 1.5f);
@@ -54,7 +55,7 @@ void Knob::draw(visage::Canvas& canvas) {
     float shadowOffset = 4.0f;
     float shadowPad = 3.0f;
     float shadowDiameter = bodyDiameter + shadowPad * 2.0f;
-    canvas.setColor(0x88000000);
+    canvas.setColor(ApplauseKnobShadow);
     canvas.fadeCircle(centerX - bodyRadius - shadowPad, centerY - bodyRadius - shadowPad + shadowOffset, shadowDiameter,
                       10.0f);
 

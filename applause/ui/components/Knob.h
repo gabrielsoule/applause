@@ -19,6 +19,7 @@ public:
     VISAGE_THEME_DEFINE_COLOR(ApplauseKnobBodyBorder);
     VISAGE_THEME_DEFINE_COLOR(ApplauseKnobArcTrack);
     VISAGE_THEME_DEFINE_COLOR(ApplauseKnobAccent);
+    VISAGE_THEME_DEFINE_COLOR(ApplauseKnobShadow);
 
     VISAGE_THEME_DEFINE_VALUE(ApplauseKnobArcThickness);
     VISAGE_THEME_DEFINE_VALUE(ApplauseKnobTrackInset);
