@@ -167,6 +167,28 @@ const ModDestination* ModMatrix::findDestination(const std::string& name) const 
     return &dst_registry_[it->second];
 }
 
+std::pair<float, float> ModMatrix::getModOffsetRange(uint16_t dstIdx) const {
+    ASSERT(dstIdx < dst_count_, "Destination index out of bounds");
+
+    // TODO: This ignores depth-modulation wiggle (the dynamic component a depth-mod connection adds to depth slot during process()); only the static base depth is considered
+    float min_off = 0.0f;
+    float max_off = 0.0f;
+    for (const auto& conn : connections_) {
+        if (conn.isDepthMod() || conn.dst_idx != dstIdx) continue;
+        const float d = program_.depth_base_[conn.depth_slot];
+        const float a = d < 0.0f ? -d : d;
+        if (conn.isBipolar()) {
+            min_off -= a;
+            max_off += a;
+        } else if (d >= 0.0f) {
+            max_off += d;
+        } else {
+            min_off += d;
+        }
+    }
+    return {min_off, max_off};
+}
+
 ModConnection ModMatrix::addDepthModulation(ModSource src, const ModConnection& target_conn, float depth,
                                             std::optional<bool> bipolar_mapping) {
     ASSERT(src.index < src_count_, "Source index out of bounds");

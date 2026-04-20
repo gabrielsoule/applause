@@ -194,7 +194,9 @@ public:
         mono_depth_buf_(config.max_connections, 0.0f),
         poly_depth_buf_(static_cast<size_t>(config.num_voices) * config.max_connections, 0.0f),
         mono_dst_(config.max_destinations, 0.0f),
-        poly_dst_buf_(static_cast<size_t>(config.num_voices) * config.max_destinations, 0.0f) {}
+        poly_dst_buf_(static_cast<size_t>(config.num_voices) * config.max_destinations, 0.0f) {
+        active_voices_.reserve(config.num_voices);
+    }
 
     ModMatrix() = delete;
     /**
@@ -402,6 +404,14 @@ public:
         ASSERT(dstIdx < dst_count_, "Destination index out of bounds");
         return mono_dst_[dstIdx];
     }
+
+    /**
+     * Returns the cumulative modulation offset range `{min_offset, max_offset}` for a destination, summed
+     * over all parameter-modulating connections that target it. Result is in normalized in [0,1] with
+     * respect to the underlying destination's normalized range. Use this to draw "modulation depth arcs" on
+     * knobs or sliders or whatever.
+     */
+    [[nodiscard]] std::pair<float, float> getModOffsetRange(uint16_t dstIdx) const;
 
     /**
      * Returns the final modulated value for a poly destination for a specific voice, in plain units.
