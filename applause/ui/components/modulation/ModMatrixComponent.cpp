@@ -4,6 +4,7 @@
 
 #include <applause/ui/ApplauseEditor.h>
 #include <applause/ui/NativePopupMenu.h>
+#include <visage_ui/events.h>
 
 using namespace visage::dimension;
 
@@ -134,33 +135,28 @@ void ModMatrixComponent::Row::bindToConnection(const ModConnection& c) {
     bipolar_toggle_.onToggle() += [this](Button*, bool on) { conn.setBipolar(on); };
 
     src_menu_.on_item_selected_ += [this](int id) {
-        float depth = conn.getDepth();
-        bool bipolar = conn.isBipolar();
-        owner_.matrix_.removeConnection(conn);
-
+        const uint16_t prev_slot = conn.depth_slot;
+        conn = owner_.matrix_.reassignSource(conn, owner_.matrix_.getSource(id));
+        if (conn.depth_slot != prev_slot) {  // merged into a peer; rebuild to drop this duplicate row
+            // Defer: rebuildRows would destroy this Row (and the CallbackList we're dispatching from).
+            visage::runOnEventThread([&owner = owner_] { owner.rebuildRows(); });
+            return;
+        }
         src_list_id = id;
         src_menu_.setText(owner_.matrix_.getSource(id).name);
-
-        if (conn.isDepthMod()) {
-            if (auto target = owner_.matrix_.findConnection(conn.dst_idx))
-                conn = owner_.matrix_.addDepthModulation(owner_.matrix_.getSource(id), *target, depth, bipolar);
-        } else {
-            conn = owner_.matrix_.addConnection(owner_.matrix_.getSource(id),
-                                                owner_.matrix_.getDestination(conn.dst_idx), depth, bipolar);
-        }
     };
 
     if (!c.isDepthMod()) {
         dst_menu_.on_item_selected_ += [this](int id) {
             if (id <= 0) return;
-            float depth = conn.getDepth();
-            bool bipolar = conn.isBipolar();
-            owner_.matrix_.removeConnection(conn);
-
+            const uint16_t prev_slot = conn.depth_slot;
+            conn = owner_.matrix_.reassignDestination(conn, owner_.matrix_.getDestination(id - 1));
+            if (conn.depth_slot != prev_slot) {
+                visage::runOnEventThread([&owner = owner_] { owner.rebuildRows(); });
+                return;
+            }
             dst_list_id = id;
             dst_menu_.setText(owner_.matrix_.getDestination(id - 1).name);
-            conn = owner_.matrix_.addConnection(owner_.matrix_.getSource(conn.src_idx),
-                                                owner_.matrix_.getDestination(id - 1), depth, bipolar);
         };
     }
 
@@ -297,21 +293,10 @@ void ModMatrixComponent::activateRow(Row* row) {
 }
 
 void ModMatrixComponent::deleteRow(Row* row) {
-    if (row->conn.isDepthMod()) {
-        matrix_.removeConnection(row->conn);
-    } else {
-        // Cascade-delete depth mods targeting this connection
-        uint16_t target_slot = row->conn.depth_slot;
-        std::vector<ModConnection> depth_mods_to_remove;
-        for (auto& c : matrix_.getConnections()) {
-            if (c.isDepthMod() && c.dst_idx == target_slot) depth_mods_to_remove.push_back(c);
-        }
-        for (auto& dm : depth_mods_to_remove) matrix_.removeConnection(dm);
-
-        matrix_.removeConnection(row->conn);
-    }
-
-    rebuildRows();
+    matrix_.removeConnection(row->conn);
+    // Defer: we are inside the delete button's onToggle CallbackList, and rebuildRows
+    // would destroy the Row that owns it.
+    visage::runOnEventThread([this] { rebuildRows(); });
 }
 
 }  // namespace applause

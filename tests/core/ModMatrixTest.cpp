@@ -1499,6 +1499,392 @@ TEST_CASE("F6: Remove depth mod connection", "[modmatrix][connections]")
     REQUIRE(!matrix.getConnections()[0].isDepthMod());
 }
 
+TEST_CASE("F7: Removing a param connection cascade-deletes its depth mods", "[modmatrix][connections]")
+{
+    ModMatrix matrix(SmallConfig);
+
+    auto& main_src = matrix.registerSource("main", ModSrcType::Mono);
+    auto& depth_src = matrix.registerSource("depth", ModSrcType::Mono);
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+
+    auto conn = matrix.addConnection(main_src, dst, 0.5f);
+    matrix.addDepthModulation(depth_src, conn, 1.0f);
+    REQUIRE(matrix.getConnections().size() == 2);
+
+    REQUIRE(matrix.removeConnection(conn));
+    REQUIRE(matrix.getConnections().empty());
+}
+
+TEST_CASE("F8: Slot freed by cascade is cleanly reusable (no stale depth mod attaches)",
+          "[modmatrix][connections]")
+{
+    ModMatrix matrix(SmallConfig);
+
+    auto& s1 = matrix.registerSource("s1", ModSrcType::Mono);
+    auto& s2 = matrix.registerSource("s2", ModSrcType::Mono);
+    auto& depth_src = matrix.registerSource("depth", ModSrcType::Mono);
+    auto& d1 = matrix.registerDestination("d1", ModDstMode::Mono);
+    auto& d2 = matrix.registerDestination("d2", ModDstMode::Mono);
+
+    auto a = matrix.addConnection(s1, d1, 0.5f);
+    matrix.addDepthModulation(depth_src, a, 1.0f);
+    const uint16_t freed = a.depth_slot;
+
+    REQUIRE(matrix.removeConnection(a));
+
+    // New connection reclaims the freed slot; it must NOT inherit the dead depth mod.
+    auto c = matrix.addConnection(s2, d2, 0.5f);
+    REQUIRE(c.depth_slot == freed);
+
+    matrix.setBaseValue(d2.index, 0.0f);
+    matrix.setMonoSourceValue(s2.index, 1.0f);
+    matrix.setMonoSourceValue(depth_src.index, 1.0f);  // would've amplified depth if attached
+    matrix.process();
+
+    REQUIRE(matrix.getModValue(d2.index) == Catch::Approx(0.5f));
+}
+
+TEST_CASE("F9: reassignSource preserves depth_slot and attached depth mods",
+          "[modmatrix][connections][reassign]")
+{
+    ModMatrix matrix(SmallConfig);
+
+    auto& s1 = matrix.registerSource("s1", ModSrcType::Mono);
+    auto& s2 = matrix.registerSource("s2", ModSrcType::Mono);
+    auto& depth_src = matrix.registerSource("depth", ModSrcType::Mono);
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+
+    auto conn = matrix.addConnection(s1, dst, 0.5f, false);
+    auto dm = matrix.addDepthModulation(depth_src, conn, 0.25f);
+    const uint16_t slot_before = conn.depth_slot;
+    const uint16_t dm_slot_before = dm.depth_slot;
+
+    auto reassigned = matrix.reassignSource(conn, s2);
+
+    REQUIRE(reassigned.depth_slot == slot_before);
+    REQUIRE(reassigned.src_idx == s2.index);
+    REQUIRE(reassigned.dst_idx == dst.index);
+    REQUIRE(matrix.getConnections().size() == 2);
+
+    // Depth mod still attached to the same slot
+    auto found_dm = matrix.findDepthMod(depth_src.index, slot_before);
+    REQUIRE(found_dm.has_value());
+    REQUIRE(found_dm->depth_slot == dm_slot_before);
+
+    // And processes correctly through the new source
+    matrix.setBaseValue(dst.index, 0.0f);
+    matrix.setMonoSourceValue(s2.index, 1.0f);
+    matrix.setMonoSourceValue(depth_src.index, 0.0f);  // depth mod contributes 0
+    matrix.process();
+    REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.5f));
+}
+
+TEST_CASE("F10: reassignSource merges into existing peer", "[modmatrix][connections][reassign]")
+{
+    ModMatrix matrix(SmallConfig);
+
+    auto& s1 = matrix.registerSource("s1", ModSrcType::Mono);
+    auto& s2 = matrix.registerSource("s2", ModSrcType::Mono);
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+
+    auto a = matrix.addConnection(s1, dst, 0.25f, false);
+    auto b = matrix.addConnection(s2, dst, 0.75f, true);
+    const uint16_t b_slot = b.depth_slot;
+
+    // Reassign A's source to s2 -> collides with B. A's (0.25, non-bipolar) values win on B.
+    auto merged = matrix.reassignSource(a, s2);
+
+    REQUIRE(matrix.getConnections().size() == 1);
+    REQUIRE(merged.depth_slot == b_slot);
+    REQUIRE(merged.src_idx == s2.index);
+    REQUIRE(merged.getDepth() == Catch::Approx(0.25f));
+    REQUIRE(!merged.isBipolar());
+}
+
+TEST_CASE("F11: reassignSource merge transfers the moving conn's depth mods onto the peer",
+          "[modmatrix][connections][reassign]")
+{
+    ModMatrix matrix(SmallConfig);
+
+    auto& s1 = matrix.registerSource("s1", ModSrcType::Mono);
+    auto& s2 = matrix.registerSource("s2", ModSrcType::Mono);
+    auto& depth_src = matrix.registerSource("depth", ModSrcType::Mono);
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+
+    auto a = matrix.addConnection(s1, dst, 0.25f);
+    matrix.addDepthModulation(depth_src, a, 0.5f);
+    auto b = matrix.addConnection(s2, dst, 0.75f);  // no depth mods on B
+    REQUIRE(matrix.getConnections().size() == 3);
+
+    matrix.reassignSource(a, s2);  // merge into B; A's depth mod rehomes onto B
+
+    REQUIRE(matrix.getConnections().size() == 2);
+    auto transferred = matrix.findDepthMod(depth_src.index, b.depth_slot);
+    REQUIRE(transferred.has_value());
+    REQUIRE(transferred->getDepth() == Catch::Approx(0.5f));
+}
+
+TEST_CASE("F11b: reassignSource merge keeps peer's existing depth mod on conflict (peer wins)",
+          "[modmatrix][connections][reassign]")
+{
+    ModMatrix matrix(SmallConfig);
+
+    auto& s1 = matrix.registerSource("s1", ModSrcType::Mono);
+    auto& s2 = matrix.registerSource("s2", ModSrcType::Mono);
+    auto& depth_src = matrix.registerSource("depth", ModSrcType::Mono);
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+
+    auto a = matrix.addConnection(s1, dst, 0.25f);
+    matrix.addDepthModulation(depth_src, a, 0.3f);  // A's depth mod
+    auto b = matrix.addConnection(s2, dst, 0.75f);
+    matrix.addDepthModulation(depth_src, b, 0.8f);  // B's depth mod from same source
+    REQUIRE(matrix.getConnections().size() == 4);
+
+    matrix.reassignSource(a, s2);
+
+    // Only B + B's depth mod survive; A and A's depth mod are gone.
+    REQUIRE(matrix.getConnections().size() == 2);
+    auto kept = matrix.findDepthMod(depth_src.index, b.depth_slot);
+    REQUIRE(kept.has_value());
+    REQUIRE(kept->getDepth() == Catch::Approx(0.8f));  // B's value wins
+}
+
+TEST_CASE("F12: reassignSource is a no-op when newSrc equals current src",
+          "[modmatrix][connections][reassign]")
+{
+    ModMatrix matrix(SmallConfig);
+
+    auto& s1 = matrix.registerSource("s1", ModSrcType::Mono);
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+
+    auto conn = matrix.addConnection(s1, dst, 0.5f);
+    auto result = matrix.reassignSource(conn, s1);
+
+    REQUIRE(result.depth_slot == conn.depth_slot);
+    REQUIRE(matrix.getConnections().size() == 1);
+}
+
+TEST_CASE("F13: reassignSource on a depth mod keeps it attached to the same target slot",
+          "[modmatrix][connections][reassign]")
+{
+    ModMatrix matrix(SmallConfig);
+
+    auto& main_src = matrix.registerSource("main", ModSrcType::Mono);
+    auto& d1 = matrix.registerSource("d1", ModSrcType::Mono);
+    auto& d2 = matrix.registerSource("d2", ModSrcType::Mono);
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+
+    auto conn = matrix.addConnection(main_src, dst, 0.0f);
+    auto dm = matrix.addDepthModulation(d1, conn, 0.5f);
+    const uint16_t dm_slot = dm.depth_slot;
+    const uint16_t target_slot = conn.depth_slot;
+
+    auto reassigned = matrix.reassignSource(dm, d2);
+
+    REQUIRE(reassigned.isDepthMod());
+    REQUIRE(reassigned.src_idx == d2.index);
+    REQUIRE(reassigned.dst_idx == target_slot);
+    REQUIRE(reassigned.depth_slot == dm_slot);
+}
+
+TEST_CASE("F13b: reassignSource merge on a depth mod overwrites peer depth and flags",
+          "[modmatrix][connections][reassign]")
+{
+    ModMatrix matrix(SmallConfig);
+
+    auto& main_src = matrix.registerSource("main", ModSrcType::Mono);
+    auto& d1 = matrix.registerSource("d1", ModSrcType::Mono);
+    auto& d2 = matrix.registerSource("d2", ModSrcType::Mono);
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+
+    auto conn = matrix.addConnection(main_src, dst, 0.5f);
+    auto a = matrix.addDepthModulation(d1, conn, 0.25f, false);
+    auto b = matrix.addDepthModulation(d2, conn, 0.75f, true);
+    const uint16_t target_slot = conn.depth_slot;
+    const uint16_t b_slot = b.depth_slot;
+
+    auto merged = matrix.reassignSource(a, d2);
+
+    REQUIRE(matrix.getConnections().size() == 2);
+    REQUIRE(merged.isDepthMod());
+    REQUIRE(merged.depth_slot == b_slot);
+    REQUIRE(merged.src_idx == d2.index);
+    REQUIRE(merged.dst_idx == target_slot);
+    REQUIRE(merged.getDepth() == Catch::Approx(0.25f));
+    REQUIRE(!merged.isBipolar());
+
+    auto kept = matrix.findDepthMod(d2.index, target_slot);
+    REQUIRE(kept.has_value());
+    REQUIRE(kept->depth_slot == b_slot);
+    REQUIRE(!kept->isBipolar());
+    REQUIRE(!matrix.findDepthMod(d1.index, target_slot).has_value());
+
+    matrix.setBaseValue(dst.index, 0.0f);
+    matrix.setMonoSourceValue(main_src.index, 1.0f);
+    matrix.setMonoSourceValue(d2.index, 0.0f);  // would subtract if B's old bipolar flag survived
+    matrix.process();
+
+    REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.5f));
+}
+
+TEST_CASE("F14: reassignDestination preserves depth_slot and attached depth mods",
+          "[modmatrix][connections][reassign]")
+{
+    ModMatrix matrix(SmallConfig);
+
+    auto& src = matrix.registerSource("src", ModSrcType::Mono);
+    auto& depth_src = matrix.registerSource("depth", ModSrcType::Mono);
+    auto& d1 = matrix.registerDestination("d1", ModDstMode::Mono);
+    auto& d2 = matrix.registerDestination("d2", ModDstMode::Mono);
+
+    auto conn = matrix.addConnection(src, d1, 0.5f);
+    matrix.addDepthModulation(depth_src, conn, 0.25f);
+    const uint16_t slot_before = conn.depth_slot;
+
+    auto reassigned = matrix.reassignDestination(conn, d2);
+
+    REQUIRE(reassigned.depth_slot == slot_before);
+    REQUIRE(reassigned.dst_idx == d2.index);
+    REQUIRE(matrix.findDepthMod(depth_src.index, slot_before).has_value());
+
+    matrix.setBaseValue(d1.index, 0.0f);
+    matrix.setBaseValue(d2.index, 0.0f);
+    matrix.setMonoSourceValue(src.index, 1.0f);
+    matrix.setMonoSourceValue(depth_src.index, 0.0f);
+    matrix.process();
+
+    REQUIRE(matrix.getModValue(d1.index) == Catch::Approx(0.0f));
+    REQUIRE(matrix.getModValue(d2.index) == Catch::Approx(0.5f));
+}
+
+TEST_CASE("F15: reassignDestination across mono/poly re-partitions into correct program bucket",
+          "[modmatrix][connections][reassign]")
+{
+    ModMatrix matrix(SmallConfig);
+
+    auto& src = matrix.registerSource("src", ModSrcType::Mono);
+    auto& mono_dst = matrix.registerDestination("mono_dst", ModDstMode::Mono);
+    auto& poly_dst = matrix.registerDestination("poly_dst", ModDstMode::Poly);
+
+    auto conn = matrix.addConnection(src, mono_dst, 0.5f);
+    matrix.reassignDestination(conn, poly_dst);
+
+    matrix.notifyVoiceOn(0);
+    matrix.setBaseValue(poly_dst.index, 0.0f);
+    matrix.setMonoSourceValue(src.index, 1.0f);
+    matrix.process();
+
+    REQUIRE(matrix.getPolyModValue(poly_dst.index, 0) == Catch::Approx(0.5f));
+    REQUIRE(matrix.getModValue(mono_dst.index) == Catch::Approx(0.0f));
+}
+
+TEST_CASE("F15b: reassignSource across mono/poly-effective sources re-partitions into correct program bucket",
+          "[modmatrix][connections][reassign]")
+{
+    ModMatrix matrix(SmallConfig);
+
+    auto& mono_src = matrix.registerSource("mono_src", ModSrcType::Both, false, ModSrcMode::Mono);
+    auto& poly_src = matrix.registerSource("poly_src", ModSrcType::Both, false, ModSrcMode::Poly);
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Poly);
+
+    auto conn = matrix.addConnection(mono_src, dst, 1.0f);
+    const uint16_t slot = conn.depth_slot;
+    matrix.notifyVoiceOn(0);
+    matrix.notifyVoiceOn(1);
+    matrix.setBaseValue(dst.index, 0.0f);
+
+    matrix.setMonoSourceValue(mono_src.index, 0.25f);
+    matrix.process();
+    REQUIRE(matrix.getPolyModValue(dst.index, 0) == Catch::Approx(0.25f));
+    REQUIRE(matrix.getPolyModValue(dst.index, 1) == Catch::Approx(0.25f));
+
+    auto poly_conn = matrix.reassignSource(conn, poly_src);
+    REQUIRE(poly_conn.depth_slot == slot);
+
+    matrix.setPolySourceValue(poly_src.index, 0, 0.1f);
+    matrix.setPolySourceValue(poly_src.index, 1, 0.8f);
+    matrix.process();
+    REQUIRE(matrix.getPolyModValue(dst.index, 0) == Catch::Approx(0.1f));
+    REQUIRE(matrix.getPolyModValue(dst.index, 1) == Catch::Approx(0.8f));
+
+    auto mono_conn = matrix.reassignSource(poly_conn, mono_src);
+    REQUIRE(mono_conn.depth_slot == slot);
+
+    matrix.setMonoSourceValue(mono_src.index, 0.6f);
+    matrix.process();
+    REQUIRE(matrix.getPolyModValue(dst.index, 0) == Catch::Approx(0.6f));
+    REQUIRE(matrix.getPolyModValue(dst.index, 1) == Catch::Approx(0.6f));
+}
+
+TEST_CASE("F16: reassignDestination merges into existing peer", "[modmatrix][connections][reassign]")
+{
+    ModMatrix matrix(SmallConfig);
+
+    auto& src = matrix.registerSource("src", ModSrcType::Mono);
+    auto& d1 = matrix.registerDestination("d1", ModDstMode::Mono);
+    auto& d2 = matrix.registerDestination("d2", ModDstMode::Mono);
+
+    auto a = matrix.addConnection(src, d1, 0.25f);
+    auto b = matrix.addConnection(src, d2, 0.75f);
+    const uint16_t b_slot = b.depth_slot;
+
+    auto merged = matrix.reassignDestination(a, d2);
+
+    REQUIRE(matrix.getConnections().size() == 1);
+    REQUIRE(merged.depth_slot == b_slot);
+    REQUIRE(merged.dst_idx == d2.index);
+    REQUIRE(merged.getDepth() == Catch::Approx(0.25f));
+}
+
+TEST_CASE("F16b: reassignDestination merge transfers only non-conflicting depth mods onto the peer",
+          "[modmatrix][connections][reassign]")
+{
+    ModMatrix matrix(SmallConfig);
+
+    auto& main_src = matrix.registerSource("main", ModSrcType::Mono);
+    auto& dm1 = matrix.registerSource("dm1", ModSrcType::Mono);
+    auto& dm2 = matrix.registerSource("dm2", ModSrcType::Mono);
+    auto& d1 = matrix.registerDestination("d1", ModDstMode::Mono);
+    auto& d2 = matrix.registerDestination("d2", ModDstMode::Mono);
+
+    auto a = matrix.addConnection(main_src, d1, 0.1f);
+    const uint16_t a_slot = a.depth_slot;
+    matrix.addDepthModulation(dm1, a, 0.2f);
+    matrix.addDepthModulation(dm2, a, 0.4f);
+
+    auto b = matrix.addConnection(main_src, d2, 0.7f);
+    const uint16_t b_slot = b.depth_slot;
+    matrix.addDepthModulation(dm2, b, 0.3f);
+    REQUIRE(matrix.getConnections().size() == 5);
+
+    auto merged = matrix.reassignDestination(a, d2);
+
+    REQUIRE(matrix.getConnections().size() == 3);
+    REQUIRE(merged.depth_slot == b_slot);
+    REQUIRE(merged.getDepth() == Catch::Approx(0.1f));
+
+    auto transferred = matrix.findDepthMod(dm1.index, b_slot);
+    REQUIRE(transferred.has_value());
+    REQUIRE(transferred->getDepth() == Catch::Approx(0.2f));
+
+    auto kept = matrix.findDepthMod(dm2.index, b_slot);
+    REQUIRE(kept.has_value());
+    REQUIRE(kept->getDepth() == Catch::Approx(0.3f));
+
+    REQUIRE(!matrix.findDepthMod(dm1.index, a_slot).has_value());
+    REQUIRE(!matrix.findDepthMod(dm2.index, a_slot).has_value());
+
+    matrix.setBaseValue(d1.index, 0.0f);
+    matrix.setBaseValue(d2.index, 0.0f);
+    matrix.setMonoSourceValue(main_src.index, 1.0f);
+    matrix.setMonoSourceValue(dm1.index, 1.0f);
+    matrix.setMonoSourceValue(dm2.index, 1.0f);
+    matrix.process();
+
+    REQUIRE(matrix.getModValue(d1.index) == Catch::Approx(0.0f));
+    REQUIRE(matrix.getModValue(d2.index) == Catch::Approx(0.6f));
+}
+
 // ---------------------------------------------------------------------------
 // Section M: Modulation offset range tests
 // ---------------------------------------------------------------------------

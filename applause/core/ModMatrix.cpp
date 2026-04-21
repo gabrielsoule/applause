@@ -51,8 +51,7 @@ ModDestination& ModMatrix::registerDestination(const std::string& string_id, Mod
 }
 
 void ModMatrix::registerFromParamsExtension(const applause::ParamsExtension& params_extension) {
-    ASSERT(dst_count_ == 0,
-           "Cannot batch register parameters from extension after manually registering destinations");
+    ASSERT(dst_count_ == 0, "Cannot batch register parameters from extension after manually registering destinations");
     const auto* scale_array = params_extension.getScaleInfoArray();
     const auto& params = params_extension.getAllParameters();
 
@@ -95,50 +94,53 @@ ModConnection ModMatrix::addConnection(ModSource src, ModDestination dst, float 
 }
 
 bool ModMatrix::removeConnection(uint16_t srcIdx, uint16_t dstIdx) {
-    for (auto it = connections_.begin(); it != connections_.end(); ++it) {
-        if (!it->isDepthMod() && it->src_idx == srcIdx && it->dst_idx == dstIdx) {
-            // Mark depth slot as inactive
-            program_.depth_active_[it->depth_slot] = 0;
-            connections_.erase(it);
-            recompileProgram();
-            return true;
-        }
-    }
+    if (auto c = findConnection(srcIdx, dstIdx)) return removeConnection(*c);
     return false;
 }
 
 bool ModMatrix::removeConnection(const ModConnection& connection) {
-    for (auto it = connections_.begin(); it != connections_.end(); ++it) {
-        if (it->depth_slot == connection.depth_slot) {
-            program_.depth_active_[it->depth_slot] = 0;
-            connections_.erase(it);
-            recompileProgram();
-            return true;
-        }
+    auto it = std::ranges::find_if(
+        connections_, [&](const ModConnection& c) { return c.depth_slot == connection.depth_slot; });
+    if (it == connections_.end()) return false;
+
+    const uint16_t freed_slot = it->depth_slot;
+    const bool was_param_conn = !it->isDepthMod();
+    program_.depth_active_[freed_slot] = 0;
+    connections_.erase(it);
+
+    // Cascade: removing a parameter connection must also remove any depth mods targeting its
+    // slot. allocateDepthSlot reuses tombstoned slots, so an orphaned depth mod would silently
+    // rebind to whatever new connection later reclaims freed_slot.
+    if (was_param_conn) {
+        std::erase_if(connections_, [this, freed_slot](const ModConnection& c) {
+            if (c.isDepthMod() && c.dst_idx == freed_slot) {
+                program_.depth_active_[c.depth_slot] = 0;
+                return true;
+            }
+            return false;
+        });
     }
-    return false;
+    recompileProgram();
+    return true;
 }
 
 std::optional<ModConnection> ModMatrix::findConnection(uint16_t srcIdx, uint16_t dstIdx) {
     for (auto& conn : connections_) {
-        if (!conn.isDepthMod() && conn.src_idx == srcIdx && conn.dst_idx == dstIdx)
-            return conn;
+        if (!conn.isDepthMod() && conn.src_idx == srcIdx && conn.dst_idx == dstIdx) return conn;
     }
     return std::nullopt;
 }
 
 std::optional<ModConnection> ModMatrix::findConnection(uint16_t depthSlot) {
     for (auto& conn : connections_) {
-        if (!conn.isDepthMod() && conn.depth_slot == depthSlot)
-            return conn;
+        if (!conn.isDepthMod() && conn.depth_slot == depthSlot) return conn;
     }
     return std::nullopt;
 }
 
 std::optional<ModConnection> ModMatrix::findDepthMod(uint16_t srcIdx, uint16_t targetDepthSlot) {
     for (auto& conn : connections_) {
-        if (conn.isDepthMod() && conn.src_idx == srcIdx && conn.dst_idx == targetDepthSlot)
-            return conn;
+        if (conn.isDepthMod() && conn.src_idx == srcIdx && conn.dst_idx == targetDepthSlot) return conn;
     }
     return std::nullopt;
 }
@@ -170,7 +172,6 @@ const ModDestination* ModMatrix::findDestination(const std::string& name) const 
 std::pair<float, float> ModMatrix::getModOffsetRange(uint16_t dstIdx) const {
     ASSERT(dstIdx < dst_count_, "Destination index out of bounds");
 
-    // TODO: This ignores depth-modulation wiggle (the dynamic component a depth-mod connection adds to depth slot during process()); only the static base depth is considered
     float min_off = 0.0f;
     float max_off = 0.0f;
     for (const auto& conn : connections_) {
@@ -223,6 +224,74 @@ ModConnection ModMatrix::addDepthModulation(ModSource src, const ModConnection& 
 
     recompileProgram();
     return connections_.back();
+}
+
+ModConnection ModMatrix::reassignSource(const ModConnection& conn, ModSource newSrc) {
+    ASSERT(newSrc.index < src_count_, "Source index out of bounds");
+    auto it = std::ranges::find_if(
+        connections_, [&](const ModConnection& c) { return c.depth_slot == conn.depth_slot; });
+    ASSERT(it != connections_.end(), "Connection not found");
+    if (it->src_idx == newSrc.index) return *it;
+
+    // Merge: if a peer connection with (newSrc, dst, same kind) already exists, copy this
+    // conn's depth/flags onto it, transfer this conn's depth mods to it (peer-wins on
+    // conflict), then remove this conn.
+    for (auto& existing : connections_) {
+        if (existing.depth_slot == it->depth_slot) continue;
+        if (existing.isDepthMod() == it->isDepthMod() && existing.src_idx == newSrc.index
+            && existing.dst_idx == it->dst_idx) {
+            program_.depth_base_[existing.depth_slot] = program_.depth_base_[it->depth_slot];
+            existing.flags = it->flags;
+            const uint16_t old_slot = it->depth_slot;
+            const uint16_t new_slot = existing.depth_slot;
+            for (auto& dm : connections_) {
+                if (!dm.isDepthMod() || dm.dst_idx != old_slot) continue;
+                const bool peer_has_conflict = std::ranges::any_of(connections_, [&](const ModConnection& c) {
+                    return c.isDepthMod() && c.src_idx == dm.src_idx && c.dst_idx == new_slot;
+                });
+                if (!peer_has_conflict) dm.dst_idx = new_slot;
+            }
+            const ModConnection peer_copy = existing;
+            removeConnection(*it);
+            return peer_copy;
+        }
+    }
+    it->src_idx = newSrc.index;
+    recompileProgram();
+    return *it;
+}
+
+ModConnection ModMatrix::reassignDestination(const ModConnection& conn, ModDestination newDst) {
+    ASSERT(!conn.isDepthMod(), "reassignDestination not valid for depth-mod connections");
+    ASSERT(newDst.index < dst_count_, "Destination index out of bounds");
+    auto it = std::ranges::find_if(
+        connections_, [&](const ModConnection& c) { return c.depth_slot == conn.depth_slot; });
+    ASSERT(it != connections_.end(), "Connection not found");
+    if (it->dst_idx == newDst.index) return *it;
+
+    for (auto& existing : connections_) {
+        if (existing.depth_slot == it->depth_slot) continue;
+        if (!existing.isDepthMod() && existing.src_idx == it->src_idx
+            && existing.dst_idx == newDst.index) {
+            program_.depth_base_[existing.depth_slot] = program_.depth_base_[it->depth_slot];
+            existing.flags = it->flags;
+            const uint16_t old_slot = it->depth_slot;
+            const uint16_t new_slot = existing.depth_slot;
+            for (auto& dm : connections_) {
+                if (!dm.isDepthMod() || dm.dst_idx != old_slot) continue;
+                const bool peer_has_conflict = std::ranges::any_of(connections_, [&](const ModConnection& c) {
+                    return c.isDepthMod() && c.src_idx == dm.src_idx && c.dst_idx == new_slot;
+                });
+                if (!peer_has_conflict) dm.dst_idx = new_slot;
+            }
+            const ModConnection peer_copy = existing;
+            removeConnection(*it);
+            return peer_copy;
+        }
+    }
+    it->dst_idx = newDst.index;
+    recompileProgram();
+    return *it;
 }
 
 void ModMatrix::notifyVoiceOn(uint16_t voice_index) {
@@ -297,8 +366,7 @@ void ModMatrix::process() {
     for (uint16_t i = 0; i < active_voices_.size(); i++) {
         uint16_t voice_index = active_voices_[i];
         for (const auto& poly_depth_conn : program_.depth_connections_poly_) {
-            float src_val =
-                poly_src_buf_[static_cast<size_t>(voice_index) * poly_src_stride_ + poly_depth_conn.src];
+            float src_val = poly_src_buf_[static_cast<size_t>(voice_index) * poly_src_stride_ + poly_depth_conn.src];
             if (poly_depth_conn.isSourceBipolar()) {
                 src_val = (src_val + 1.0f) * 0.5f;  // [-1,+1] -> [0,1]
             }
@@ -342,8 +410,7 @@ void ModMatrix::process() {
             }
             const float depth_val =
                 poly_depth_buf_[static_cast<size_t>(voice_index) * poly_depth_stride_ + mp_conn.depth_slot];
-            poly_dst_buf_[static_cast<size_t>(voice_index) * poly_dst_stride_ + mp_conn.target] +=
-                src_val * depth_val;
+            poly_dst_buf_[static_cast<size_t>(voice_index) * poly_dst_stride_ + mp_conn.target] += src_val * depth_val;
         }
     }
 
@@ -360,12 +427,11 @@ void ModMatrix::process() {
             }
             const float depth_val =
                 poly_depth_buf_[static_cast<size_t>(voice_index) * poly_depth_stride_ + pp_conn.depth_slot];
-            poly_dst_buf_[static_cast<size_t>(voice_index) * poly_dst_stride_ + pp_conn.target] +=
-                src_val * depth_val;
+            poly_dst_buf_[static_cast<size_t>(voice_index) * poly_dst_stride_ + pp_conn.target] += src_val * depth_val;
         }
     }
 
-    // poly -> mono connections (NYI -- leave as stub for now...)
+    // poly -> mono connections (NYI -- leave as stub for now...) TODO fix this
 
 
     // Scale mono destinations: normalized -> true-value
@@ -401,6 +467,20 @@ uint16_t ModMatrix::allocateDepthSlot(float initial_depth) {
     program_.depth_base_.push_back(initial_depth);
     program_.depth_active_.push_back(1);
     return static_cast<uint16_t>(program_.depth_base_.size() - 1);
+}
+
+bool ModMatrix::dstIsConnected(uint16_t dstIdx) const {
+    for (const auto& c : connections_) {
+        if (!c.isDepthMod() && c.dst_idx == dstIdx) return true;
+    }
+    return false;
+}
+
+bool ModMatrix::srcIsConnected(uint16_t srcIdx) const {
+    for (const auto& c : connections_) {
+        if (c.src_idx == srcIdx) return true;
+    }
+    return false;
 }
 
 void ModMatrix::recompileProgram() {
@@ -447,19 +527,24 @@ void ModMatrix::recompileProgram() {
             }
         }
     }
-}
 
-// ModConnection implementations (require complete ModMatrix definition)
+    on_connections_changed();
+}
 
 float ModConnection::getDepth() const { return matrix_->getDepthBase(depth_slot); }
 
 void ModConnection::setDepth(float d) { matrix_->setDepthBase(depth_slot, d); }
 
 void ModConnection::setBipolar(bool v) {
-    if (isBipolar() != v) {
-        flags = v ? (flags | kFlagBipolar) : (flags & ~kFlagBipolar);
-        matrix_->recompileProgram();
+    if (isBipolar() == v) return;
+    flags = v ? (flags | kFlagBipolar) : (flags & ~kFlagBipolar);
+    for (auto& c : matrix_->connections_) {
+        if (c.depth_slot == depth_slot) {
+            c.flags = flags;
+            break;
+        }
     }
+    matrix_->recompileProgram();
 }
 
 const ModSource& ModConnection::source() const { return matrix_->getSource(src_idx); }

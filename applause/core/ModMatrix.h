@@ -4,8 +4,10 @@
 #include <applause/extensions/ParamsExtension.h>
 #include <applause/util/DebugHelpers.h>
 #include <applause/util/ValueScaling.h>
+#include <applause/util/thirdparty/rocket.hpp>
 #include <array>
 #include <optional>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -282,8 +284,8 @@ public:
                                 std::optional<bool> bipolar_mapping = std::nullopt);
 
     /**
-     * Removes a modulation connection between a source and destination.
-     *
+     * Removes a modulation connection between a source and destination. Note that any depth-mod connections that
+     * target this connection's depth as a destination will also be removed.
      * @param srcIdx the source index
      * @param dstIdx the destination index
      * @return true if a connection was found and removed, false otherwise
@@ -291,11 +293,68 @@ public:
     bool removeConnection(uint16_t srcIdx, uint16_t dstIdx);
 
     /**
-     * Removes a modulation connection.
+     * Removes a modulation connection. Same cascade semantics as the (srcIdx, dstIdx) overload.
      */
     bool removeConnection(const ModConnection& connection);
 
+    /**
+     * Reassigns the source of an existing connection in place. Preserves the connection's depth value
+     * and its bipolar flag. If any depth-mod connections target this connection's depth as a destination,
+     * they will be preserved and redirected appropriately.
+     *
+     * Works for both parameter connections and depth mods.
+     *
+     * If a connection already exists with the same (newSrc, dst) pair, the connection is merged
+     * into the preexisting: the preexisting adopts this connection's depth and flags, and this
+     * connection is **removed**.
+     *
+     * Depth mods attached to the moving connection are transferred onto the preexisting, except where the
+     * preexisting already has a depth mod from the same source. In that case, the preexisting's existing depth
+     * mod wins and the moving one is dropped.
+     *
+     * @return a copy of the resulting connection (the in-place one, or the preexisting if merged)
+     */
+    ModConnection reassignSource(const ModConnection& conn, ModSource newSrc);
+
+    /**
+     * Reassigns the destination of an existing parameter connection in place. Preserves the
+     * connection's depth value and its bipolar flag. Depth values are unit-free (scaling is
+     * applied to the final destination value only), so no rescaling is needed. If any depth-mod
+     * connections target this connection's depth as a destination, they will be preserved and
+     * redirected appropriately.
+     *
+     * Parameter connections only; asserts if called on a depth mod.
+     *
+     * If a connection already exists with the same (src, newDst) pair, the connection is merged
+     * into the preexisting: the preexisting adopts this connection's depth and flags, and this
+     * connection is **removed**.
+     *
+     * Depth mods attached to the moving connection are transferred onto the preexisting, except where the
+     * preexisting already has a depth mod from the same source. In that case, the preexisting's existing depth
+     * mod wins and the moving one is dropped.
+     *
+     * @return a copy of the resulting connection (the in-place one, or the preexisting if merged)
+     */
+    ModConnection reassignDestination(const ModConnection& conn, ModDestination newDst);
+
     [[nodiscard]] const std::vector<ModConnection>& getConnections() const { return connections_; }
+
+    /**
+     * Returns true if any connection targets the given destination. This function disregards second-order connections,
+     * i.e. when a source is modulating the depth of another extant connection.
+     */
+    [[nodiscard]] bool dstIsConnected(uint16_t dstIdx) const;
+
+    /**
+     * Returns true if any connection originates from the given source. This may include second-order depth-modulation
+     * connections.
+     */
+    [[nodiscard]] bool srcIsConnected(uint16_t srcIdx) const;
+
+    /**
+     * Fires whenever the connection graph is changed, e.g. after adding/removing a connection.
+     */
+    mutable rocket::signal<void()> on_connections_changed;
 
     /**
      * Finds a first-order (non-depth-mod) connection by source and destination index.
@@ -351,6 +410,17 @@ public:
      * being processed nor producing audio. This function must be called whenever a voice is disabled.
      */
     void notifyVoiceOff(uint16_t voice_index) { std::erase(active_voices_, voice_index); }
+
+    /**
+     * Returns a view over the currently active voice indices. The underlying storage
+     * is reserved to num_voices at construction, so the data pointer is stable across
+     * voice on/off notifications. Intended for UI read-only access at frame rate;
+     * a torn size read may cause at most one frame of visual glitch (e.g. a voice
+     * displayed one frame late after voice-off), which is benign for visualization.
+     */
+    [[nodiscard]] std::span<const uint16_t> getActiveVoices() const {
+        return {active_voices_.data(), active_voices_.size()};
+    }
 
     /**
      * Sets the base (unmodulated) value for a destination in plain units.
