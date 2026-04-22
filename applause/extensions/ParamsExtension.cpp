@@ -345,8 +345,6 @@ void ParamsExtension::registerParam(const ParamConfig& config) {
     }
 
     param_count_++;
-
-    LOG_INFO("Registered parameter {} with CLAP ID {} at index {}", config.string_id, info.clapId, index);
 }
 
 ParamHandle& ParamsExtension::getHandle(clap_id paramId) {
