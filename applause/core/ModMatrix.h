@@ -280,7 +280,7 @@ public:
      *        If not specified, defaults to the source's bipolar flag
      * @return copy of the created/updated connection
      */
-    ModConnection addConnection(ModSource src, ModDestination dst, float depth,
+    ModConnection addConnection(ModSource src, ModDestination dst, float depth = 1.0f,
                                 std::optional<bool> bipolar_mapping = std::nullopt);
 
     /**
@@ -393,7 +393,7 @@ public:
      *        If not specified, defaults to the source's bipolar flag.
      * @return copy of the created/updated depth modulation connection
      */
-    ModConnection addDepthModulation(ModSource src, const ModConnection& target_conn, float depth,
+    ModConnection addDepthModulation(ModSource src, const ModConnection& target_conn, float depth = 1.0f,
                                      std::optional<bool> bipolar_mapping = std::nullopt);
 
     /**

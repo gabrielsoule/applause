@@ -138,14 +138,16 @@ public:
     }
 
     /**
-     * Implements the exact bipolar normalization logic from ModMatrix::process()
+     * Implements the exact bipolar normalization logic from ModMatrix::process().
+     * Under the Serum-style peak-to-peak convention, a bipolar-mapped connection
+     * contributes offsets in [-0.5, +0.5] so that `depth` equals peak-to-peak swing.
      */
     static float applyBipolarNormalization(float src_val, bool src_bipolar, bool bipolar_mapping) {
         if (src_bipolar) {
             src_val = (src_val + 1.0f) * 0.5f;  // [-1,+1] -> [0,1]
         }
         if (bipolar_mapping) {
-            src_val = src_val * 2.0f - 1.0f;    // [0,1] -> [-1,+1]
+            src_val -= 0.5f;                    // [0,1]   -> [-0.5,+0.5]
         }
         return src_val;
     }
@@ -564,27 +566,27 @@ TEST_CASE("E1: Four mapping combinations for main connections", "[modmatrix][map
     // Use identity scaling so plain == normalized
     applause::ValueScaleInfo identity_scale{0.0f, 1.0f, applause::ValueScaling::linear()};
 
-    SECTION("src_bipolar=true, bipolar_mapping=true (identity through both transforms)") {
+    SECTION("src_bipolar=true, bipolar_mapping=true (peak-to-peak = d, centered)") {
         ModMatrix matrix(SmallConfig);
         auto& src = matrix.registerSource("src", ModSrcType::Mono, true);  // bipolar
         auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity_scale);
         matrix.addConnection(src, dst, 1.0f, true);  // bipolar mapping
         matrix.setBaseValue(dst.index, 0.5f);
 
-        // Input -1.0: [-1,+1] -> [0,1] = 0.0 -> [-1,+1] = -1.0
-        // result = 0.5 + (-1.0) * 1.0 = -0.5 -> clamped to 0
+        // Input -1.0: [-1,+1] -> [0,1] = 0.0 -> [-0.5,+0.5] = -0.5
+        // result = 0.5 + (-0.5) * 1.0 = 0.0
         matrix.setMonoSourceValue(src.index, -1.0f);
         matrix.process();
         REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.0f));
 
-        // Input 0.0: [-1,+1] -> [0,1] = 0.5 -> [-1,+1] = 0.0
+        // Input 0.0: [-1,+1] -> [0,1] = 0.5 -> [-0.5,+0.5] = 0.0
         // result = 0.5 + 0.0 * 1.0 = 0.5
         matrix.setMonoSourceValue(src.index, 0.0f);
         matrix.process();
         REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.5f));
 
-        // Input +1.0: [-1,+1] -> [0,1] = 1.0 -> [-1,+1] = +1.0
-        // result = 0.5 + 1.0 * 1.0 = 1.5 -> clamped to 1.0
+        // Input +1.0: [-1,+1] -> [0,1] = 1.0 -> [-0.5,+0.5] = +0.5
+        // result = 0.5 + 0.5 * 1.0 = 1.0
         matrix.setMonoSourceValue(src.index, 1.0f);
         matrix.process();
         REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(1.0f));
@@ -616,27 +618,27 @@ TEST_CASE("E1: Four mapping combinations for main connections", "[modmatrix][map
         REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(1.0f));
     }
 
-    SECTION("src_bipolar=false, bipolar_mapping=true (expand to bipolar)") {
+    SECTION("src_bipolar=false, bipolar_mapping=true (center unipolar on midpoint)") {
         ModMatrix matrix(SmallConfig);
         auto& src = matrix.registerSource("src", ModSrcType::Mono, false);  // unipolar
         auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity_scale);
         matrix.addConnection(src, dst, 1.0f, true);  // bipolar mapping
         matrix.setBaseValue(dst.index, 0.5f);
 
-        // Input 0.0: no normalization (already [0,1]) -> [-1,+1] = -1.0
-        // result = 0.5 + (-1.0) * 1.0 = -0.5 -> clamped to 0
+        // Input 0.0: no normalization (already [0,1]) -> [-0.5,+0.5] = -0.5
+        // result = 0.5 + (-0.5) * 1.0 = 0.0
         matrix.setMonoSourceValue(src.index, 0.0f);
         matrix.process();
         REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.0f));
 
-        // Input 0.5: -> [-1,+1] = 0.0
+        // Input 0.5: -> [-0.5,+0.5] = 0.0
         // result = 0.5 + 0.0 * 1.0 = 0.5
         matrix.setMonoSourceValue(src.index, 0.5f);
         matrix.process();
         REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.5f));
 
-        // Input 1.0: -> [-1,+1] = +1.0
-        // result = 0.5 + 1.0 * 1.0 = 1.5 -> clamped to 1.0
+        // Input 1.0: -> [-0.5,+0.5] = +0.5
+        // result = 0.5 + 0.5 * 1.0 = 1.0
         matrix.setMonoSourceValue(src.index, 1.0f);
         matrix.process();
         REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(1.0f));
@@ -676,14 +678,15 @@ TEST_CASE("E2: Four mapping combinations for depth modulation", "[modmatrix][map
         auto& depth_src = matrix.registerSource("depth", ModSrcType::Mono, true);  // bipolar
         auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity_scale);
 
+        // Main connection is unipolar-mapped so its contribution = main_src * effective_depth.
         auto conn = matrix.addConnection(main_src, dst, 0.0f, false);  // base depth = 0
         matrix.addDepthModulation(depth_src, conn, 1.0f, true);  // bipolar mapping
         matrix.setBaseValue(dst.index, 0.5f);
         matrix.setMonoSourceValue(main_src.index, 1.0f);
 
-        // depth_src = -1.0: normalized to 0.0, bipolar_mapping to -1.0
-        // effective_depth = 0.0 + (-1.0) * 1.0 = -1.0
-        // result = 0.5 + 1.0 * (-1.0) = -0.5 -> clamped to 0
+        // depth_src = -1.0: normalized to 0.0, bipolar_mapping to -0.5
+        // effective_depth = 0.0 + (-0.5) * 1.0 = -0.5
+        // result = 0.5 + 1.0 * (-0.5) = 0.0
         matrix.setMonoSourceValue(depth_src.index, -1.0f);
         matrix.process();
         REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.0f));
@@ -695,9 +698,9 @@ TEST_CASE("E2: Four mapping combinations for depth modulation", "[modmatrix][map
         matrix.process();
         REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.5f));
 
-        // depth_src = +1.0: normalized to 1.0, bipolar_mapping to +1.0
-        // effective_depth = 0.0 + 1.0 * 1.0 = 1.0
-        // result = 0.5 + 1.0 * 1.0 = 1.5 -> clamped to 1.0
+        // depth_src = +1.0: normalized to 1.0, bipolar_mapping to +0.5
+        // effective_depth = 0.0 + 0.5 * 1.0 = 0.5
+        // result = 0.5 + 1.0 * 0.5 = 1.0
         matrix.setMonoSourceValue(depth_src.index, 1.0f);
         matrix.process();
         REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(1.0f));
@@ -1927,8 +1930,11 @@ TEST_CASE("M2: Unipolar mapping contributes [min(0,d), max(0,d)]", "[modmatrix][
     }
 }
 
-TEST_CASE("M3: Bipolar mapping contributes [-|d|, +|d|] regardless of sign", "[modmatrix][offset_range]")
+TEST_CASE("M3: Bipolar mapping contributes [-|d|/2, +|d|/2] regardless of sign",
+          "[modmatrix][offset_range]")
 {
+    // Peak-to-peak of a bipolar-mapped connection equals the depth magnitude, so the offset
+    // range splits symmetrically into ±|d|/2.
     ModMatrix matrix(SmallConfig);
     auto& src = matrix.registerSource("src", ModSrcType::Mono, true);  // bipolar source
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
@@ -1936,15 +1942,15 @@ TEST_CASE("M3: Bipolar mapping contributes [-|d|, +|d|] regardless of sign", "[m
     SECTION("Positive depth") {
         matrix.addConnection(src, dst, 0.4f, true);
         auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
-        REQUIRE(min_off == Catch::Approx(-0.4f));
-        REQUIRE(max_off == Catch::Approx(+0.4f));
+        REQUIRE(min_off == Catch::Approx(-0.2f));
+        REQUIRE(max_off == Catch::Approx(+0.2f));
     }
 
     SECTION("Negative depth gives symmetric range") {
         matrix.addConnection(src, dst, -0.4f, true);
         auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
-        REQUIRE(min_off == Catch::Approx(-0.4f));
-        REQUIRE(max_off == Catch::Approx(+0.4f));
+        REQUIRE(min_off == Catch::Approx(-0.2f));
+        REQUIRE(max_off == Catch::Approx(+0.2f));
     }
 }
 
@@ -1956,13 +1962,13 @@ TEST_CASE("M4: Multiple connections sum independently", "[modmatrix][offset_rang
     auto& s_up_neg = matrix.registerSource("s_up_neg", ModSrcType::Mono, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
 
-    matrix.addConnection(s_bi, dst, 0.2f, true);       // bipolar   -> [-0.2, +0.2]
+    matrix.addConnection(s_bi, dst, 0.2f, true);       // bipolar   -> [-0.1, +0.1]
     matrix.addConnection(s_up_pos, dst, 0.3f, false);  // unipolar  -> [0,    +0.3]
     matrix.addConnection(s_up_neg, dst, -0.1f, false); // unipolar  -> [-0.1,  0 ]
 
     auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
-    REQUIRE(min_off == Catch::Approx(-0.3f));
-    REQUIRE(max_off == Catch::Approx(+0.5f));
+    REQUIRE(min_off == Catch::Approx(-0.2f));
+    REQUIRE(max_off == Catch::Approx(+0.4f));
 }
 
 TEST_CASE("M5: Source bipolar flag does not affect range; only connection mapping does",
@@ -2033,15 +2039,15 @@ TEST_CASE("M8: Reported range bounds process() output at source extremes",
     applause::ValueScaleInfo identity{0.0f, 1.0f, applause::ValueScaling::linear()};
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity);
 
-    matrix.addConnection(s_bi, dst, 0.3f, true);    // [-0.3, +0.3]
-    matrix.addConnection(s_up, dst, 0.2f, false);   // [ 0,   +0.2]
+    matrix.addConnection(s_bi, dst, 0.3f, true);    // [-0.15, +0.15]
+    matrix.addConnection(s_up, dst, 0.2f, false);   // [  0,   +0.20]
 
     const float base = 0.5f;
     matrix.setBaseValue(dst.index, base);
 
     auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
-    REQUIRE(min_off == Catch::Approx(-0.3f));
-    REQUIRE(max_off == Catch::Approx(+0.5f));
+    REQUIRE(min_off == Catch::Approx(-0.15f));
+    REQUIRE(max_off == Catch::Approx(+0.35f));
 
     // Drive toward the reported maximum: s_bi=+1 (full positive bipolar), s_up=+1.
     matrix.setMonoSourceValue(s_bi.index, +1.0f);
@@ -2056,4 +2062,131 @@ TEST_CASE("M8: Reported range bounds process() output at source extremes",
     matrix.process();
     float out_min_offset = matrix.getModValue(dst.index) - base;
     REQUIRE(out_min_offset >= min_off - 1e-5f);
+}
+
+// ---------------------------------------------------------------------------
+// Section N: Smart default mapping in addConnection
+// ---------------------------------------------------------------------------
+// When the caller omits `bipolar_mapping`, addConnection infers a sensible default:
+//   - bipolar sources          → bipolar-mapped (unchanged from before)
+//   - unipolar sources, base near center (1/3..2/3) → bipolar-mapped
+//   - unipolar sources, base near min  (<1/3)       → unipolar-mapped, depth forced positive
+//   - unipolar sources, base near max  (>2/3)       → unipolar-mapped, depth forced negative
+// Explicit `bipolar_mapping` always overrides this.
+
+TEST_CASE("N1: Bipolar source defaults to bipolar-mapped regardless of base",
+          "[modmatrix][connections][default_mapping]")
+{
+    auto check = [](float base) {
+        ModMatrix matrix(SmallConfig);
+        auto& src = matrix.registerSource("src", ModSrcType::Mono, true);  // bipolar
+        auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+        matrix.setBaseValue(dst.index, base);
+        auto conn = matrix.addConnection(src, dst, 0.5f);  // no explicit mapping
+        REQUIRE(conn.isBipolar());
+        REQUIRE(conn.getDepth() == Catch::Approx(0.5f));
+    };
+
+    SECTION("base = 0.0") { check(0.0f); }
+    SECTION("base = 0.5") { check(0.5f); }
+    SECTION("base = 1.0") { check(1.0f); }
+}
+
+TEST_CASE("N2: Unipolar source, base near min → unipolar-mapped, depth forced positive",
+          "[modmatrix][connections][default_mapping]")
+{
+    applause::ValueScaleInfo identity{0.0f, 1.0f, applause::ValueScaling::linear()};
+    ModMatrix matrix(SmallConfig);
+    auto& src = matrix.registerSource("src", ModSrcType::Mono, false);  // unipolar
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity);
+    matrix.setBaseValue(dst.index, 0.1f);
+
+    // Pass a negative depth; resolver should sign-flip it to positive.
+    auto conn = matrix.addConnection(src, dst, -0.8f);
+    REQUIRE(!conn.isBipolar());
+    REQUIRE(conn.getDepth() == Catch::Approx(+0.8f));
+}
+
+TEST_CASE("N3: Unipolar source, base near center → bipolar-mapped",
+          "[modmatrix][connections][default_mapping]")
+{
+    applause::ValueScaleInfo identity{0.0f, 1.0f, applause::ValueScaling::linear()};
+    ModMatrix matrix(SmallConfig);
+    auto& src = matrix.registerSource("src", ModSrcType::Mono, false);  // unipolar
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity);
+    matrix.setBaseValue(dst.index, 0.5f);
+
+    auto conn = matrix.addConnection(src, dst, 0.6f);
+    REQUIRE(conn.isBipolar());
+    REQUIRE(conn.getDepth() == Catch::Approx(0.6f));  // depth preserved when center-mapped
+}
+
+TEST_CASE("N4: Unipolar source, base near max → unipolar-mapped, depth forced negative",
+          "[modmatrix][connections][default_mapping]")
+{
+    applause::ValueScaleInfo identity{0.0f, 1.0f, applause::ValueScaling::linear()};
+    ModMatrix matrix(SmallConfig);
+    auto& src = matrix.registerSource("src", ModSrcType::Mono, false);  // unipolar
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity);
+    matrix.setBaseValue(dst.index, 0.9f);
+
+    // Pass positive depth; resolver should sign-flip it toward the interior (negative).
+    auto conn = matrix.addConnection(src, dst, 0.8f);
+    REQUIRE(!conn.isBipolar());
+    REQUIRE(conn.getDepth() == Catch::Approx(-0.8f));
+}
+
+TEST_CASE("N5: Explicit bipolar_mapping overrides the smart default",
+          "[modmatrix][connections][default_mapping]")
+{
+    ModMatrix matrix(SmallConfig);
+    auto& src = matrix.registerSource("src", ModSrcType::Mono, false);  // unipolar
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+    matrix.setBaseValue(dst.index, 0.0f);  // would normally pick unipolar+
+
+    auto conn = matrix.addConnection(src, dst, 0.5f, true);  // explicit bipolar override
+    REQUIRE(conn.isBipolar());
+    REQUIRE(conn.getDepth() == Catch::Approx(0.5f));  // depth not sign-normalized
+}
+
+TEST_CASE("N6: Smart default integrates with getModOffsetRange",
+          "[modmatrix][connections][default_mapping][offset_range]")
+{
+    applause::ValueScaleInfo identity{0.0f, 1.0f, applause::ValueScaling::linear()};
+
+    SECTION("Bipolar source centered on 0.5 → reported range [-d/2, +d/2]") {
+        ModMatrix matrix(SmallConfig);
+        auto& src = matrix.registerSource("src", ModSrcType::Mono, true);
+        auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity);
+        matrix.setBaseValue(dst.index, 0.5f);
+        matrix.addConnection(src, dst, 1.0f);
+
+        auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
+        REQUIRE(min_off == Catch::Approx(-0.5f));
+        REQUIRE(max_off == Catch::Approx(+0.5f));
+    }
+
+    SECTION("Unipolar source at base 0.0 → reported range [0, +d]") {
+        ModMatrix matrix(SmallConfig);
+        auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
+        auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity);
+        matrix.setBaseValue(dst.index, 0.0f);
+        matrix.addConnection(src, dst, 1.0f);
+
+        auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
+        REQUIRE(min_off == Catch::Approx(0.0f));
+        REQUIRE(max_off == Catch::Approx(+1.0f));
+    }
+
+    SECTION("Unipolar source at base 1.0 → reported range [-d, 0]") {
+        ModMatrix matrix(SmallConfig);
+        auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
+        auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity);
+        matrix.setBaseValue(dst.index, 1.0f);
+        matrix.addConnection(src, dst, 1.0f);
+
+        auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
+        REQUIRE(min_off == Catch::Approx(-1.0f));
+        REQUIRE(max_off == Catch::Approx(0.0f));
+    }
 }

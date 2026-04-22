@@ -1,6 +1,14 @@
 #include "ModMatrix.h"
 
+#include <cmath>
+
 namespace applause {
+
+static inline float applyConnectionPolarity(float src_val, bool src_bipolar, bool bipolar_mapping) {
+    if (src_bipolar)     src_val = (src_val + 1.0f) * 0.5f;  // [-1,+1] -> [0,1]
+    if (bipolar_mapping) src_val -= 0.5f;                    // [0,1]   -> [-0.5,+0.5]
+    return src_val;                                          // unipolar path: [0,1] unchanged
+}
 
 ModSource& ModMatrix::registerSource(const std::string& string_id, ModSrcType type, bool bipolar,
                                      ModSrcMode defaultMode) {
@@ -60,14 +68,44 @@ void ModMatrix::registerFromParamsExtension(const applause::ParamsExtension& par
         ModDstMode mode = param.polyphonic ? ModDstMode::Poly : ModDstMode::Mono;
         registerDestination(param.stringId, mode, scale_array[i]);
     }
+
+    // Seed base values so addConnection's smart-default resolver sees real knob positions
+    // before the first process() block runs. Steady-state freshness continues to come from
+    // loadParamBaseValues() called each block.
+    loadParamBaseValues(params_extension);
 }
 
 ModConnection ModMatrix::addConnection(ModSource src, ModDestination dst, float depth,
                                        std::optional<bool> bipolar_mapping) {
     ASSERT(src.index < src_count_, "Source index out of bounds");
     ASSERT(dst.index < dst_count_, "Destination index out of bounds");
-    // Default to source's bipolar flag if not specified
-    const bool mapping = bipolar_mapping.value_or(src_registry_[src.index].bipolar);
+
+    // Resolve default mapping. Bipolar sources default to bipolar-mapped. For unipolar sources
+    // (envelopes, velocity, mod wheel), pick based on the destination's current base value.
+    // base_mono_dst_ is seeded at registration via registerFromParamsExtension() and refreshed
+    // each block by loadParamBaseValues(), so worst-case staleness here is one block — fine for
+    // a UI heuristic. For manually-registered (non-param) destinations, callers should
+    // setBaseValue() before addConnection if they want a non-zero base; otherwise the resolver
+    // falls through to "unipolar-up, positive depth".
+    bool mapping;
+    if (bipolar_mapping.has_value()) {
+        mapping = *bipolar_mapping;
+    } else if (src_registry_[src.index].bipolar) {
+        mapping = true;
+    } else {
+        constexpr float kCenterLo = 1.0f / 3.0f;
+        constexpr float kCenterHi = 2.0f / 3.0f;
+        const float base = base_mono_dst_[dst.index];
+        if (base < kCenterLo) {
+            mapping = false;
+            depth = std::fabs(depth);
+        } else if (base > kCenterHi) {
+            mapping = false;
+            depth = -std::fabs(depth);
+        } else {
+            mapping = true;
+        }
+    }
 
     // Check for existing parameter connection with same (src, dst)
     for (auto& existing : connections_) {
@@ -179,8 +217,9 @@ std::pair<float, float> ModMatrix::getModOffsetRange(uint16_t dstIdx) const {
         const float d = program_.depth_base_[conn.depth_slot];
         const float a = d < 0.0f ? -d : d;
         if (conn.isBipolar()) {
-            min_off -= a;
-            max_off += a;
+            const float half = a * 0.5f;  // peak-to-peak = d → ±d/2
+            min_off -= half;
+            max_off += half;
         } else if (d >= 0.0f) {
             max_off += d;
         } else {
@@ -342,14 +381,9 @@ void ModMatrix::process() {
 
     // calculate mono depth modulation
     for (const auto& mono_depth_conn : program_.depth_connections_mono_) {
-        float src_val = mono_src_buf_[mono_depth_conn.src];
-        if (mono_depth_conn.isSourceBipolar()) {
-            src_val = (src_val + 1.0f) * 0.5f;  // [-1,+1] -> [0,1]
-        }
-        if (mono_depth_conn.isBipolar()) {
-            src_val = src_val * 2.0f - 1.0f;  // [0,1] -> [-1,+1]
-        }
-
+        const float src_val = applyConnectionPolarity(mono_src_buf_[mono_depth_conn.src],
+                                                      mono_depth_conn.isSourceBipolar(),
+                                                      mono_depth_conn.isBipolar());
         const float depth = program_.depth_base_[mono_depth_conn.depth_slot];
         mono_depth_buf_[mono_depth_conn.target] += src_val * depth;
     }
@@ -366,13 +400,9 @@ void ModMatrix::process() {
     for (uint16_t i = 0; i < active_voices_.size(); i++) {
         uint16_t voice_index = active_voices_[i];
         for (const auto& poly_depth_conn : program_.depth_connections_poly_) {
-            float src_val = poly_src_buf_[static_cast<size_t>(voice_index) * poly_src_stride_ + poly_depth_conn.src];
-            if (poly_depth_conn.isSourceBipolar()) {
-                src_val = (src_val + 1.0f) * 0.5f;  // [-1,+1] -> [0,1]
-            }
-            if (poly_depth_conn.isBipolar()) {
-                src_val = src_val * 2.0f - 1.0f;  // [0,1] -> [-1,+1]
-            }
+            const float src_val = applyConnectionPolarity(
+                poly_src_buf_[static_cast<size_t>(voice_index) * poly_src_stride_ + poly_depth_conn.src],
+                poly_depth_conn.isSourceBipolar(), poly_depth_conn.isBipolar());
             const float depth = program_.depth_base_[poly_depth_conn.depth_slot];
             poly_depth_buf_[static_cast<size_t>(voice_index) * poly_depth_stride_ + poly_depth_conn.target] +=
                 src_val * depth;
@@ -386,13 +416,8 @@ void ModMatrix::process() {
     // require a reduction policy to collapse per-voice values to mono. Until implemented,
     // avoid poly depth mods on slots used by MM connections.
     for (const auto& mm_conn : program_.mm_connections) {
-        float src_val = mono_src_buf_[mm_conn.src];
-        if (mm_conn.isSourceBipolar()) {
-            src_val = (src_val + 1.0f) * 0.5f;  // [-1,+1] -> [0,1]
-        }
-        if (mm_conn.isBipolar()) {
-            src_val = src_val * 2.0f - 1.0f;  // [0,1] -> [-1,+1]
-        }
+        const float src_val = applyConnectionPolarity(mono_src_buf_[mm_conn.src],
+                                                      mm_conn.isSourceBipolar(), mm_conn.isBipolar());
         const float depth_val = mono_depth_buf_[mm_conn.depth_slot];
         mono_dst_[mm_conn.target] += src_val * depth_val;
     }
@@ -401,13 +426,8 @@ void ModMatrix::process() {
     for (uint16_t i = 0; i < active_voices_.size(); i++) {
         uint16_t voice_index = active_voices_[i];
         for (const auto& mp_conn : program_.mp_connections) {
-            float src_val = mono_src_buf_[mp_conn.src];
-            if (mp_conn.isSourceBipolar()) {
-                src_val = (src_val + 1.0f) * 0.5f;  // [-1,+1] -> [0,1]
-            }
-            if (mp_conn.isBipolar()) {
-                src_val = src_val * 2.0f - 1.0f;  // [0,1] -> [-1,+1]
-            }
+            const float src_val = applyConnectionPolarity(mono_src_buf_[mp_conn.src],
+                                                          mp_conn.isSourceBipolar(), mp_conn.isBipolar());
             const float depth_val =
                 poly_depth_buf_[static_cast<size_t>(voice_index) * poly_depth_stride_ + mp_conn.depth_slot];
             poly_dst_buf_[static_cast<size_t>(voice_index) * poly_dst_stride_ + mp_conn.target] += src_val * depth_val;
@@ -418,13 +438,9 @@ void ModMatrix::process() {
     for (uint16_t i = 0; i < active_voices_.size(); i++) {
         uint16_t voice_index = active_voices_[i];
         for (const auto& pp_conn : program_.pp_connections) {
-            float src_val = poly_src_buf_[static_cast<size_t>(voice_index) * poly_src_stride_ + pp_conn.src];
-            if (pp_conn.isSourceBipolar()) {
-                src_val = (src_val + 1.0f) * 0.5f;  // [-1,+1] -> [0,1]
-            }
-            if (pp_conn.isBipolar()) {
-                src_val = src_val * 2.0f - 1.0f;  // [0,1] -> [-1,+1]
-            }
+            const float src_val = applyConnectionPolarity(
+                poly_src_buf_[static_cast<size_t>(voice_index) * poly_src_stride_ + pp_conn.src],
+                pp_conn.isSourceBipolar(), pp_conn.isBipolar());
             const float depth_val =
                 poly_depth_buf_[static_cast<size_t>(voice_index) * poly_depth_stride_ + pp_conn.depth_slot];
             poly_dst_buf_[static_cast<size_t>(voice_index) * poly_dst_stride_ + pp_conn.target] += src_val * depth_val;
