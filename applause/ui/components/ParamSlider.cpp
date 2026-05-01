@@ -9,8 +9,11 @@ ParamSlider::ParamSlider(ParamInfo& paramInfo) : param_info_(paramInfo), param_t
     addChild(&slider_);
     addChild(&param_text_box_);
 
+    const float range = param_info_.maxValue - param_info_.minValue;
+    slider_.setDefaultValue((param_info_.defaultValue - param_info_.minValue) / range);
+
     const float currentValue = param_info_.getValue();
-    const float normalizedValue = (currentValue - param_info_.minValue) / (param_info_.maxValue - param_info_.minValue);
+    const float normalizedValue = (currentValue - param_info_.minValue) / range;
     slider_.setValue(normalizedValue);
 
     slider_.on_value_changed.add([this](float value) {

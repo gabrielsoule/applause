@@ -31,6 +31,11 @@ public:
     bool mouseWheel(const visage::MouseEvent& event) override;
 
     void setValue(float value);
+    float getValue() const { return value_; }
+
+    void setDefaultValue(float value);
+    float getDefaultValue() const { return default_value_; }
+
     void setBipolar(bool bipolar);
     bool isBipolar() const { return bipolar_; }
 
@@ -52,6 +57,7 @@ private:
     bool hovering_ = false;
     bool bipolar_ = false;
     float value_ = 0;  // [0, 1] or [-1, 1] when bipolar
+    float default_value_ = 0;  // [0, 1] or [-1, 1] when bipolar
     visage::Animation<float> glow_amount_;
 
     static constexpr float kWheelSensitivity = 0.01f;

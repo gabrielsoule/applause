@@ -23,6 +23,19 @@ void Slider::resized() {}
 
 void Slider::mouseDown(const visage::MouseEvent& event) {
     if (!active_) return;
+
+    if (event.repeatClickCount() == 2) {
+        const float resetValue = std::clamp(default_value_, bipolar_ ? -1.0f : 0.0f, 1.0f);
+        if (value_ != resetValue) {
+            on_drag_started.callback();
+            value_ = resetValue;
+            on_value_changed.callback(value_);
+            on_drag_ended.callback();
+            redraw();
+        }
+        return;
+    }
+
     dragging_ = true;
     glow_amount_.target(true);
     on_drag_started.callback();
@@ -37,6 +50,8 @@ void Slider::mouseDrag(const visage::MouseEvent& event) {
 
 void Slider::mouseUp(const visage::MouseEvent& event) {
     if (!active_) return;
+    if (!dragging_) return;
+
     dragging_ = false;
     on_drag_ended.callback();
     processDrag(event.position.x);
@@ -69,10 +84,19 @@ void Slider::setValue(float value) {
     redraw();
 }
 
+void Slider::setDefaultValue(float value) {
+    if (bipolar_)
+        default_value_ = std::clamp(value, -1.0f, 1.0f);
+    else
+        default_value_ = std::clamp(value, 0.0f, 1.0f);
+    redraw();
+}
+
 void Slider::setBipolar(bool bipolar) {
     if (bipolar_ != bipolar) {
         bipolar_ = bipolar;
         value_ = 0.0f;
+        default_value_ = std::clamp(default_value_, bipolar_ ? -1.0f : 0.0f, 1.0f);
         redraw();
     }
 }
