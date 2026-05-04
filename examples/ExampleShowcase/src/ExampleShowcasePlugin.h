@@ -33,4 +33,8 @@ private:
     applause::ParamsExtension params_;
     applause::ModMatrix mod_matrix_;
     applause::GUIExtension gui_ext_;
+
+    double sample_rate_ = 44100.0;
+    float lfo_phase_ = 0.0f;
+    uint16_t lfo1_src_idx_ = 0;
 };

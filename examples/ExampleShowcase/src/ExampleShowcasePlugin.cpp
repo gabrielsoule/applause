@@ -1,6 +1,7 @@
 #include "ExampleShowcasePlugin.h"
 #include <applause/util/DebugHelpers.h>
 #include <applause/util/Json.h>
+#include <cmath>
 #include <map>
 #include <vector>
 ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host) :
@@ -136,7 +137,7 @@ ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* des
                                                 .is_stepped = true});
 
     // Configure ModMatrix with demo sources and destinations
-    mod_matrix_.registerSource("LFO 1", applause::ModSrcType::Mono, true);
+    lfo1_src_idx_ = mod_matrix_.registerSource("LFO 1", applause::ModSrcType::Mono, true).index;
     mod_matrix_.registerSource("LFO 2", applause::ModSrcType::Both, true);
     mod_matrix_.registerSource("Envelope", applause::ModSrcType::Poly, false);
     mod_matrix_.registerSource("Velocity", applause::ModSrcType::Poly, false);
@@ -190,14 +191,26 @@ void ExampleShowcasePlugin::destroy() noexcept { LOG_INFO("ExampleShowcase::dest
 
 bool ExampleShowcasePlugin::activate(const applause::ProcessInfo& info) noexcept {
     LOG_INFO("ExampleShowcase::activate() - sampleRate: {}", info.sample_rate);
+    sample_rate_ = info.sample_rate;
+    lfo_phase_ = 0.0f;
     return true;
 }
 
 void ExampleShowcasePlugin::deactivate() noexcept { LOG_INFO("ExampleShowcase::deactivate()"); }
 
 clap_process_status ExampleShowcasePlugin::process(const clap_process_t* process) noexcept {
-    // Let the parameter module process events.
     params_.processEvents(process->in_events, process->out_events);
 
-    return CLAP_PROCESS_SLEEP;
+    constexpr float kLfoHz = 1.0f;
+    constexpr float kTwoPi = 6.28318530718f;
+
+    const float phase_inc_per_sample = kTwoPi * kLfoHz / static_cast<float>(sample_rate_);
+    lfo_phase_ += phase_inc_per_sample * static_cast<float>(process->frames_count);
+    while (lfo_phase_ >= kTwoPi) lfo_phase_ -= kTwoPi;
+
+    mod_matrix_.loadParamBaseValues(params_);
+    mod_matrix_.setMonoSourceValue(lfo1_src_idx_, std::sin(lfo_phase_));
+    mod_matrix_.process();
+
+    return CLAP_PROCESS_CONTINUE;
 }

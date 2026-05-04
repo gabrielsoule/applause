@@ -3,16 +3,65 @@
 #include <visage_graphics/font.h>
 #include <visage_graphics/theme.h>
 
+#include <algorithm>
+#include <cmath>
+
 #include <applause/util/DebugHelpers.h>
 #include <embedded/applause_fonts.h>
 
 namespace applause {
 
 VISAGE_THEME_IMPLEMENT_COLOR(ParamKnob, ApplauseParamKnobText, 0xffcccccc);
-ParamKnob::ParamKnob(ParamInfo& paramInfo) : param_info_(paramInfo), paramValueText_(paramInfo) {
+
+ParamKnob::ModOverlay::ModOverlay(const ParamKnob& owner) : owner_(&owner) {
+    setIgnoresMouseEvents(true, false);
+}
+
+void ParamKnob::ModOverlay::draw(visage::Canvas& canvas) {
+    if (!owner_->is_connected_) return;
+
+    const float size = std::min(width(), height());
+    const float centerX = width() * 0.5f;
+    const float centerY = height() * 0.5f;
+    const float radius = size * 0.5f;
+
+    constexpr float kTopCenter = 1.5f * static_cast<float>(M_PI);
+    const float sweep = canvas.value(Knob::ApplauseKnobSweep);
+    const float arcThickness = canvas.value(Knob::ApplauseKnobArcThickness);
+    const float trackCenter = radius - canvas.value(Knob::ApplauseKnobTrackInset);
+    const float halfSweep = sweep * 0.5f;
+    const float startAngle = kTopCenter - halfSweep;
+    const float dotDiameter = arcThickness;
+    const float dotTrackRadius = trackCenter - arcThickness * 0.5f;
+
+    canvas.setColor(Knob::ApplauseKnobAccent);
+
+    // lambda to handle different behavior for poly vs mono destination
+    const auto drawDot = [&](float value) {
+        const float norm = std::clamp(owner_->param_info_.toNormalized(value), 0.0f, 1.0f);
+        const float angle = startAngle + norm * sweep;
+        const float dotCenterX = centerX + std::cos(angle) * dotTrackRadius;
+        const float dotCenterY = centerY + std::sin(angle) * dotTrackRadius;
+        canvas.circle(dotCenterX - dotDiameter * 0.5f, dotCenterY - dotDiameter * 0.5f, dotDiameter);
+    };
+
+    if (owner_->destination_->mode == ModDstMode::Poly) {
+        for (uint16_t voice : owner_->mod_matrix_->getActiveVoices()) {
+            drawDot(owner_->mod_matrix_->getPolyModValue(owner_->destination_->index, voice));
+        }
+    } else {
+        drawDot(owner_->mod_matrix_->getModValue(owner_->destination_->index));
+    }
+
+    redraw();
+}
+
+ParamKnob::ParamKnob(ParamInfo& paramInfo) :
+    param_info_(paramInfo), mod_overlay_(*this), paramValueText_(paramInfo) {
     setReceiveChildMouseEvents(true);
     knob_.setName(this->name() + " knob");
     addChild(&knob_);
+    addChild(&mod_overlay_);
     paramValueText_.setVisible(false);
     addChild(&paramValueText_);
 
@@ -64,6 +113,7 @@ void ParamKnob::draw(visage::Canvas& canvas) {
 
 void ParamKnob::resized() {
     knob_.setBounds(0, 0, width(), height() - kLabelHeight);
+    mod_overlay_.setBounds(0, 0, width(), height() - kLabelHeight);
     const float label_y = height() - kLabelHeight;
     const float label_h = kLabelHeight - kLabelPadding;
     // The -5, +5 Y axis "out of bounds" margin is due to a quirk of the Visage
@@ -71,6 +121,25 @@ void ParamKnob::resized() {
     // of the actual component.
     paramValueText_.setBounds(-5, label_y, width() + 10, label_h);
     paramNameText_.setBounds(-5, label_y, width() + 10, label_h);
+}
+
+void ParamKnob::setModDestination(ModMatrix* matrix, const ModDestination* dst) {
+    ASSERT(matrix);
+    ASSERT(dst);
+    connections_changed_conn_.disconnect();
+    mod_matrix_ = matrix;
+    destination_ = dst;
+    is_connected_ = matrix->dstIsConnected(dst->index);
+    connections_changed_conn_ = matrix->on_connections_changed.connect([this]() { refreshConnectionState(); });
+    mod_overlay_.redraw();
+}
+
+void ParamKnob::refreshConnectionState() {
+    const bool new_state = mod_matrix_->dstIsConnected(destination_->index);
+    if (new_state != is_connected_) {
+        is_connected_ = new_state;
+        mod_overlay_.redraw();
+    }
 }
 
 void ParamKnob::mouseEnter(const visage::MouseEvent& e) {

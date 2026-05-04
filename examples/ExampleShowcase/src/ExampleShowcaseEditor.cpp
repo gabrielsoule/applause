@@ -4,8 +4,10 @@
 #endif
 #include <applause/ui/Tooltip.h>
 #include <applause/util/DebugHelpers.h>
+#include <cmath>
 #include <fstream>
 #include <nfd.hpp>
+#include <span>
 #include <sstream>
 #include <visage_graphics/canvas.h>
 
@@ -40,6 +42,12 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params, 
 
         filter_mode_knob_ = std::make_unique<applause::ParamKnob>(getParamsExtension()->getInfo("filter_mode"));
         knobs_panel_.content().addChild(filter_mode_knob_.get());
+
+        if (mod_matrix) {
+            param1_knob_->setModDestination(mod_matrix, mod_matrix->findDestination("param1"));
+            param2_knob_->setModDestination(mod_matrix, mod_matrix->findDestination("param2"));
+            filter_mode_knob_->setModDestination(mod_matrix, mod_matrix->findDestination("filter_mode"));
+        }
     }
 
     // --- Buttons Panel (middle-right) ---
