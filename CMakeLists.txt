@@ -41,7 +41,7 @@ CPMAddPackage(
 # nlohmann/json for state serialization
 CPMAddPackage(
     NAME nlohmann_json
-    VERSION 3.11.3
+    VERSION 3.12.0
     GITHUB_REPOSITORY nlohmann/json
     OPTIONS "JSON_BuildTests OFF"
 )
@@ -50,7 +50,7 @@ CPMAddPackage(
 CPMAddPackage(
     NAME xsimd
     GITHUB_REPOSITORY xtensor-stack/xsimd
-    GIT_TAG 13.0.0
+    GIT_TAG 14.2.0
     OPTIONS
         "BUILD_TESTS OFF"
         "BUILD_BENCHMARK OFF"
@@ -98,7 +98,7 @@ include(make_clapfirst)
 CPMAddPackage(
     NAME nativefiledialog_extended
     GITHUB_REPOSITORY btzy/nativefiledialog-extended
-    GIT_TAG v1.2.1
+    GIT_TAG v1.3.0
     OPTIONS
         "BUILD_SHARED_LIBS OFF"
         "NFD_BUILD_TESTS OFF"
@@ -141,7 +141,7 @@ if(APPLAUSE_USE_FMT)
     CPMAddPackage(
         NAME fmt
         GITHUB_REPOSITORY fmtlib/fmt
-        GIT_TAG 11.2.0
+        GIT_TAG 12.1.0
     )
     target_link_libraries(applause PUBLIC fmt)
     target_compile_definitions(applause PUBLIC APPLAUSE_USE_FMT)
