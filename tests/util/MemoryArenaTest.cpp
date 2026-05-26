@@ -16,7 +16,7 @@ TEST_CASE("snapPointerToAlignment", "[util][memory]")
     SECTION("Unaligned pointer snapped forward")
     {
         alignas(64) std::byte buffer[128];
-        auto* ptr = buffer + 1;  // Offset by 1, now unaligned
+        auto* ptr = buffer + 1;
         auto* aligned = applause::snapPointerToAlignment(ptr, 64);
         REQUIRE(reinterpret_cast<std::uintptr_t>(aligned) % 64 == 0);
         REQUIRE(aligned > ptr);
@@ -99,8 +99,7 @@ TEST_CASE("MemoryArena basic allocation", "[util][memory]")
         REQUIRE(moved.raw_data_.data() == original_data);
     }
 
-    // Note...allocation beyond capacity triggers assert(false) in debug builds,
-    // which is intentional; the arena expects pre-allocated sufficient space.
+    // Over-capacity allocation deliberately asserts; not exercised here.
 }
 
 TEST_CASE("MemoryArena frame behavior", "[util][memory]")
@@ -119,7 +118,6 @@ TEST_CASE("MemoryArena frame behavior", "[util][memory]")
             REQUIRE(arena.getBytesUsed() >= before_frame + 200);
         }
 
-        // After frame destruction, should be back to original
         REQUIRE(arena.getBytesUsed() == before_frame);
     }
 
@@ -139,11 +137,9 @@ TEST_CASE("MemoryArena frame behavior", "[util][memory]")
                 REQUIRE(arena.getBytesUsed() > level1);
             }
 
-            // After frame2 destroyed
             REQUIRE(arena.getBytesUsed() == level1);
         }
 
-        // After frame1 destroyed
         REQUIRE(arena.getBytesUsed() == level0);
     }
 
@@ -171,7 +167,6 @@ TEST_CASE("MemoryArena makeSpan", "[util][memory]")
         auto span = arena.makeSpan<int>(20);
         REQUIRE(span.size() == 20);
 
-        // Verify writable
         for (size_t i = 0; i < span.size(); ++i)
             span[i] = static_cast<int>(i * 2);
 

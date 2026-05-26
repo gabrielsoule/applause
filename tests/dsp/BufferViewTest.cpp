@@ -77,7 +77,6 @@ TEST_CASE("BufferView non-contiguous construction", "[dsp][buffer]")
     alignas(64) std::array<float, frames> ch0_data{};
     alignas(64) std::array<float, frames> ch1_data{};
 
-    // Separate allocations - definitely not contiguous
     std::array<float*, 2> channel_ptrs = {ch0_data.data(), ch1_data.data()};
 
     SECTION("Host pointer array construction")
@@ -126,7 +125,6 @@ TEST_CASE("BufferView accessors", "[dsp][buffer]")
 
     SECTION("scalarsPerChannel accounts for width")
     {
-        // For float, sample_width is 1
         REQUIRE(buffer.scalarsPerChannel() == frames * 1);
     }
 
@@ -174,15 +172,10 @@ TEST_CASE("BufferView load/store", "[dsp][buffer]")
         buffer.clear();
         buffer.store(0, 5, 100.0f);
 
-        // Check channel 0 frame 5
         REQUIRE(buffer.load(0, 5) == 100.0f);
-
-        // Other frames in channel 0 should be zero
         REQUIRE(buffer.load(0, 0) == 0.0f);
         REQUIRE(buffer.load(0, 4) == 0.0f);
         REQUIRE(buffer.load(0, 6) == 0.0f);
-
-        // Channel 1 should be unaffected
         REQUIRE(buffer.load(1, 5) == 0.0f);
     }
 
@@ -201,14 +194,12 @@ TEST_CASE("BufferView load/store", "[dsp][buffer]")
 
     SECTION("Channel boundary respected")
     {
-        // Fill ch0 with 1000s, ch1 with 2000s
         for (std::size_t fr = 0; fr < frames; ++fr)
         {
             buffer.store(0, fr, 1000.0f + static_cast<float>(fr));
             buffer.store(1, fr, 2000.0f + static_cast<float>(fr));
         }
 
-        // Verify no cross-contamination
         for (std::size_t fr = 0; fr < frames; ++fr)
         {
             REQUIRE(buffer.load(0, fr) == 1000.0f + static_cast<float>(fr));
@@ -354,21 +345,20 @@ TEST_CASE("BufferView getSubView", "[dsp][buffer]")
     SECTION("Writes through subview affect parent")
     {
         auto sub = buffer.getSubView(10, 30);
-        sub.store(0, 5, 12345.0f);  // This is frame 5 of subview = frame 15 of parent
+        sub.store(0, 5, 12345.0f);  // sub[0,5] aliases parent[0,15]
         REQUIRE(buffer.load(0, 15) == 12345.0f);
     }
 
     SECTION("SubView of SubView works")
     {
-        auto sub1 = buffer.getSubView(10, 50);  // Frames 10-49
-        auto sub2 = sub1.getSubView(5, 15);     // Frames 5-14 of sub1 = 15-24 of parent
+        auto sub1 = buffer.getSubView(10, 50);
+        auto sub2 = sub1.getSubView(5, 15);  // = parent frames 15-24
 
         REQUIRE(sub2.numFrames() == 10);
         REQUIRE(sub2.channelSamples(0) == buffer.channelSamples(0) + 15);
 
-        // Check values match expected parent frames
-        REQUIRE(sub2.load(0, 0) == 15.0f);   // ch0, parent frame 15
-        REQUIRE(sub2.load(0, 9) == 24.0f);   // ch0, parent frame 24
+        REQUIRE(sub2.load(0, 0) == 15.0f);
+        REQUIRE(sub2.load(0, 9) == 24.0f);
     }
 }
 
@@ -381,7 +371,6 @@ TEST_CASE("BufferView clear operations", "[dsp][buffer]")
 
     SECTION("clear zeros all channels")
     {
-        // Fill with non-zero data
         for (std::size_t ch = 0; ch < channels; ++ch)
         {
             for (std::size_t fr = 0; fr < frames; ++fr)
@@ -404,7 +393,7 @@ TEST_CASE("BufferView clear operations", "[dsp][buffer]")
     SECTION("clear on empty buffer is safe")
     {
         applause::BufferView<float, 2> empty;
-        empty.clear();  // Should not crash
+        empty.clear();
         REQUIRE(empty.numFrames() == 0);
     }
 
@@ -485,7 +474,7 @@ TEST_CASE("BufferView edge cases", "[dsp][buffer]")
     SECTION("Zero frame buffer clear is safe")
     {
         applause::BufferView<float, 2> buffer{nullptr, 0};
-        buffer.clear();  // Should not crash
+        buffer.clear();
         REQUIRE(buffer.numFrames() == 0);
     }
 
@@ -497,7 +486,6 @@ TEST_CASE("BufferView edge cases", "[dsp][buffer]")
 
         REQUIRE(buffer.numFrames() == large_frames);
 
-        // Write to first and last frames
         buffer.store(0, 0, 1.0f);
         buffer.store(0, large_frames - 1, 2.0f);
         buffer.store(1, large_frames - 1, 3.0f);
@@ -517,7 +505,6 @@ TEMPLATE_TEST_CASE("BufferView with SIMD types", "[dsp][buffer][simd]",
     constexpr std::size_t frames = 32;
     constexpr std::size_t channels = 2;
 
-    // Allocate enough scalars for all channels and frames
     alignas(64) std::vector<Scalar> backing(frames * channels * width, Scalar{0});
     applause::BufferView<SampleType, 2> buffer{backing.data(), channels, frames};
 
@@ -554,12 +541,10 @@ TEMPLATE_TEST_CASE("BufferView with SIMD types", "[dsp][buffer][simd]",
     {
         if constexpr (applause::SimdBatch<SampleType>)
         {
-            // Create a SIMD batch with all elements set to 42
             SampleType value = applause::set1<SampleType>(Scalar{42});
             buffer.store(0, 5, value);
             SampleType loaded = buffer.load(0, 5);
 
-            // Verify all lanes are 42
             for (std::size_t i = 0; i < SampleType::size; ++i)
             {
                 REQUIRE(loaded.get(i) == Scalar{42});
@@ -578,11 +563,9 @@ TEMPLATE_TEST_CASE("BufferView with SIMD types", "[dsp][buffer][simd]",
 
         if constexpr (applause::SimdBatch<SampleType>)
         {
-            // Store initial value
             SampleType initial = applause::set1<SampleType>(Scalar{10});
             buffer.store(0, 5, initial);
 
-            // Add scalar value (should broadcast to all lanes)
             buffer.add(0, 5, Scalar{5});
 
             SampleType result = buffer.load(0, 5);
@@ -650,7 +633,6 @@ TEST_CASE("BufferView with MemoryArena allocation", "[dsp][buffer][memory]")
         buffer.store(0, 10, 42.0f);
         REQUIRE(buffer.load(0, 10) == 42.0f);
 
-        // Buffer remains valid within the frame scope
         buffer.clear();
         REQUIRE(buffer.load(0, 10) == 0.0f);
     }
@@ -666,7 +648,6 @@ TEST_CASE("BufferView with MemoryArena allocation", "[dsp][buffer][memory]")
         REQUIRE(buffer1.load(0, 0) == 100.0f);
         REQUIRE(buffer2.load(0, 0) == 200.0f);
 
-        // Verify they don't overlap
         REQUIRE(buffer1.channelSamples(0) != buffer2.channelSamples(0));
     }
 }
