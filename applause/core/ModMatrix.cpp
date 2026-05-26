@@ -26,6 +26,7 @@ ModSource& ModMatrix::registerSource(const std::string& string_id, ModSrcType ty
         : (type == ModSrcType::Poly)    ? ModSrcMode::Poly
                                         : ModSrcMode::Mono;
     s.bipolar = bipolar;
+    s.matrix = this;
     return s;
 }
 
@@ -49,6 +50,7 @@ ModDestination& ModMatrix::registerDestination(const std::string& string_id, Mod
     d.name = string_id;
     d.index = idx;
     d.mode = mode;
+    d.matrix = this;
     dst_scale_info_[idx] = scale_info;
 
     if (mode == ModDstMode::Poly) {

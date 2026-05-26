@@ -36,6 +36,11 @@ void Knob::setDefaultValue(float value) {
     redraw();
 }
 
+void Knob::setIndicatorProvider(std::function<void(std::vector<float>&)> provider) {
+    indicator_provider_ = std::move(provider);
+    redraw();
+}
+
 void Knob::draw(applause::Canvas& canvas) {
     float size = std::min(width(), height());
     float centerX = width() * 0.5f;
@@ -96,14 +101,27 @@ void Knob::draw(applause::Canvas& canvas) {
     float trackDiameter = trackCenter * 2.0f;
     canvas.arc(centerX - trackCenter, centerY - trackCenter, trackDiameter, arcThickness, kTopCenter, halfSweep, true);
 
-    // Tracking dot on the arc
-    float trackAngleRad = startAngle + value_ * sweep;
-    float dotDiameter = arcThickness;
-    float dotTrackRadius = trackCenter - arcThickness * 0.5f;
-    float dotCenterX = centerX + std::cos(trackAngleRad) * dotTrackRadius;
-    float dotCenterY = centerY + std::sin(trackAngleRad) * dotTrackRadius;
+    indicator_buf_.clear();
+    if (indicator_provider_) indicator_provider_(indicator_buf_);
+
+    const float dotDiameter = arcThickness;
+    const float dotTrackRadius = trackCenter - arcThickness * 0.5f;
     canvas.setColor(ApplauseKnobAccent);
-    canvas.circle(dotCenterX - dotDiameter * 0.5f, dotCenterY - dotDiameter * 0.5f, dotDiameter);
+
+    auto drawDot = [&](float v) {
+        v = std::clamp(v, 0.0f, 1.0f);
+        const float a = startAngle + v * sweep;
+        const float cx = centerX + std::cos(a) * dotTrackRadius;
+        const float cy = centerY + std::sin(a) * dotTrackRadius;
+        canvas.circle(cx - dotDiameter * 0.5f, cy - dotDiameter * 0.5f, dotDiameter);
+    };
+
+    if (indicator_buf_.empty()) {
+        drawDot(value_);
+    } else {
+        for (float v : indicator_buf_) drawDot(v);
+        redraw();
+    }
 
     float angle = startAngle + value_ * sweep;
 

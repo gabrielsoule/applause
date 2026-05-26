@@ -2,6 +2,9 @@
 
 #include <applause/ui/ApplauseUI.h>
 
+#include <functional>
+#include <vector>
+
 namespace applause {
 
 /**
@@ -39,6 +42,14 @@ public:
     void setDragSensitivity(float sensitivity) { drag_sensitivity_ = sensitivity; }
     void setWheelSensitivity(float sensitivity) { wheel_sensitivity_ = sensitivity; }
 
+    // Optional modulation hook: the provider fills `out` with normalized [0,1] positions to display.
+    // This lets the knob ask a parent class (generally, the ParamKnob) if there are any sort of "modulation" sources
+    // being applied to whatever destination this knob represents; then, the knob can draw the modulation as an overlay
+    // however it sees fit.
+    // We seperate the knob from the DSP/parameter/plugin side of things on purpose... knob is only visual; it doesn't
+    // "know" anything about the plugin business.
+    void setIndicatorProvider(std::function<void(std::vector<float>&)> provider);
+
 protected:
     void draw(applause::Canvas& canvas) override;
     void mouseDown(const applause::MouseEvent& e) override;
@@ -60,6 +71,8 @@ private:
     float drag_sensitivity_ = 0.005f;
     float wheel_sensitivity_ = 0.015f;
     applause::Animation<float> glow_amount_;
+    std::function<void(std::vector<float>&)> indicator_provider_;
+    std::vector<float> indicator_buf_;
 };
 
 }  // namespace applause

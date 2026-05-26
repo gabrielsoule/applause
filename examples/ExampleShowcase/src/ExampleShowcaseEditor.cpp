@@ -35,20 +35,21 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params, 
     addChild(&knobs_panel_);
 
     if (getParamsExtension()) {
-        param1_knob_ = std::make_unique<applause::ParamKnob>(getParamsExtension()->getInfo("param1"));
+        const auto findDst = [&](const char* name) {
+            return mod_matrix ? mod_matrix->findDestination(name) : nullptr;
+        };
+
+        param1_knob_ = std::make_unique<applause::ParamKnob>(
+            getParamsExtension()->getInfo("param1"), findDst("param1"));
         knobs_panel_.content().addChild(param1_knob_.get());
 
-        param2_knob_ = std::make_unique<applause::ParamKnob>(getParamsExtension()->getInfo("param2"));
+        param2_knob_ = std::make_unique<applause::ParamKnob>(
+            getParamsExtension()->getInfo("param2"), findDst("param2"));
         knobs_panel_.content().addChild(param2_knob_.get());
 
-        filter_mode_knob_ = std::make_unique<applause::ParamKnob>(getParamsExtension()->getInfo("filter_mode"));
+        filter_mode_knob_ = std::make_unique<applause::ParamKnob>(
+            getParamsExtension()->getInfo("filter_mode"), findDst("filter_mode"));
         knobs_panel_.content().addChild(filter_mode_knob_.get());
-
-        if (mod_matrix) {
-            param1_knob_->setModDestination(mod_matrix, mod_matrix->findDestination("param1"));
-            param2_knob_->setModDestination(mod_matrix, mod_matrix->findDestination("param2"));
-            filter_mode_knob_->setModDestination(mod_matrix, mod_matrix->findDestination("filter_mode"));
-        }
     }
 
     // --- Buttons Panel (middle-right) ---

@@ -20,6 +20,8 @@ enum class ModSrcMode : uint8_t { Mono, Poly };
 
 enum class ModDstMode : uint8_t { Mono, Poly };
 
+class ModMatrix;  // Forward decl so ModSource/ModDestination can hold a back-pointer.
+
 /**
  * Represents a logical modulation source. A modulation source can be monophonic, polyphonic, or it can support both
  * modes of operation via a toggle
@@ -42,15 +44,15 @@ struct ModSource {
     ModSrcType type;
     ModSrcMode mode;
     bool bipolar;  ///< True if source naturally outputs [-1,+1], false for [0,1]
+    ModMatrix* matrix = nullptr;  ///< Set by registerSource(); identifies the owning matrix.
 };
 
 struct ModDestination {
     std::string name;
     uint16_t index;
     ModDstMode mode;
+    ModMatrix* matrix = nullptr;  ///< Set by registerDestination(); identifies the owning matrix.
 };
-
-class ModMatrix;  // Forward declaration for ModConnection
 
 /**
  * Unified modulation connection structure.
