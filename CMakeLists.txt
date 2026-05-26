@@ -45,6 +45,10 @@ CPMAddPackage(
     GITHUB_REPOSITORY nlohmann/json
     OPTIONS "JSON_BuildTests OFF"
 )
+# 3.12.0's from_json(std::filesystem::path) uses std::u8string_view, which
+# breaks in TUs compiled with -fno-char8_t (clap-wrapper's VST3/AUv2 targets).
+# We don't serialize paths to JSON, so disable that overload globally.
+target_compile_definitions(nlohmann_json INTERFACE JSON_HAS_FILESYSTEM=0)
 
 # xsimd (header-only SIMD library)
 CPMAddPackage(
