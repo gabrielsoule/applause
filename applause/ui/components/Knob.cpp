@@ -36,7 +36,8 @@ void Knob::setDefaultValue(float value) {
     redraw();
 }
 
-void Knob::setIndicatorProvider(std::function<void(std::vector<float>&)> provider) {
+void Knob::setIndicatorProvider(
+    std::function<void(std::vector<float>&, float&, float&)> provider) {
     indicator_provider_ = std::move(provider);
     redraw();
 }
@@ -102,7 +103,17 @@ void Knob::draw(applause::Canvas& canvas) {
     canvas.arc(centerX - trackCenter, centerY - trackCenter, trackDiameter, arcThickness, kTopCenter, halfSweep, true);
 
     indicator_buf_.clear();
-    if (indicator_provider_) indicator_provider_(indicator_buf_);
+    float arc_min = 1.0f, arc_max = 0.0f;  // sentinel: arc_min >= arc_max → no range arc
+    if (indicator_provider_) indicator_provider_(indicator_buf_, arc_min, arc_max);
+
+    if (arc_min < arc_max) {
+        arc_min = std::clamp(arc_min, 0.0f, 1.0f);
+        arc_max = std::clamp(arc_max, 0.0f, 1.0f);
+        const float ac = startAngle + (arc_min + arc_max) * 0.5f * sweep;
+        const float ah = (arc_max - arc_min) * 0.5f * sweep;
+        canvas.setColor(canvas.color(ApplauseKnobAccent).gradient().sample(0.0f).withAlpha(0.35f));
+        canvas.arc(centerX - trackCenter, centerY - trackCenter, trackDiameter, arcThickness, ac, ah, true);
+    }
 
     const float dotDiameter = arcThickness;
     const float dotTrackRadius = trackCenter - arcThickness * 0.5f;

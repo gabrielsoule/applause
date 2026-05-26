@@ -63,7 +63,7 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo, const ModDestination* dst) :
         destination_ = dst;
         mod_changed_conn_ = destination_->matrix->on_connections_changed.connect(
             [this] { knob_.redraw(); });
-        knob_.setIndicatorProvider([this](std::vector<float>& out) {
+        knob_.setIndicatorProvider([this](std::vector<float>& out, float& arc_min, float& arc_max) {
             ModMatrix* m = destination_->matrix;
             if (!m->dstIsConnected(destination_->index)) return;
             const auto normalize = [&](float v) { return param_info_.toNormalized(v); };
@@ -73,6 +73,10 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo, const ModDestination* dst) :
             } else {
                 out.push_back(normalize(m->getModValue(destination_->index)));
             }
+            const auto [off_min, off_max] = m->getModOffsetRange(destination_->index);
+            const float v = param_info_.toNormalized(param_info_.getValue());
+            arc_min = v + off_min;
+            arc_max = v + off_max;
         });
     }
 }

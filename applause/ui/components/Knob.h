@@ -42,13 +42,16 @@ public:
     void setDragSensitivity(float sensitivity) { drag_sensitivity_ = sensitivity; }
     void setWheelSensitivity(float sensitivity) { wheel_sensitivity_ = sensitivity; }
 
-    // Optional modulation hook: the provider fills `out` with normalized [0,1] positions to display.
+    // Optional modulation hook: the provider fills `out` with normalized [0,1] positions to display,
+    // and writes `arc_min`/`arc_max` in normalized space to draw a sub-arc on the track between those
+    // angles. Leave `arc_min >= arc_max` (the initial sentinel) to suppress the arc.
     // This lets the knob ask a parent class (generally, the ParamKnob) if there are any sort of "modulation" sources
     // being applied to whatever destination this knob represents; then, the knob can draw the modulation as an overlay
     // however it sees fit.
     // We seperate the knob from the DSP/parameter/plugin side of things on purpose... knob is only visual; it doesn't
     // "know" anything about the plugin business.
-    void setIndicatorProvider(std::function<void(std::vector<float>&)> provider);
+    void setIndicatorProvider(
+        std::function<void(std::vector<float>& dots, float& arc_min, float& arc_max)> provider);
 
 protected:
     void draw(applause::Canvas& canvas) override;
@@ -71,7 +74,7 @@ private:
     float drag_sensitivity_ = 0.005f;
     float wheel_sensitivity_ = 0.015f;
     applause::Animation<float> glow_amount_;
-    std::function<void(std::vector<float>&)> indicator_provider_;
+    std::function<void(std::vector<float>&, float&, float&)> indicator_provider_;
     std::vector<float> indicator_buf_;
 };
 
