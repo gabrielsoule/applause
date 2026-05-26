@@ -1,5 +1,7 @@
 #include "ApplauseEditor.h"
 
+#include <applause/ui/ApplauseUI.h>
+
 #include <applause/ui/Tooltip.h>
 #include <applause/util/DebugHelpers.h>
 
@@ -42,37 +44,37 @@ ParamMessageQueue* ApplauseEditor::getMessageQueue() { return &message_queue_; }
 ParamsExtension* ApplauseEditor::getParamsExtension() { return params_; }
 
 void ApplauseEditor::show(void* parent_window) {
-    visage::ApplicationWindow::show(parent_window);
+    applause::ApplicationWindow::show(parent_window);
 }
 
-void ApplauseEditor::close() { visage::ApplicationWindow::close(); }
+void ApplauseEditor::close() { applause::ApplicationWindow::close(); }
 
 uint32_t ApplauseEditor::width() const {
-    return static_cast<uint32_t>(visage::ApplicationWindow::width());
+    return static_cast<uint32_t>(applause::ApplicationWindow::width());
 }
 
 uint32_t ApplauseEditor::height() const {
-    return static_cast<uint32_t>(visage::ApplicationWindow::height());
+    return static_cast<uint32_t>(applause::ApplicationWindow::height());
 }
 
 void ApplauseEditor::setWindowDimensions(uint32_t width, uint32_t height) {
-    visage::ApplicationWindow::setWindowDimensions(static_cast<int>(width),
+    applause::ApplicationWindow::setWindowDimensions(static_cast<int>(width),
                                                    static_cast<int>(height));
 }
 
 void ApplauseEditor::setFixedAspectRatio(bool fixed) {
-    visage::ApplicationWindow::setFixedAspectRatio(fixed);
+    applause::ApplicationWindow::setFixedAspectRatio(fixed);
 }
 
 bool ApplauseEditor::isFixedAspectRatio() const {
-    return visage::ApplicationWindow::isFixedAspectRatio();
+    return applause::ApplicationWindow::isFixedAspectRatio();
 }
 
 float ApplauseEditor::getAspectRatio() const {
-    return visage::ApplicationWindow::aspectRatio();
+    return applause::ApplicationWindow::aspectRatio();
 }
 
-void ApplauseEditor::draw(visage::Canvas& canvas) {
+void ApplauseEditor::draw(applause::Canvas& canvas) {
     canvas.setColor(0xff111115);
     canvas.fill(0, 0, width(), height());
 }

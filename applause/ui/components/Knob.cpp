@@ -1,24 +1,24 @@
 #include "Knob.h"
 
+#include <applause/ui/ApplauseUI.h>
+
 #include <algorithm>
 #include <cmath>
-
-#include <visage_graphics/theme.h>
 
 #include <applause/util/DebugHelpers.h>
 
 namespace applause {
 
-VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobBodyTop, 0xFF333338);
-VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobBodyBottom, 0xFF1a1a1e);
-VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobBodyBorder, 0xFF444444);
-VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobArcTrack, 0xFF2a2a2e);
-VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobAccent, 0xff9966ff);
-VISAGE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobShadow, 0x88000000);
+APPLAUSE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobBodyTop, 0xFF333338);
+APPLAUSE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobBodyBottom, 0xFF1a1a1e);
+APPLAUSE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobBodyBorder, 0xFF444444);
+APPLAUSE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobArcTrack, 0xFF2a2a2e);
+APPLAUSE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobAccent, 0xff9966ff);
+APPLAUSE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobShadow, 0x88000000);
 
-VISAGE_THEME_IMPLEMENT_VALUE(Knob, ApplauseKnobArcThickness, 3.0f);
-VISAGE_THEME_IMPLEMENT_VALUE(Knob, ApplauseKnobTrackInset, 1.5f);
-VISAGE_THEME_IMPLEMENT_VALUE(Knob, ApplauseKnobSweep, 300.0f * (static_cast<float>(M_PI) / 180.0f));
+APPLAUSE_THEME_IMPLEMENT_VALUE(Knob, ApplauseKnobArcThickness, 3.0f);
+APPLAUSE_THEME_IMPLEMENT_VALUE(Knob, ApplauseKnobTrackInset, 1.5f);
+APPLAUSE_THEME_IMPLEMENT_VALUE(Knob, ApplauseKnobSweep, 300.0f * (static_cast<float>(M_PI) / 180.0f));
 
 Knob::Knob() {
     glow_amount_.setSourceValue(0.0f);
@@ -36,7 +36,7 @@ void Knob::setDefaultValue(float value) {
     redraw();
 }
 
-void Knob::draw(visage::Canvas& canvas) {
+void Knob::draw(applause::Canvas& canvas) {
     float size = std::min(width(), height());
     float centerX = width() * 0.5f;
     float centerY = height() * 0.5f;
@@ -63,7 +63,7 @@ void Knob::draw(visage::Canvas& canvas) {
     float bodyX = centerX - bodyRadius;
     float bodyY = centerY - bodyRadius;
     auto sample = [&](auto id) { return canvas.color(id).gradient().sample(0.0f); };
-    canvas.setColor(visage::Brush::vertical(sample(ApplauseKnobBodyTop), sample(ApplauseKnobBodyBottom)));
+    canvas.setColor(applause::Brush::vertical(sample(ApplauseKnobBodyTop), sample(ApplauseKnobBodyBottom)));
     canvas.circle(bodyX, bodyY, bodyDiameter);
     canvas.setColor(ApplauseKnobBodyBorder);
     canvas.ring(bodyX, bodyY, bodyDiameter, 1.0f);
@@ -72,13 +72,13 @@ void Knob::draw(visage::Canvas& canvas) {
     glow_amount_.update();
     float glowAlpha = glow_amount_.value();
     if (glowAlpha > 0.0f) {
-        visage::Color accent = sample(ApplauseKnobAccent);
-        visage::Gradient glow;
+        applause::Color accent = sample(ApplauseKnobAccent);
+        applause::Gradient glow;
         glow.addColorStop(accent.withAlpha(glowAlpha * 0.35f), 0.0f);
         glow.addColorStop(accent.withAlpha(glowAlpha * 0.15f), 0.6f);
         glow.addColorStop(accent.withAlpha(glowAlpha * 0.10f), 1.0f);
-        visage::Point center = {centerX, centerY};
-        canvas.setColor(visage::Brush::radial(glow, center, bodyRadius, bodyRadius));
+        applause::Point center = {centerX, centerY};
+        canvas.setColor(applause::Brush::radial(glow, center, bodyRadius, bodyRadius));
         canvas.circle(bodyX, bodyY, bodyDiameter);
     }
     if (glow_amount_.isAnimating()) redraw();
@@ -119,7 +119,7 @@ void Knob::draw(visage::Canvas& canvas) {
     canvas.segment(lineStartX, lineStartY, lineEndX, lineEndY, 3.0f, true);
 }
 
-void Knob::mouseDown(const visage::MouseEvent& e) {
+void Knob::mouseDown(const applause::MouseEvent& e) {
     if (e.repeatClickCount() == 2) {
         if (value_ != default_value_) {
             // Wrap with begin/end so the host treats this as a single
@@ -141,13 +141,13 @@ void Knob::mouseDown(const visage::MouseEvent& e) {
     redraw();
 }
 
-void Knob::mouseDrag(const visage::MouseEvent& e) {
+void Knob::mouseDrag(const applause::MouseEvent& e) {
     if (dragging_) {
         processDrag(e.position.y);
     }
 }
 
-void Knob::mouseUp(const visage::MouseEvent& e) {
+void Knob::mouseUp(const applause::MouseEvent& e) {
     if (dragging_) {
         dragging_ = false;
         processDrag(e.position.y);
@@ -157,19 +157,19 @@ void Knob::mouseUp(const visage::MouseEvent& e) {
     }
 }
 
-void Knob::mouseEnter(const visage::MouseEvent& e) {
+void Knob::mouseEnter(const applause::MouseEvent& e) {
     hovering_ = true;
     glow_amount_.target(true);
     redraw();
 }
 
-void Knob::mouseExit(const visage::MouseEvent& e) {
+void Knob::mouseExit(const applause::MouseEvent& e) {
     hovering_ = false;
     if (!dragging_) glow_amount_.target(false);
     redraw();
 }
 
-bool Knob::mouseWheel(const visage::MouseEvent& e) {
+bool Knob::mouseWheel(const applause::MouseEvent& e) {
     float delta = -e.precise_wheel_delta_y * wheel_sensitivity_;
     float newValue = std::clamp(value_ + delta, 0.0f, 1.0f);
 

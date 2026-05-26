@@ -1,6 +1,6 @@
 #pragma once
 
-#include <visage_utils/events.h>
+#include <applause/ui/ApplauseUI.h>
 
 #include <string>
 #include <vector>
@@ -123,7 +123,7 @@ private:
     Modifier shortcut_modifiers_ = Modifier::None;
     std::string shortcut_key_;
     std::vector<NativePopupMenu> options_;
-    visage::CallbackList<void(int)> on_selection_;
-    visage::CallbackList<void()> on_cancel_;
+    applause::CallbackList<void(int)> on_selection_;
+    applause::CallbackList<void()> on_cancel_;
 };
 } // namespace applause

@@ -1,8 +1,6 @@
 #pragma once
 
-#include <visage_graphics/animation.h>
-#include <visage_graphics/theme.h>
-#include <visage_ui/frame.h>
+#include <applause/ui/ApplauseUI.h>
 
 namespace applause {
 
@@ -11,24 +9,24 @@ namespace applause {
  * The usable pixel range is inset by the thumb radius on both sides so the thumb
  * never extends past the component bounds.
  */
-class Slider : public visage::Frame {
+class Slider : public applause::Frame {
 public:
-    VISAGE_THEME_DEFINE_COLOR(ApplauseSliderThumbTop);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseSliderThumbBottom);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseSliderThumbBorder);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseSliderTrack);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseSliderAccent);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSliderThumbTop);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSliderThumbBottom);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSliderThumbBorder);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSliderTrack);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSliderAccent);
 
     Slider();
 
-    void draw(visage::Canvas& canvas) override;
+    void draw(applause::Canvas& canvas) override;
     void resized() override;
-    void mouseDown(const visage::MouseEvent& event) override;
-    void mouseDrag(const visage::MouseEvent& event) override;
-    void mouseUp(const visage::MouseEvent& event) override;
-    void mouseEnter(const visage::MouseEvent& event) override;
-    void mouseExit(const visage::MouseEvent& event) override;
-    bool mouseWheel(const visage::MouseEvent& event) override;
+    void mouseDown(const applause::MouseEvent& event) override;
+    void mouseDrag(const applause::MouseEvent& event) override;
+    void mouseUp(const applause::MouseEvent& event) override;
+    void mouseEnter(const applause::MouseEvent& event) override;
+    void mouseExit(const applause::MouseEvent& event) override;
+    bool mouseWheel(const applause::MouseEvent& event) override;
 
     void setValue(float value);
     float getValue() const { return value_; }
@@ -45,9 +43,9 @@ public:
     }
     bool isActive() const { return active_; }
 
-    visage::CallbackList<void(float)> on_value_changed;
-    visage::CallbackList<void()> on_drag_started;
-    visage::CallbackList<void()> on_drag_ended;
+    applause::CallbackList<void(float)> on_value_changed;
+    applause::CallbackList<void()> on_drag_started;
+    applause::CallbackList<void()> on_drag_ended;
 
 private:
     void processDrag(float raw_drag_pos);
@@ -58,7 +56,7 @@ private:
     bool bipolar_ = false;
     float value_ = 0;  // [0, 1] or [-1, 1] when bipolar
     float default_value_ = 0;  // [0, 1] or [-1, 1] when bipolar
-    visage::Animation<float> glow_amount_;
+    applause::Animation<float> glow_amount_;
 
     static constexpr float kWheelSensitivity = 0.01f;
     static constexpr float kThumbRadius = 10.0f;

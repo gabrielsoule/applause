@@ -1,7 +1,6 @@
 #pragma once
 
-#include <visage_ui/frame.h>
-#include <visage_ui/scroll_bar.h>
+#include <applause/ui/ApplauseUI.h>
 
 #include <memory>
 #include <vector>
@@ -16,11 +15,11 @@ namespace applause {
  * and adjusts the ParamSlider to fit the rest of the horizontal space.
  * The ParamSlider inherits the full height of the GenericParameterEntry.
  */
-class GenericParameterEntry : public visage::Frame {
+class GenericParameterEntry : public applause::Frame {
 public:
     GenericParameterEntry(ParamInfo& paramInfo);
 
-    void draw(visage::Canvas& canvas) override;
+    void draw(applause::Canvas& canvas) override;
 
     void resized() override;
 
@@ -34,11 +33,11 @@ private:
     float labelWidth_ = 100.0;
 };
 
-class GenericParameterUI : public visage::ScrollableFrame {
+class GenericParameterUI : public applause::ScrollableFrame {
 public:
     GenericParameterUI();
 
-    void draw(visage::Canvas& canvas) override;
+    void draw(applause::Canvas& canvas) override;
 
     void resized() override;
 

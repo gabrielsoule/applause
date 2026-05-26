@@ -1,6 +1,6 @@
 #pragma once
 
-#include <visage_ui/frame.h>
+#include <applause/ui/ApplauseUI.h>
 
 #include <applause/extensions/ParamsExtension.h>
 #include <applause/ui/components/ParamValueTextBox.h>
@@ -13,12 +13,12 @@ namespace applause {
  * This component wraps a Slider and a ParamValueTextBox together. It also
  * connects to parameter changes via rocket signal system.
  */
-class ParamSlider : public visage::Frame {
+class ParamSlider : public applause::Frame {
 public:
     ParamSlider(ParamInfo& paramInfo);
 
     void resized() override;
-    void draw(visage::Canvas& canvas) override;
+    void draw(applause::Canvas& canvas) override;
 
 private:
     static constexpr int kLabelWidth = 80;

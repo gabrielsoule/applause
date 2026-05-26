@@ -1,4 +1,6 @@
 #include "ExampleShowcaseEditor.h"
+
+#include <applause/ui/ApplauseUI.h>
 #ifdef __APPLE__
 #include <applause/ui/NativePopupMenu.h>
 #endif
@@ -9,9 +11,8 @@
 #include <nfd.hpp>
 #include <span>
 #include <sstream>
-#include <visage_graphics/canvas.h>
 
-using namespace visage::dimension;
+using namespace applause::dimension;
 
 ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params, applause::ModMatrix* mod_matrix) :
     applause::ApplauseEditor(params) {
@@ -214,7 +215,7 @@ void ExampleShowcaseEditor::resized() {
         int col = 0;
         int row = 0;
 
-        auto placeButton = [&](visage::Frame* btn) {
+        auto placeButton = [&](applause::Frame* btn) {
             if (!btn) return;
             float x = btn_pad + col * (bw + kGap);
             float y = row * (bh + row_gap);

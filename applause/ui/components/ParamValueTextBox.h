@@ -1,13 +1,10 @@
 #pragma once
 
+#include <applause/ui/ApplauseUI.h>
+
 // visage palette depends on gradient/theme definitions; keep include order.
 // clang-format off
-#include <visage_graphics/gradient.h>
-#include <visage_graphics/theme.h>
-#include <visage_graphics/palette.h>
 // clang-format on
-#include <visage_ui/frame.h>
-#include <visage_widgets/text_editor.h>
 
 #include <applause/extensions/ParamsExtension.h>
 #include <applause/util/thirdparty/rocket.hpp>
@@ -19,16 +16,16 @@ namespace applause {
  * Features adaptive precision formatting and validates input using
  * ParamInfo::parseText.
  */
-class ParamValueTextBox : public visage::Frame {
+class ParamValueTextBox : public applause::Frame {
 public:
     // Theme colors for customization
-    VISAGE_THEME_DEFINE_COLOR(ApplauseTextEditorBackground);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseTextEditorBorder);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseTextEditorText);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseTextEditorDefaultText);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseTextEditorCaret);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseTextEditorSelection);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseTextEditorRounding);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorBackground);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorBorder);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorText);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorDefaultText);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorCaret);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorSelection);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseTextEditorRounding);
 
     explicit ParamValueTextBox(ParamInfo& paramInfo);
 
@@ -40,11 +37,11 @@ public:
 
 private:
     ParamInfo& param_info_;
-    visage::TextEditor text_editor_{"param_value"};
+    applause::TextEditor text_editor_{"param_value"};
     rocket::scoped_connection param_connection_;
 
     // Custom palette for terminal-style theming
-    visage::Palette custom_palette_;
+    applause::Palette custom_palette_;
 
     // Edit state tracking
     float original_value_ = 0.0f;

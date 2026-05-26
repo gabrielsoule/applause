@@ -1,6 +1,6 @@
 #include "MSEGDisplay.h"
 
-#include <visage_graphics/canvas.h>
+#include <applause/ui/ApplauseUI.h>
 
 #include <algorithm>
 #include <cmath>
@@ -8,15 +8,15 @@
 
 namespace applause {
 
-VISAGE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayLine, 0xff9966ff);
-VISAGE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayFill, 0x309966ff);
-VISAGE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayPoint, 0xffdddddd);
-VISAGE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayPointHover, 0xffffffff);
-VISAGE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayMidpoint, 0x99aaaaaa);
-VISAGE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayMidpointHover, 0xccdddddd);
-VISAGE_THEME_IMPLEMENT_VALUE(MSEGDisplay, MSEGDisplayLineWidth, 2.0f);
-VISAGE_THEME_IMPLEMENT_VALUE(MSEGDisplay, MSEGDisplayPointRadius, 5.0f);
-VISAGE_THEME_IMPLEMENT_VALUE(MSEGDisplay, MSEGDisplayMidpointRadius, 3.5f);
+APPLAUSE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayLine, 0xff9966ff);
+APPLAUSE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayFill, 0x309966ff);
+APPLAUSE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayPoint, 0xffdddddd);
+APPLAUSE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayPointHover, 0xffffffff);
+APPLAUSE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayMidpoint, 0x99aaaaaa);
+APPLAUSE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayMidpointHover, 0xccdddddd);
+APPLAUSE_THEME_IMPLEMENT_VALUE(MSEGDisplay, MSEGDisplayLineWidth, 2.0f);
+APPLAUSE_THEME_IMPLEMENT_VALUE(MSEGDisplay, MSEGDisplayPointRadius, 5.0f);
+APPLAUSE_THEME_IMPLEMENT_VALUE(MSEGDisplay, MSEGDisplayMidpointRadius, 3.5f);
 
 static constexpr int kSamplesPerSegment = 32;
 static constexpr float kPointEpsilon = 0.001f;
@@ -78,7 +78,7 @@ int MSEGDisplay::hitTestMidpoint(float sx, float sy) const {
     return -1;
 }
 
-void MSEGDisplay::draw(visage::Canvas& canvas) {
+void MSEGDisplay::draw(applause::Canvas& canvas) {
     if (!curve_ || curve_->num_points < 2)
         return;
 
@@ -105,7 +105,7 @@ void MSEGDisplay::draw(visage::Canvas& canvas) {
         return;
 
     // Fill under the curve
-    visage::Path fill_path;
+    applause::Path fill_path;
     fill_path.moveTo(samples_[0].x, samples_[0].y);
     for (size_t i = 1; i < samples_.size(); i++)
         fill_path.lineTo(samples_[i].x, samples_[i].y);
@@ -113,8 +113,8 @@ void MSEGDisplay::draw(visage::Canvas& canvas) {
     fill_path.lineTo(samples_[0].x, static_cast<float>(height()));
     fill_path.close();
 
-    visage::Color fill_color = canvas.color(MSEGDisplayFill).gradient().sample(0.0f);
-    canvas.setColor(visage::Brush::vertical(fill_color, fill_color.withAlpha(0.0f)));
+    applause::Color fill_color = canvas.color(MSEGDisplayFill).gradient().sample(0.0f);
+    canvas.setColor(applause::Brush::vertical(fill_color, fill_color.withAlpha(0.0f)));
     canvas.fill(fill_path);
 
     // Stroke the curve line as segments
@@ -154,7 +154,7 @@ void MSEGDisplay::draw(visage::Canvas& canvas) {
     }
 }
 
-void MSEGDisplay::mouseMove(const visage::MouseEvent& e) {
+void MSEGDisplay::mouseMove(const applause::MouseEvent& e) {
     int point_hit = hitTestPoint(e.position.x, e.position.y);
     int mid_hit = point_hit < 0 ? hitTestMidpoint(e.position.x, e.position.y) : -1;
     if (point_hit != hovered_point_ || mid_hit != hovered_midpoint_) {
@@ -164,7 +164,7 @@ void MSEGDisplay::mouseMove(const visage::MouseEvent& e) {
     }
 }
 
-void MSEGDisplay::mouseExit(const visage::MouseEvent& e) {
+void MSEGDisplay::mouseExit(const applause::MouseEvent& e) {
     if (hovered_point_ != -1 || hovered_midpoint_ != -1) {
         hovered_point_ = -1;
         hovered_midpoint_ = -1;
@@ -172,7 +172,7 @@ void MSEGDisplay::mouseExit(const visage::MouseEvent& e) {
     }
 }
 
-void MSEGDisplay::mouseDown(const visage::MouseEvent& e) {
+void MSEGDisplay::mouseDown(const applause::MouseEvent& e) {
     if (!curve_)
         return;
 
@@ -239,7 +239,7 @@ void MSEGDisplay::mouseDown(const visage::MouseEvent& e) {
         dragged_segment_ = mid_hit;
 }
 
-void MSEGDisplay::mouseDrag(const visage::MouseEvent& e) {
+void MSEGDisplay::mouseDrag(const applause::MouseEvent& e) {
     if (!curve_)
         return;
 
@@ -284,7 +284,7 @@ void MSEGDisplay::mouseDrag(const visage::MouseEvent& e) {
     }
 }
 
-void MSEGDisplay::mouseUp(const visage::MouseEvent& e) {
+void MSEGDisplay::mouseUp(const applause::MouseEvent& e) {
     dragged_point_ = -1;
     dragged_segment_ = -1;
     hovered_point_ = hitTestPoint(e.position.x, e.position.y);

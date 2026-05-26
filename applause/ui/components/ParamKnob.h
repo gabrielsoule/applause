@@ -1,8 +1,6 @@
 #pragma once
 
-#include <visage_graphics/theme.h>
-#include <visage_ui/frame.h>
-#include <visage_widgets/text_editor.h>
+#include <applause/ui/ApplauseUI.h>
 
 #include <applause/core/ModMatrix.h>
 #include <applause/extensions/ParamsExtension.h>
@@ -16,17 +14,17 @@ namespace applause {
  * A component that wraps a Knob with parameter connection and label display.
  * Displays the parameter's shortName below the knob.
  */
-class ParamKnob : public visage::Frame {
+class ParamKnob : public applause::Frame {
 public:
-    VISAGE_THEME_DEFINE_COLOR(ApplauseParamKnobText);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseParamKnobText);
 
     ParamKnob(ParamInfo& paramInfo);
 
-    void draw(visage::Canvas& canvas) override;
+    void draw(applause::Canvas& canvas) override;
     void resized() override;
 
-    void mouseEnter(const visage::MouseEvent& e) override;
-    void mouseExit(const visage::MouseEvent& e) override;
+    void mouseEnter(const applause::MouseEvent& e) override;
+    void mouseExit(const applause::MouseEvent& e) override;
 
     void setModDestination(ModMatrix* matrix, const ModDestination* dst);
 
@@ -34,10 +32,10 @@ private:
     static constexpr float kLabelHeight = 20.0f;
     static constexpr float kLabelPadding = 2.0f;
 
-    class ModOverlay : public visage::Frame {
+    class ModOverlay : public applause::Frame {
     public:
         explicit ModOverlay(const ParamKnob& owner);
-        void draw(visage::Canvas& canvas) override;
+        void draw(applause::Canvas& canvas) override;
 
     private:
         const ParamKnob* owner_;
@@ -49,8 +47,8 @@ private:
     Knob knob_;
     ModOverlay mod_overlay_;
     ParamValueTextBox paramValueText_;
-    visage::TextEditor paramNameText_{"param_name"};
-    visage::Palette name_text_palette_;
+    applause::TextEditor paramNameText_{"param_name"};
+    applause::Palette name_text_palette_;
     rocket::scoped_connection param_connection_;
     ModMatrix* mod_matrix_ = nullptr;
     const ModDestination* destination_ = nullptr;

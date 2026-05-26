@@ -1,33 +1,31 @@
 #pragma once
 
-#include <visage_graphics/text.h>
-#include <visage_graphics/theme.h>
-#include <visage_ui/frame.h>
+#include <applause/ui/ApplauseUI.h>
 
 #include <string>
 
 namespace applause {
 
-class Panel : public visage::Frame {
+class Panel : public applause::Frame {
 public:
-    VISAGE_THEME_DEFINE_COLOR(ApplausePanelBackground);
-    VISAGE_THEME_DEFINE_COLOR(ApplausePanelBorder);
-    VISAGE_THEME_DEFINE_COLOR(ApplausePanelTitleText);
-    VISAGE_THEME_DEFINE_VALUE(ApplausePanelRounding);
-    VISAGE_THEME_DEFINE_VALUE(ApplausePanelBorderWidth);
-    VISAGE_THEME_DEFINE_VALUE(ApplausePanelTitleHeight);
-    VISAGE_THEME_DEFINE_VALUE(ApplausePanelContentMargin);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplausePanelBackground);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplausePanelBorder);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplausePanelTitleText);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplausePanelRounding);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplausePanelBorderWidth);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplausePanelTitleHeight);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplausePanelContentMargin);
 
     explicit Panel(const std::string& title);
 
-    void draw(visage::Canvas& canvas) override;
+    void draw(applause::Canvas& canvas) override;
     void resized() override;
 
-    visage::Frame& content() { return content_; }
+    applause::Frame& content() { return content_; }
 
 private:
-    visage::Text title_;
-    visage::Frame content_;
+    applause::Text title_;
+    applause::Frame content_;
 };
 
 }  // namespace applause

@@ -1,20 +1,21 @@
 #include "GenericParameterUI.h"
 
+#include <applause/ui/ApplauseUI.h>
+
 #include <embedded/applause_fonts.h>
-#include <visage_graphics/font.h>
 
 #include <algorithm>
 
 #include <applause/util/DebugHelpers.h>
 
-using namespace visage::dimension;
+using namespace applause::dimension;
 
 namespace applause {
 GenericParameterEntry::GenericParameterEntry(ParamInfo& paramInfo) : paramInfo_(paramInfo), paramSlider_(paramInfo) {
     addChild(&paramSlider_);
 }
 
-void GenericParameterEntry::draw(visage::Canvas& canvas) {
+void GenericParameterEntry::draw(applause::Canvas& canvas) {
     // Calculate text area bounds (left side of the component)
     // Full width minus padding only on the right (between text and slider)
     float textX = 0;
@@ -23,9 +24,9 @@ void GenericParameterEntry::draw(visage::Canvas& canvas) {
     float textHeight = height();
 
     // Draw the parameter name (right-aligned)
-    const visage::Font font(13, applause::fonts::Jost_Regular_ttf);
+    const applause::Font font(13, applause::fonts::Jost_Regular_ttf);
     canvas.setColor(0xFFCCCCCC);
-    canvas.text(paramInfo_.name, font, visage::Font::kRight, textX, textY, textWidth, textHeight);
+    canvas.text(paramInfo_.name, font, applause::Font::kRight, textX, textY, textWidth, textHeight);
 }
 
 void GenericParameterEntry::resized() {
@@ -48,10 +49,10 @@ GenericParameterUI::GenericParameterUI() {
     scrollableLayout().setFlexRows(true);
     scrollableLayout().setFlexGap(kEntryGap);
     scrollableLayout().setPadding(kPadding);
-    scrollableLayout().setFlexItemAlignment(visage::Layout::ItemAlignment::Stretch);
+    scrollableLayout().setFlexItemAlignment(applause::Layout::ItemAlignment::Stretch);
 }
 
-void GenericParameterUI::draw(visage::Canvas& canvas) {}
+void GenericParameterUI::draw(applause::Canvas& canvas) {}
 
 void GenericParameterUI::resized() {
     ScrollableFrame::resized();

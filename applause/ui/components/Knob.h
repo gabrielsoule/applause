@@ -1,8 +1,6 @@
 #pragma once
 
-#include <visage_graphics/animation.h>
-#include <visage_graphics/theme.h>
-#include <visage_ui/frame.h>
+#include <applause/ui/ApplauseUI.h>
 
 namespace applause {
 
@@ -12,18 +10,18 @@ namespace applause {
  * The Knob doesn't do much on its own. If you want a plug-and-play Knob with a built-in label that
  * attaches to a Parameter, check out ParamKnob.
  */
-class Knob : public visage::Frame {
+class Knob : public applause::Frame {
 public:
-    VISAGE_THEME_DEFINE_COLOR(ApplauseKnobBodyTop);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseKnobBodyBottom);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseKnobBodyBorder);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseKnobArcTrack);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseKnobAccent);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseKnobShadow);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseKnobBodyTop);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseKnobBodyBottom);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseKnobBodyBorder);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseKnobArcTrack);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseKnobAccent);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseKnobShadow);
 
-    VISAGE_THEME_DEFINE_VALUE(ApplauseKnobArcThickness);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseKnobTrackInset);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseKnobSweep);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseKnobArcThickness);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseKnobTrackInset);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseKnobSweep);
 
     Knob();
     ~Knob() override = default;
@@ -34,21 +32,21 @@ public:
     void setDefaultValue(float value);
     float getDefaultValue() const { return default_value_; }
 
-    visage::CallbackList<void(float)> onValueChanged;
-    visage::CallbackList<void()> onDragStarted;
-    visage::CallbackList<void()> onDragEnded;
+    applause::CallbackList<void(float)> onValueChanged;
+    applause::CallbackList<void()> onDragStarted;
+    applause::CallbackList<void()> onDragEnded;
 
     void setDragSensitivity(float sensitivity) { drag_sensitivity_ = sensitivity; }
     void setWheelSensitivity(float sensitivity) { wheel_sensitivity_ = sensitivity; }
 
 protected:
-    void draw(visage::Canvas& canvas) override;
-    void mouseDown(const visage::MouseEvent& e) override;
-    void mouseDrag(const visage::MouseEvent& e) override;
-    void mouseUp(const visage::MouseEvent& e) override;
-    void mouseEnter(const visage::MouseEvent& e) override;
-    void mouseExit(const visage::MouseEvent& e) override;
-    bool mouseWheel(const visage::MouseEvent& e) override;
+    void draw(applause::Canvas& canvas) override;
+    void mouseDown(const applause::MouseEvent& e) override;
+    void mouseDrag(const applause::MouseEvent& e) override;
+    void mouseUp(const applause::MouseEvent& e) override;
+    void mouseEnter(const applause::MouseEvent& e) override;
+    void mouseExit(const applause::MouseEvent& e) override;
+    bool mouseWheel(const applause::MouseEvent& e) override;
 
 private:
     void processDrag(float mouseY);
@@ -61,7 +59,7 @@ private:
     float drag_start_value_ = 0.0f;
     float drag_sensitivity_ = 0.005f;
     float wheel_sensitivity_ = 0.015f;
-    visage::Animation<float> glow_amount_;
+    applause::Animation<float> glow_amount_;
 };
 
 }  // namespace applause

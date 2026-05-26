@@ -1,6 +1,6 @@
 #include "ParamSlider.h"
 
-#include <visage_graphics/canvas.h>
+#include <applause/ui/ApplauseUI.h>
 
 #include <applause/util/DebugHelpers.h>
 
@@ -35,7 +35,7 @@ ParamSlider::ParamSlider(ParamInfo& paramInfo) : param_info_(paramInfo), param_t
     });
 }
 
-void ParamSlider::draw(visage::Canvas& canvas) {}
+void ParamSlider::draw(applause::Canvas& canvas) {}
 
 void ParamSlider::resized() {
     // Position the slider on the left side, leaving space for text on the right

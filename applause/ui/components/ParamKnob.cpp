@@ -1,7 +1,6 @@
 #include "ParamKnob.h"
 
-#include <visage_graphics/font.h>
-#include <visage_graphics/theme.h>
+#include <applause/ui/ApplauseUI.h>
 
 #include <algorithm>
 #include <cmath>
@@ -11,13 +10,13 @@
 
 namespace applause {
 
-VISAGE_THEME_IMPLEMENT_COLOR(ParamKnob, ApplauseParamKnobText, 0xffcccccc);
+APPLAUSE_THEME_IMPLEMENT_COLOR(ParamKnob, ApplauseParamKnobText, 0xffcccccc);
 
 ParamKnob::ModOverlay::ModOverlay(const ParamKnob& owner) : owner_(&owner) {
     setIgnoresMouseEvents(true, false);
 }
 
-void ParamKnob::ModOverlay::draw(visage::Canvas& canvas) {
+void ParamKnob::ModOverlay::draw(applause::Canvas& canvas) {
     if (!owner_->is_connected_) return;
 
     const float size = std::min(width(), height());
@@ -66,14 +65,14 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo) :
     addChild(&paramValueText_);
 
     paramNameText_.setMultiLine(false);
-    paramNameText_.setJustification(visage::Font::kCenter);
-    paramNameText_.setFont(visage::Font(12, applause::fonts::Jost_Regular_ttf));
+    paramNameText_.setJustification(applause::Font::kCenter);
+    paramNameText_.setFont(applause::Font(12, applause::fonts::Jost_Regular_ttf));
     paramNameText_.setActive(false);
     paramNameText_.setText(param_info_.shortName);
     paramNameText_.setIgnoresMouseEvents(true, false);
     paramNameText_.setMargin(0, 0);
-    name_text_palette_.setColor(visage::TextEditor::TextEditorText, paletteColor(ApplauseParamKnobText));
-    name_text_palette_.setColor(visage::TextEditor::TextEditorBackground, visage::Color(0x00000000));
+    name_text_palette_.setColor(applause::TextEditor::TextEditorText, paletteColor(ApplauseParamKnobText));
+    name_text_palette_.setColor(applause::TextEditor::TextEditorBackground, applause::Color(0x00000000));
     paramNameText_.setPalette(&name_text_palette_);
     addChild(&paramNameText_);
 
@@ -107,7 +106,7 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo) :
     });
 }
 
-void ParamKnob::draw(visage::Canvas& canvas) {
+void ParamKnob::draw(applause::Canvas& canvas) {
     // No direct text drawing; label rendered via TextEditor child
 }
 
@@ -142,13 +141,13 @@ void ParamKnob::refreshConnectionState() {
     }
 }
 
-void ParamKnob::mouseEnter(const visage::MouseEvent& e) {
+void ParamKnob::mouseEnter(const applause::MouseEvent& e) {
     mouseOver_ = true;
     paramValueText_.setVisible(true);
     paramNameText_.setVisible(false);
 }
 
-void ParamKnob::mouseExit(const visage::MouseEvent& e) {
+void ParamKnob::mouseExit(const applause::MouseEvent& e) {
     mouseOver_ = false;
     paramValueText_.setVisible(false);
     paramNameText_.setVisible(true);

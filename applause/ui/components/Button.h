@@ -4,45 +4,38 @@
 
 #pragma once
 
-#include <visage_file_embed/embedded_file.h>
-#include <visage_graphics/animation.h>
-#include <visage_graphics/image.h>
-#include <visage_graphics/text.h>
-#include <visage_graphics/theme.h>
-#include <visage_ui/frame.h>
-#include <visage_ui/svg_frame.h>
-#include <visage_utils/dimension.h>
+#include <applause/ui/ApplauseUI.h>
 
 #include <functional>
 
 namespace applause {
-class Button : public visage::Frame {
+class Button : public applause::Frame {
 public:
-    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonShadow);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonGlow);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonShadow);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonGlow);
 
     // Shared background gradient (normal, hover)
-    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonBackgroundTop);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonBackgroundBottom);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonBackgroundTopHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonBackgroundBottomHover);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonBackgroundTop);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonBackgroundBottom);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonBackgroundTopHover);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonBackgroundBottomHover);
 
     // Shared text colors
-    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonText);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonTextHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonTextPressed);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonText);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonTextHover);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonTextPressed);
 
     // Shared border colors
-    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonBorder);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonBorderHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseButtonBorderPressed);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonBorder);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonBorderHover);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonBorderPressed);
 
     // Shared values
-    VISAGE_THEME_DEFINE_VALUE(ApplauseButtonRounding);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseButtonHoverRoundingMult);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseButtonBorderWidth);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseButtonBorderWidthHover);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseButtonBorderWidthPressed);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseButtonRounding);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseButtonHoverRoundingMult);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseButtonBorderWidth);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseButtonBorderWidthHover);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseButtonBorderWidthPressed);
 
     Button() {
         hover_amount_.setTargetValue(1.0f);
@@ -66,14 +59,14 @@ public:
 
     void notify(bool on) { on_toggle_.callback(this, on); }
 
-    void draw(visage::Canvas& canvas) final;
+    void draw(applause::Canvas& canvas) final;
 
-    virtual void draw(visage::Canvas& canvas, float hover_amount) {}
+    virtual void draw(applause::Canvas& canvas, float hover_amount) {}
 
-    void mouseEnter(const visage::MouseEvent& e) override;
-    void mouseExit(const visage::MouseEvent& e) override;
-    void mouseDown(const visage::MouseEvent& e) override;
-    void mouseUp(const visage::MouseEvent& e) override;
+    void mouseEnter(const applause::MouseEvent& e) override;
+    void mouseExit(const applause::MouseEvent& e) override;
+    void mouseDown(const applause::MouseEvent& e) override;
+    void mouseUp(const applause::MouseEvent& e) override;
 
     void setToggleOnMouseDown(bool mouse_down) { toggle_on_mouse_down_ = mouse_down; }
     float hoverAmount() const { return hover_amount_.value(); }
@@ -92,8 +85,8 @@ public:
     bool wasAltClicked() const { return alt_clicked_; }
 
 private:
-    visage::CallbackList<void(Button*, bool)> on_toggle_;
-    visage::Animation<float> hover_amount_;
+    applause::CallbackList<void(Button*, bool)> on_toggle_;
+    applause::Animation<float> hover_amount_;
     std::function<void()> undo_setup_function_ = nullptr;
 
     bool active_ = true;
@@ -102,30 +95,30 @@ private:
     bool alt_clicked_ = false;
     bool pressed_ = false;
 
-    VISAGE_LEAK_CHECKER(Button)
+    APPLAUSE_LEAK_CHECKER(Button)
 };
 
 class UiButton : public Button {
 public:
-    VISAGE_THEME_DEFINE_COLOR(ApplauseActionButtonBackgroundTop);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseActionButtonBackgroundBottom);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseActionButtonBackgroundTopHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseActionButtonBackgroundBottomHover);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseActionButtonBackgroundTop);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseActionButtonBackgroundBottom);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseActionButtonBackgroundTopHover);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseActionButtonBackgroundBottomHover);
 
-    VISAGE_THEME_DEFINE_COLOR(ApplauseActionButtonBorder);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseActionButtonBorderHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseActionButtonBorderPressed);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseActionButtonBorder);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseActionButtonBorderHover);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseActionButtonBorderPressed);
 
     explicit UiButton(const std::string& text);
 
     UiButton() : UiButton("") {}
 
-    explicit UiButton(const std::string& text, const visage::Font& font);
+    explicit UiButton(const std::string& text, const applause::Font& font);
 
-    virtual void drawBackground(visage::Canvas& canvas, float hover_amount);
-    void draw(visage::Canvas& canvas, float hover_amount) override;
+    virtual void drawBackground(applause::Canvas& canvas, float hover_amount);
+    void draw(applause::Canvas& canvas, float hover_amount) override;
 
-    void setFont(const visage::Font& font) {
+    void setFont(const applause::Font& font) {
         text_.setFont(font);
         redraw();
     }
@@ -143,7 +136,7 @@ public:
     void drawBorderWhenInactive(bool border) { border_when_inactive_ = border; }
 
 private:
-    visage::Text text_;
+    applause::Text text_;
     bool action_ = false;
     bool border_when_inactive_ = true;
 };
@@ -154,12 +147,12 @@ public:
 
     explicit IconButton(bool shadow = false) { initSettings(shadow); }
 
-    explicit IconButton(const visage::Svg& icon, bool shadow = false) {
+    explicit IconButton(const applause::Svg& icon, bool shadow = false) {
         setIcon(icon);
         initSettings(shadow);
     }
 
-    explicit IconButton(const visage::EmbeddedFile& icon_file, bool shadow = false) {
+    explicit IconButton(const applause::EmbeddedFile& icon_file, bool shadow = false) {
         setIcon(icon_file);
         initSettings(shadow);
     }
@@ -169,16 +162,16 @@ public:
         initSettings(shadow);
     }
 
-    void setIcon(const visage::EmbeddedFile& icon_file) { setIcon({icon_file.data, icon_file.size}); }
+    void setIcon(const applause::EmbeddedFile& icon_file) { setIcon({icon_file.data, icon_file.size}); }
 
     void setIcon(const unsigned char* svg, int svg_size) { setIcon({svg, svg_size}); }
 
-    void setIcon(const visage::Svg& icon) {
+    void setIcon(const applause::Svg& icon) {
         icon_.load(icon);
         shadow_.load(icon);
     }
 
-    void draw(visage::Canvas& canvas, float hover_amount) override;
+    void draw(applause::Canvas& canvas, float hover_amount) override;
 
     void resized() override {
         Button::resized();
@@ -186,12 +179,12 @@ public:
         shadow_.setBounds(localBounds());
     }
 
-    void setShadowRadius(const visage::Dimension& radius) {
+    void setShadowRadius(const applause::Dimension& radius) {
         shadow_radius_ = radius;
         computeShadowRadius();
     }
 
-    void setMargin(const visage::Dimension& margin) {
+    void setMargin(const applause::Dimension& margin) {
         icon_.setMargin(margin);
         shadow_.setMargin(margin);
     }
@@ -212,21 +205,21 @@ private:
         shadow_.setBlurRadius(r);
     }
 
-    visage::SvgFrame icon_;
-    visage::SvgFrame shadow_;
+    applause::SvgFrame icon_;
+    applause::SvgFrame shadow_;
 
-    visage::Dimension shadow_radius_;
+    applause::Dimension shadow_radius_;
 };
 
 class ButtonChangeAction;
 
 class ToggleButton : public Button {
 public:
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleButtonDisabled);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleButtonOff);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleButtonOffHover);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleButtonOn);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleButtonOnHover);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleButtonDisabled);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleButtonOff);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleButtonOffHover);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleButtonOn);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleButtonOnHover);
 
     ToggleButton() = default;
 
@@ -255,10 +248,10 @@ private:
     bool toggled_ = false;
     bool undoable_ = true;
 
-    VISAGE_LEAK_CHECKER(ToggleButton)
+    APPLAUSE_LEAK_CHECKER(ToggleButton)
 };
 
-class ButtonChangeAction : public visage::UndoableAction {
+class ButtonChangeAction : public applause::UndoableAction {
 public:
     ButtonChangeAction(ToggleButton* button, bool toggled_on) : button_(button), toggled_on_(toggled_on) {}
 
@@ -274,12 +267,12 @@ class ToggleIconButton : public ToggleButton {
 public:
     static constexpr float kDefaultShadowRadius = 3.0f;
 
-    explicit ToggleIconButton(const visage::Svg& icon, bool shadow = false) : ToggleButton() {
+    explicit ToggleIconButton(const applause::Svg& icon, bool shadow = false) : ToggleButton() {
         setIcon(icon);
         initSettings(shadow);
     }
 
-    ToggleIconButton(const std::string& name, const visage::Svg& icon, bool shadow = false) : ToggleButton(name) {
+    ToggleIconButton(const std::string& name, const applause::Svg& icon, bool shadow = false) : ToggleButton(name) {
         setIcon(icon);
         initSettings(shadow);
     }
@@ -295,12 +288,12 @@ public:
         initSettings(shadow);
     }
 
-    void setIcon(const visage::Svg& icon) {
+    void setIcon(const applause::Svg& icon) {
         shadow_.load(icon);
         icon_.load(icon);
     }
 
-    void draw(visage::Canvas& canvas, float hover_amount) override;
+    void draw(applause::Canvas& canvas, float hover_amount) override;
 
     void resized() override {
         ToggleButton::resized();
@@ -308,12 +301,12 @@ public:
         shadow_.setBounds(localBounds());
     }
 
-    void setShadowRadius(const visage::Dimension& radius) {
+    void setShadowRadius(const applause::Dimension& radius) {
         shadow_radius_ = radius;
         computeShadowRadius();
     }
 
-    void setMargin(const visage::Dimension& margin) {
+    void setMargin(const applause::Dimension& margin) {
         icon_.setMargin(margin);
         shadow_.setMargin(margin);
     }
@@ -334,29 +327,29 @@ private:
         shadow_.setBlurRadius(r);
     }
 
-    visage::SvgFrame icon_;
-    visage::SvgFrame shadow_;
+    applause::SvgFrame icon_;
+    applause::SvgFrame shadow_;
 
-    visage::Dimension shadow_radius_;
+    applause::Dimension shadow_radius_;
 };
 
 class ToggleTextButton : public ToggleButton {
 public:
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOn);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOnHover);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOn);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOnHover);
 
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonGlow);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonGlow);
 
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBorderOn);
-    VISAGE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBorderOnHover);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBorderOn);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBorderOnHover);
 
     explicit ToggleTextButton(const std::string& name);
-    explicit ToggleTextButton(const std::string& name, const visage::Font& font);
+    explicit ToggleTextButton(const std::string& name, const applause::Font& font);
 
-    virtual void drawBackground(visage::Canvas& canvas, float hover_amount);
-    void draw(visage::Canvas& canvas, float hover_amount) override;
+    virtual void drawBackground(applause::Canvas& canvas, float hover_amount);
+    void draw(applause::Canvas& canvas, float hover_amount) override;
 
-    void setFont(const visage::Font& font) {
+    void setFont(const applause::Font& font) {
         text_.setFont(font);
         redraw();
     }
@@ -366,7 +359,7 @@ public:
 
 private:
     bool draw_background_ = true;
-    visage::Text text_;
+    applause::Text text_;
 };
 class NativePopupMenu;
 
@@ -375,7 +368,7 @@ public:
     explicit PopupMenuButton(const std::string& default_text = "--");
 
     std::function<void(NativePopupMenu&)> on_build_menu_;
-    visage::CallbackList<void(int)> on_item_selected_;
+    applause::CallbackList<void(int)> on_item_selected_;
 
 private:
     void showPopup();

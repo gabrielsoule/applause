@@ -1,14 +1,16 @@
 #include "Tooltip.h"
 
+#include <applause/ui/ApplauseUI.h>
+
 #include <applause/ui/ApplauseEditor.h>
 
 #include <embedded/applause_fonts.h>
 
 namespace applause {
 
-VISAGE_THEME_IMPLEMENT_COLOR(TooltipDisplay, TooltipBackground, 0xee1e1e24);
-VISAGE_THEME_IMPLEMENT_COLOR(TooltipDisplay, TooltipText, 0xffcccccc);
-VISAGE_THEME_IMPLEMENT_COLOR(TooltipDisplay, TooltipBorder, 0xff3a3a42);
+APPLAUSE_THEME_IMPLEMENT_COLOR(TooltipDisplay, TooltipBackground, 0xee1e1e24);
+APPLAUSE_THEME_IMPLEMENT_COLOR(TooltipDisplay, TooltipText, 0xffcccccc);
+APPLAUSE_THEME_IMPLEMENT_COLOR(TooltipDisplay, TooltipBorder, 0xff3a3a42);
 
 namespace {
 
@@ -18,21 +20,21 @@ struct TooltipBinding {
     bool hooked = false;
 };
 
-std::unordered_map<visage::Frame*, TooltipBinding> tooltip_bindings;
+std::unordered_map<applause::Frame*, TooltipBinding> tooltip_bindings;
 
 }  // namespace
 
-TooltipDisplay::TooltipDisplay() : text_("", visage::Font(kFontSize, applause::fonts::Jost_Regular_ttf)) {
+TooltipDisplay::TooltipDisplay() : text_("", applause::Font(kFontSize, applause::fonts::Jost_Regular_ttf)) {
     setIgnoresMouseEvents(true, false);
     opacity_.setSourceValue(0.0f);
     opacity_.setTargetValue(1.0f);
 }
 
-void TooltipDisplay::applyContent(const std::string& text, visage::Point window_pos) {
+void TooltipDisplay::applyContent(const std::string& text, applause::Point window_pos) {
     text_.setText(text);
 
-    visage::Font font = text_.font().withDpiScale(dpiScale());
-    visage::String vs(text);
+    applause::Font font = text_.font().withDpiScale(dpiScale());
+    applause::String vs(text);
     float text_width = font.stringWidth(vs.toUtf32().c_str(), vs.toUtf32().size());
     float tooltip_width = text_width + kPaddingX * 2.0f;
     float tooltip_height = font.lineHeight() + kPaddingY * 2.0f;
@@ -49,7 +51,7 @@ void TooltipDisplay::applyContent(const std::string& text, visage::Point window_
     tooltip_bounds_ = {tooltip_x, tooltip_y, tooltip_width, tooltip_height};
 }
 
-void TooltipDisplay::showAt(const std::string& text, visage::Point window_pos) {
+void TooltipDisplay::showAt(const std::string& text, applause::Point window_pos) {
     if (state_ == State::kVisible || state_ == State::kFadingIn) {
         applyContent(text, window_pos);
         redraw();
@@ -99,7 +101,7 @@ void TooltipDisplay::timerCallback() {
     }
 }
 
-void TooltipDisplay::draw(visage::Canvas& canvas) {
+void TooltipDisplay::draw(applause::Canvas& canvas) {
     if (state_ == State::kIdle || state_ == State::kWaiting) return;
 
     const auto& bounds = tooltip_bounds_;
@@ -115,7 +117,7 @@ void TooltipDisplay::draw(visage::Canvas& canvas) {
     canvas.text(&text_, bounds.x(), bounds.y(), bounds.width(), bounds.height());
 }
 
-void setTooltip(visage::Frame& frame, std::string text) {
+void setTooltip(applause::Frame& frame, std::string text) {
     auto& binding = tooltip_bindings[&frame];
     binding.text = std::move(text);
     binding.enabled = true;
@@ -123,9 +125,9 @@ void setTooltip(visage::Frame& frame, std::string text) {
     if (binding.hooked) return;
     binding.hooked = true;
 
-    visage::Frame* frame_ptr = &frame;
+    applause::Frame* frame_ptr = &frame;
 
-    frame.onMouseEnter() += [frame_ptr](const visage::MouseEvent& e) {
+    frame.onMouseEnter() += [frame_ptr](const applause::MouseEvent& e) {
         auto it = tooltip_bindings.find(frame_ptr);
         if (it == tooltip_bindings.end() || !it->second.enabled) return;
         auto* editor = frame_ptr->findParent<applause::ApplauseEditor>();
@@ -133,20 +135,20 @@ void setTooltip(visage::Frame& frame, std::string text) {
         editor->tooltipDisplay().showAt(it->second.text, e.windowPosition());
     };
 
-    frame.onMouseExit() += [frame_ptr](const visage::MouseEvent&) {
+    frame.onMouseExit() += [frame_ptr](const applause::MouseEvent&) {
         auto* editor = frame_ptr->findParent<applause::ApplauseEditor>();
         if (!editor) return;
         editor->tooltipDisplay().hide();
     };
 
-    frame.onMouseDown() += [frame_ptr](const visage::MouseEvent&) {
+    frame.onMouseDown() += [frame_ptr](const applause::MouseEvent&) {
         auto* editor = frame_ptr->findParent<applause::ApplauseEditor>();
         if (!editor) return;
         editor->tooltipDisplay().hide();
     };
 }
 
-void removeTooltip(visage::Frame& frame) {
+void removeTooltip(applause::Frame& frame) {
     auto it = tooltip_bindings.find(&frame);
     if (it == tooltip_bindings.end()) return;
 

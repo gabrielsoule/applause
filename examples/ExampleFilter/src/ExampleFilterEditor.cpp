@@ -1,8 +1,9 @@
 #include "ExampleFilterEditor.h"
-#include <applause/util/DebugHelpers.h>
-#include <visage_graphics/canvas.h>
 
-using namespace visage::dimension;
+#include <applause/ui/ApplauseUI.h>
+#include <applause/util/DebugHelpers.h>
+
+using namespace applause::dimension;
 
 ExampleFilterEditor::ExampleFilterEditor(applause::ParamsExtension* params)
     : applause::ApplauseEditor(params)

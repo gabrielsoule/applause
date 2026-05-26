@@ -1,12 +1,12 @@
 #pragma once
+
+#include <applause/ui/ApplauseUI.h>
 #include <functional>
 #include <memory>
 
 #include <applause/ui/IEditor.h>
 #include <applause/extensions/ParamsExtension.h>
 #include <applause/util/ParamMessageQueue.h>
-#include <visage_app/application_window.h>
-#include <visage_graphics/palette.h>
 
 namespace applause {
 class TooltipDisplay;
@@ -21,8 +21,8 @@ class TooltipDisplay;
  * class.
  */
 class ApplauseEditor : public IEditor,
-                       public visage::ApplicationWindow,
-                       public visage::EventTimer {
+                       public applause::ApplicationWindow,
+                       public applause::EventTimer {
 public:
     /**
      * @brief Construct an ApplauseEditor with parameter extension support.
@@ -45,7 +45,7 @@ public:
     void setFixedAspectRatio(bool fixed) override;
     bool isFixedAspectRatio() const override;
     float getAspectRatio() const override;
-    void draw(visage::Canvas& canvas) override;
+    void draw(applause::Canvas& canvas) override;
     void* getNativeHandle() override;
 
 #ifdef __linux__

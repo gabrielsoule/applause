@@ -2,7 +2,7 @@
 
 #include <applause/extensions/ParamsExtension.h>
 #include <applause/ui/ApplauseEditor.h>
-#include <applause/ui/components/ApplauseButton.h>
+#include <applause/ui/components/Button.h>
 #include <applause/ui/components/GenericParameterUI.h>
 #include <applause/ui/components/Panel.h>
 #include <applause/ui/components/ParamKnob.h>

@@ -1,18 +1,14 @@
 #pragma once
 
+#include <applause/ui/ApplauseUI.h>
+
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 
-#include <visage_graphics/animation.h>
-#include <visage_graphics/text.h>
-#include <visage_graphics/theme.h>
-#include <visage_ui/events.h>
-#include <visage_ui/frame.h>
-
 namespace applause {
 
-class TooltipDisplay : public visage::Frame, public visage::EventTimer {
+class TooltipDisplay : public applause::Frame, public applause::EventTimer {
 public:
     static constexpr float kCursorOffsetX = 8.0f;
     static constexpr float kCursorOffsetY = 16.0f;
@@ -25,32 +21,32 @@ public:
     static constexpr int kFadeInMs = 120;
     static constexpr int kAnimFrameMs = 16;
 
-    VISAGE_THEME_DEFINE_COLOR(TooltipBackground);
-    VISAGE_THEME_DEFINE_COLOR(TooltipText);
-    VISAGE_THEME_DEFINE_COLOR(TooltipBorder);
+    APPLAUSE_THEME_DEFINE_COLOR(TooltipBackground);
+    APPLAUSE_THEME_DEFINE_COLOR(TooltipText);
+    APPLAUSE_THEME_DEFINE_COLOR(TooltipBorder);
 
     TooltipDisplay();
 
-    void showAt(const std::string& text, visage::Point window_pos);
+    void showAt(const std::string& text, applause::Point window_pos);
     void hide();
 
-    void draw(visage::Canvas& canvas) override;
+    void draw(applause::Canvas& canvas) override;
     void timerCallback() override;
 
 private:
     enum class State { kIdle, kWaiting, kFadingIn, kVisible };
 
-    void applyContent(const std::string& text, visage::Point window_pos);
+    void applyContent(const std::string& text, applause::Point window_pos);
 
     State state_ = State::kIdle;
-    visage::Animation<float> opacity_{kFadeInMs, visage::Animation<float>::kEaseOut};
-    visage::Text text_;
+    applause::Animation<float> opacity_{kFadeInMs, applause::Animation<float>::kEaseOut};
+    applause::Text text_;
     std::string pending_text_;
-    visage::Point pending_pos_;
-    visage::Bounds tooltip_bounds_;
+    applause::Point pending_pos_;
+    applause::Bounds tooltip_bounds_;
 };
 
-void setTooltip(visage::Frame& frame, std::string text);
-void removeTooltip(visage::Frame& frame);
+void setTooltip(applause::Frame& frame, std::string text);
+void removeTooltip(applause::Frame& frame);
 
 }  // namespace applause

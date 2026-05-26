@@ -1,9 +1,8 @@
 #pragma once
 
-#include <applause/dsp/modulation/MSEGCurve.h>
+#include <applause/ui/ApplauseUI.h>
 
-#include <visage_graphics/theme.h>
-#include <visage_ui/frame.h>
+#include <applause/dsp/modulation/MSEGCurve.h>
 
 namespace applause {
 
@@ -12,27 +11,27 @@ namespace applause {
 /// what the curve represents (LFO shape, envelope, etc.) — the parent component
 /// provides background grid, axis labels, playhead, and semantic meaning.
 /// Draws with a transparent background so the parent can render behind it.
-class MSEGDisplay : public visage::Frame {
+class MSEGDisplay : public applause::Frame {
 public:
-    VISAGE_THEME_DEFINE_COLOR(MSEGDisplayLine);
-    VISAGE_THEME_DEFINE_COLOR(MSEGDisplayFill);
-    VISAGE_THEME_DEFINE_COLOR(MSEGDisplayPoint);
-    VISAGE_THEME_DEFINE_COLOR(MSEGDisplayPointHover);
-    VISAGE_THEME_DEFINE_COLOR(MSEGDisplayMidpoint);
-    VISAGE_THEME_DEFINE_COLOR(MSEGDisplayMidpointHover);
-    VISAGE_THEME_DEFINE_VALUE(MSEGDisplayLineWidth);
-    VISAGE_THEME_DEFINE_VALUE(MSEGDisplayPointRadius);
-    VISAGE_THEME_DEFINE_VALUE(MSEGDisplayMidpointRadius);
+    APPLAUSE_THEME_DEFINE_COLOR(MSEGDisplayLine);
+    APPLAUSE_THEME_DEFINE_COLOR(MSEGDisplayFill);
+    APPLAUSE_THEME_DEFINE_COLOR(MSEGDisplayPoint);
+    APPLAUSE_THEME_DEFINE_COLOR(MSEGDisplayPointHover);
+    APPLAUSE_THEME_DEFINE_COLOR(MSEGDisplayMidpoint);
+    APPLAUSE_THEME_DEFINE_COLOR(MSEGDisplayMidpointHover);
+    APPLAUSE_THEME_DEFINE_VALUE(MSEGDisplayLineWidth);
+    APPLAUSE_THEME_DEFINE_VALUE(MSEGDisplayPointRadius);
+    APPLAUSE_THEME_DEFINE_VALUE(MSEGDisplayMidpointRadius);
 
     explicit MSEGDisplay(MSEGCurve<>* curve = nullptr);
 
-    void draw(visage::Canvas& canvas) override;
+    void draw(applause::Canvas& canvas) override;
 
-    void mouseDown(const visage::MouseEvent& e) override;
-    void mouseDrag(const visage::MouseEvent& e) override;
-    void mouseUp(const visage::MouseEvent& e) override;
-    void mouseMove(const visage::MouseEvent& e) override;
-    void mouseExit(const visage::MouseEvent& e) override;
+    void mouseDown(const applause::MouseEvent& e) override;
+    void mouseDrag(const applause::MouseEvent& e) override;
+    void mouseUp(const applause::MouseEvent& e) override;
+    void mouseMove(const applause::MouseEvent& e) override;
+    void mouseExit(const applause::MouseEvent& e) override;
 
     void setCurve(MSEGCurve<>* curve) { curve_ = curve; redraw(); }
     MSEGCurve<>* curve() const { return curve_; }
@@ -40,7 +39,7 @@ public:
     void setYRange(float min, float max) { y_min_ = min; y_max_ = max; redraw(); }
     void allowAddRemovePoints(bool enabled) { point_editing_enabled_ = enabled; }
 
-    visage::CallbackList<void()> on_curve_changed;
+    applause::CallbackList<void()> on_curve_changed;
 
 private:
     // Coordinate mapping; normalized curve space <-> screen space
@@ -67,7 +66,7 @@ private:
     int dragged_segment_ = -1;
     bool point_editing_enabled_ = true;
 
-    std::vector<visage::Point> samples_;
+    std::vector<applause::Point> samples_;
 };
 
 } // namespace applause

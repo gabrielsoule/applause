@@ -1,21 +1,22 @@
 #include "ModMatrixComponent.h"
 
+#include <applause/ui/ApplauseUI.h>
+
 #include <embedded/applause_fonts.h>
 
 #include <applause/ui/ApplauseEditor.h>
 #include <applause/ui/NativePopupMenu.h>
-#include <visage_ui/events.h>
 
-using namespace visage::dimension;
+using namespace applause::dimension;
 
 namespace applause {
 
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowHeight, 30.0f);  // height of each row
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowGap, 7.0f);  // vertical spacing between rows
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixPadding, 20.0f);  // outer padding of the matrix
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixColumnGap, 16.0f);  // horizontal gap between columns
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixToggleWidth, 30.0f);  // bipolar toggle button width
-VISAGE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixDeleteWidth, 30.0f);  // delete button width
+APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowHeight, 30.0f);  // height of each row
+APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowGap, 7.0f);  // vertical spacing between rows
+APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixPadding, 20.0f);  // outer padding of the matrix
+APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixColumnGap, 16.0f);  // horizontal gap between columns
+APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixToggleWidth, 30.0f);  // bipolar toggle button width
+APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixDeleteWidth, 30.0f);  // delete button width
 
 static std::string connectionLabel(const ModMatrix& matrix, const ModConnection& conn) {
     return matrix.getSource(conn.src_idx).name + " -> " + conn.destination()->name;
@@ -25,7 +26,7 @@ ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(
     setFlexLayout(true);
     layout().setFlexRows(false);
     layout().setFlexGap(paletteValue(ApplauseModMatrixColumnGap));
-    layout().setFlexItemAlignment(visage::Layout::ItemAlignment::Stretch);
+    layout().setFlexItemAlignment(applause::Layout::ItemAlignment::Stretch);
 
     src_menu_.on_build_menu_ = [this](NativePopupMenu& menu) {
         for (uint16_t i = 0; i < owner_.matrix_.getSourceCount(); ++i) {
@@ -139,7 +140,7 @@ void ModMatrixComponent::Row::bindToConnection(const ModConnection& c) {
         conn = owner_.matrix_.reassignSource(conn, owner_.matrix_.getSource(id));
         if (conn.depth_slot != prev_slot) {  // merged into a peer; rebuild to drop this duplicate row
             // Defer: rebuildRows would destroy this Row (and the CallbackList we're dispatching from).
-            visage::runOnEventThread([&owner = owner_] { owner.rebuildRows(); });
+            applause::runOnEventThread([&owner = owner_] { owner.rebuildRows(); });
             return;
         }
         src_list_id = id;
@@ -152,7 +153,7 @@ void ModMatrixComponent::Row::bindToConnection(const ModConnection& c) {
             const uint16_t prev_slot = conn.depth_slot;
             conn = owner_.matrix_.reassignDestination(conn, owner_.matrix_.getDestination(id - 1));
             if (conn.depth_slot != prev_slot) {
-                visage::runOnEventThread([&owner = owner_] { owner.rebuildRows(); });
+                applause::runOnEventThread([&owner = owner_] { owner.rebuildRows(); });
                 return;
             }
             dst_list_id = id;
@@ -175,7 +176,7 @@ ModMatrixComponent::ModMatrixComponent(applause::ModMatrix& matrix) : matrix_(ma
     scrollableLayout().setFlexGap(paletteValue(ApplauseModMatrixRowGap));
     scrollableLayout().setPaddingLeft(paletteValue(ApplauseModMatrixPadding));
     scrollableLayout().setPaddingRight(paletteValue(ApplauseModMatrixPadding));
-    scrollableLayout().setFlexItemAlignment(visage::Layout::ItemAlignment::Stretch);
+    scrollableLayout().setFlexItemAlignment(applause::Layout::ItemAlignment::Stretch);
 
     setScrollBarRounding(5.0f);
 
@@ -188,21 +189,21 @@ void ModMatrixComponent::buildHeader() {
     header_.setFlexLayout(true);
     header_.layout().setFlexRows(false);
     header_.layout().setFlexGap(paletteValue(ApplauseModMatrixColumnGap));
-    header_.layout().setFlexItemAlignment(visage::Layout::ItemAlignment::Stretch);
+    header_.layout().setFlexItemAlignment(applause::Layout::ItemAlignment::Stretch);
     header_.layout().setHeight(paletteValue(ApplauseModMatrixRowHeight));
     header_.layout().setFlexGrow(0.0f);
     header_.layout().setFlexShrink(0.0f);
 
-    header_.onDraw() = [&h = header_](visage::Canvas& canvas) {
+    header_.onDraw() = [&h = header_](applause::Canvas& canvas) {
         canvas.setColor(0xff444444);
         canvas.fill(10, h.height() - 4, h.width() - 20, 1);
     };
 
-    visage::Font header_font(11, applause::fonts::Jost_Regular_ttf);
-    auto setupLabel = [&](visage::Frame& frame, const char* text) {
-        frame.onDraw() = [&frame, text, header_font](visage::Canvas& canvas) {
+    applause::Font header_font(11, applause::fonts::Jost_Regular_ttf);
+    auto setupLabel = [&](applause::Frame& frame, const char* text) {
+        frame.onDraw() = [&frame, text, header_font](applause::Canvas& canvas) {
             canvas.setColor(0xff888888);
-            canvas.text(text, header_font, visage::Font::kCenter, 0, 0, frame.width(), frame.height());
+            canvas.text(text, header_font, applause::Font::kCenter, 0, 0, frame.width(), frame.height());
         };
     };
 
@@ -296,7 +297,7 @@ void ModMatrixComponent::deleteRow(Row* row) {
     matrix_.removeConnection(row->conn);
     // Defer: we are inside the delete button's onToggle CallbackList, and rebuildRows
     // would destroy the Row that owns it.
-    visage::runOnEventThread([this] { rebuildRows(); });
+    applause::runOnEventThread([this] { rebuildRows(); });
 }
 
 }  // namespace applause

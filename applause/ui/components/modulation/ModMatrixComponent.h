@@ -1,10 +1,10 @@
 #pragma once
 
-#include <applause/core/ModMatrix.h>
-#include <visage_graphics/theme.h>
-#include <visage_ui/scroll_bar.h>
+#include <applause/ui/ApplauseUI.h>
 
-#include <applause/ui/components/ApplauseButton.h>
+#include <applause/core/ModMatrix.h>
+
+#include <applause/ui/components/Button.h>
 #include <applause/ui/components/Slider.h>
 
 #include <memory>
@@ -13,20 +13,20 @@
 
 namespace applause {
 
-class ModMatrixComponent : public visage::ScrollableFrame {
+class ModMatrixComponent : public applause::ScrollableFrame {
 public:
-    VISAGE_THEME_DEFINE_VALUE(ApplauseModMatrixRowHeight);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseModMatrixRowGap);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseModMatrixPadding);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseModMatrixColumnGap);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseModMatrixToggleWidth);
-    VISAGE_THEME_DEFINE_VALUE(ApplauseModMatrixDeleteWidth);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseModMatrixRowHeight);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseModMatrixRowGap);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseModMatrixPadding);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseModMatrixColumnGap);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseModMatrixToggleWidth);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseModMatrixDeleteWidth);
 
     /**
      * A single row in the mod matrix UI, representing one modulation connection.
      * Can be a "dummy" row (awaiting user input) or an active row bound to a connection.
      */
-    class Row : public visage::Frame {
+    class Row : public applause::Frame {
     public:
         Row(ModMatrixComponent& owner, bool is_dummy);
 
@@ -61,12 +61,12 @@ private:
     void buildHeader();
 
     applause::ModMatrix& matrix_;
-    visage::Frame header_;
-    visage::Frame header_source_;
-    visage::Frame header_dest_;
-    visage::Frame header_polarity_;
-    visage::Frame header_amount_;
-    visage::Frame header_delete_;
+    applause::Frame header_;
+    applause::Frame header_source_;
+    applause::Frame header_dest_;
+    applause::Frame header_polarity_;
+    applause::Frame header_amount_;
+    applause::Frame header_delete_;
     std::vector<std::unique_ptr<Row>> rows_;
 };
 
