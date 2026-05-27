@@ -6,6 +6,9 @@
 #endif
 #include <applause/ui/Tooltip.h>
 #include <applause/util/DebugHelpers.h>
+#ifndef NDEBUG
+#include <applause/util/inspector/InspectorWindow.h>
+#endif
 #include <cmath>
 #include <fstream>
 #include <nfd.hpp>
@@ -103,6 +106,16 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params, 
     inactive_button_ = std::make_unique<applause::UiButton>("Inactive");
     inactive_button_->setActive(false);
     buttons_panel_.content().addChild(inactive_button_.get());
+
+#ifndef NDEBUG
+    inspector_button_ = std::make_unique<applause::UiButton>("Inspector");
+    inspector_button_->setActionButton();
+    inspector_button_->onToggle() += [this](applause::Button*, bool) {
+        if (auto* w = inspector()) w->toggleShown();
+    };
+    buttons_panel_.content().addChild(inspector_button_.get());
+    applause::setTooltip(*inspector_button_, "Open the UI Inspector (Cmd+I)");
+#endif
 
     small_button_ = std::make_unique<applause::UiButton>("TINY");
     small_button_->onToggle() += [](applause::Button* button, bool on) { LOG_INFO("Small button clicked!"); };
@@ -236,6 +249,9 @@ void ExampleShowcaseEditor::resized() {
         placeButton(popup_menu_button_.get());
 #endif
         placeButton(inactive_button_.get());
+#ifndef NDEBUG
+        placeButton(inspector_button_.get());
+#endif
 
         if (col != 0) {
             col = 0;

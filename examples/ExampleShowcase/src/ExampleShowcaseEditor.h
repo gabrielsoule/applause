@@ -49,6 +49,12 @@ private:
     // Inactive button
     std::unique_ptr<applause::UiButton> inactive_button_;
 
+#ifndef NDEBUG
+    // Debug-build only: toggles the pop-out inspector window owned by the
+    // ApplauseEditor base class.
+    std::unique_ptr<applause::UiButton> inspector_button_;
+#endif
+
     // Small buttons
     std::unique_ptr<applause::UiButton> small_button_;
     std::unique_ptr<applause::ToggleTextButton> small_toggle_button_;

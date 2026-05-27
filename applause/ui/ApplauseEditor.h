@@ -10,6 +10,11 @@
 
 namespace applause {
 class TooltipDisplay;
+
+#ifndef NDEBUG
+namespace inspector { class InspectorWindow; }
+#endif
+
 /**
  * @class ApplauseEditor
  * @brief The default Applause framework editor implementation using Visage.
@@ -57,9 +62,21 @@ public:
 
     TooltipDisplay& tooltipDisplay() { return *tooltip_display_; }
 
+#ifndef NDEBUG
+    // Debug-build only: the pop-out inspector window. Always non-null;
+    // hidden until the user toggles it open (Cmd+I or via the Inspector
+    // button in ExampleShowcase).
+    inspector::InspectorWindow* inspector() { return inspector_window_.get(); }
+#else
+    void* inspector() { return nullptr; }
+#endif
+
 private:
     ParamMessageQueue message_queue_;  // Owned by the editor
     ParamsExtension* params_ = nullptr;
     std::unique_ptr<TooltipDisplay> tooltip_display_;
+#ifndef NDEBUG
+    std::unique_ptr<inspector::InspectorWindow> inspector_window_;
+#endif
 };
 }  // namespace applause

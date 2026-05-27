@@ -5,6 +5,10 @@
 #include <applause/ui/Tooltip.h>
 #include <applause/util/DebugHelpers.h>
 
+#ifndef NDEBUG
+#include <applause/util/inspector/InspectorWindow.h>
+#endif
+
 namespace applause {
 ApplauseEditor::ApplauseEditor(ParamsExtension* params) : params_(params) {
     // If params provided, connect our message queue and start the timer
@@ -27,10 +31,23 @@ ApplauseEditor::ApplauseEditor(ParamsExtension* params) : params_(params) {
     };
     tooltip_display_->setBounds(localBounds());
 
-    onResize() += [this] {
-        if (tooltip_display_)
-            tooltip_display_->setBounds(localBounds());
+#ifndef NDEBUG
+    // The inspector lives in its own native window; it is NOT a child of
+    // the editor and never draws inside it (apart from a transient invisible
+    // capture frame while Pick mode is active). Stays hidden until toggled.
+    inspector_window_ = std::make_unique<inspector::InspectorWindow>(*this);
+
+    setAcceptsKeystrokes(true);
+    onKeyPress() += [this](const applause::KeyEvent& e) -> bool {
+        if (!e.key_down) return false;
+        if (e.key_code == applause::KeyCode::I && e.isMainModifier()
+            && !e.isShiftDown()) {
+            inspector_window_->toggleShown();
+            return true;
+        }
+        return false;
     };
+#endif
 }
 
 ApplauseEditor::~ApplauseEditor() {

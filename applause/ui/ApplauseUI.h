@@ -57,6 +57,8 @@ using ApplicationWindow = visage::ApplicationWindow;
 using EventTimer        = visage::EventTimer;
 using MouseEvent        = visage::MouseEvent;
 using MouseCursor       = visage::MouseCursor;
+using KeyEvent          = visage::KeyEvent;
+using KeyCode           = visage::KeyCode;
 
 using TextEditor = visage::TextEditor;
 using String     = visage::String;
