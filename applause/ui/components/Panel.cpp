@@ -14,7 +14,13 @@ APPLAUSE_THEME_IMPLEMENT_VALUE(Panel, ApplausePanelBorderWidth, 1.0f);
 APPLAUSE_THEME_IMPLEMENT_VALUE(Panel, ApplausePanelTitleHeight, 40.0f);
 APPLAUSE_THEME_IMPLEMENT_VALUE(Panel, ApplausePanelContentMargin, 4.0f);
 
-Panel::Panel(const std::string& title) : title_(title, applause::Font(15, applause::fonts::Jost_Medium_ttf)) {
+Panel::Panel() : has_title_(false) {
+    addChild(&content_);
+}
+
+Panel::Panel(const std::string& title)
+    : title_(title, applause::Font(15, applause::fonts::Jost_Medium_ttf)),
+      has_title_(true) {
     addChild(&content_);
 }
 
@@ -23,7 +29,6 @@ void Panel::draw(applause::Canvas& canvas) {
     float h = height();
     float rounding = canvas.value(ApplausePanelRounding);
     float border_width = canvas.value(ApplausePanelBorderWidth);
-    float title_h = canvas.value(ApplausePanelTitleHeight);
 
     canvas.setColor(ApplausePanelBackground);
     canvas.roundedRectangle(0, 0, w, h, rounding);
@@ -31,14 +36,17 @@ void Panel::draw(applause::Canvas& canvas) {
     canvas.setColor(ApplausePanelBorder);
     canvas.roundedRectangleBorder(0, 0, w, h, rounding, border_width);
 
-    canvas.setColor(ApplausePanelTitleText);
-    canvas.text(&title_, 0, 0, w, title_h);
+    if (has_title_) {
+        float title_h = canvas.value(ApplausePanelTitleHeight);
+        canvas.setColor(ApplausePanelTitleText);
+        canvas.text(&title_, 0, 0, w, title_h);
+    }
 }
 
 void Panel::resized() {
-    float title_h = paletteValue(ApplausePanelTitleHeight);
-    float margin = paletteValue(ApplausePanelContentMargin);
-    content_.setBounds(margin, title_h, width() - 2 * margin, height() - title_h - margin);
+    const float margin = paletteValue(ApplausePanelContentMargin);
+    const float top = has_title_ ? paletteValue(ApplausePanelTitleHeight) : margin;
+    content_.setBounds(margin, top, width() - 2 * margin, height() - top - margin);
 }
 
 }  // namespace applause

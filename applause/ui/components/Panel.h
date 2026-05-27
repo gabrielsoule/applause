@@ -16,6 +16,8 @@ public:
     APPLAUSE_THEME_DEFINE_VALUE(ApplausePanelTitleHeight);
     APPLAUSE_THEME_DEFINE_VALUE(ApplausePanelContentMargin);
 
+// Titleless variant. the content frame fills the full panel (minus the standard inner margin).
+    Panel();
     explicit Panel(const std::string& title);
 
     void draw(applause::Canvas& canvas) override;
@@ -26,6 +28,7 @@ public:
 private:
     applause::Text title_;
     applause::Frame content_;
+    bool has_title_;
 };
 
 }  // namespace applause
