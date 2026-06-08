@@ -140,6 +140,9 @@ target_link_libraries(applause
         xsimd
 )
 
+# Inspector utility (debug-only) reads bgfx::Stats directly, so we include it here
+target_link_libraries(applause PRIVATE bgfx)
+
 if(APPLAUSE_USE_FMT)
     message(STATUS "Configuring Applause with fmt")
     CPMAddPackage(

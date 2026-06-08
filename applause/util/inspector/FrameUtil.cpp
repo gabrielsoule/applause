@@ -34,24 +34,27 @@ std::string frameTypeName(const applause::Frame& frame) {
     return demangle(typeid(frame).name());
 }
 
-applause::Frame* frameAtPointExcluding(applause::Frame* root,
-                                       applause::Point point,
-                                       applause::Frame* exclude) {
-    if (!root || root == exclude) return nullptr;
+applause::Frame* frameAtPointExcluding(
+    applause::Frame* root,
+    applause::Point point,
+    const std::function<bool(const applause::Frame*)>& exclude) {
+    if (!root || (exclude && exclude(root))) return nullptr;
 
     const auto& children = root->children();
     // Walk on_top siblings first (drawn last → on top), reverse iter so
     // last-added/topmost wins. Matches visage::Frame::frameAtPoint order.
     for (auto it = children.rbegin(); it != children.rend(); ++it) {
         auto* child = *it;
-        if (child == exclude || !child->isOnTop()) continue;
+        if (!child->isOnTop()) continue;
+        if (exclude && exclude(child)) continue;
         if (!child->isVisible() || !child->containsPoint(point)) continue;
         if (auto* hit = frameAtPointExcluding(child, point - child->topLeft(), exclude))
             return hit;
     }
     for (auto it = children.rbegin(); it != children.rend(); ++it) {
         auto* child = *it;
-        if (child == exclude || child->isOnTop()) continue;
+        if (child->isOnTop()) continue;
+        if (exclude && exclude(child)) continue;
         if (!child->isVisible() || !child->containsPoint(point)) continue;
         if (auto* hit = frameAtPointExcluding(child, point - child->topLeft(), exclude))
             return hit;

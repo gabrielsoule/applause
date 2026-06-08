@@ -4,6 +4,7 @@
 
 #include <applause/ui/ApplauseUI.h>
 
+#include <functional>
 #include <string>
 
 namespace applause::inspector {
@@ -16,13 +17,16 @@ std::string demangle(const char* mangled);
 // dynamic type via typeid(frame).name().
 std::string frameTypeName(const applause::Frame& frame);
 
-// Visage's Frame::frameAtPoint with a subtree-exclusion parameter. Used by
-// pick mode so the inspector's own overlay/panel don't capture the hit.
+// Visage's Frame::frameAtPoint with a predicate-based subtree exclusion.
+// Any frame for which `exclude` returns true is skipped — both as a hit and
+// as a subtree to descend. Used by pick mode to filter out inspector-owned
+// frames (pick-capture overlay, selection highlight + its resize handles).
 // `point` is in `root`'s parent coordinate space (window coords when called
 // with the editor as root).
-applause::Frame* frameAtPointExcluding(applause::Frame* root,
-                                       applause::Point point,
-                                       applause::Frame* exclude);
+applause::Frame* frameAtPointExcluding(
+    applause::Frame* root,
+    applause::Point point,
+    const std::function<bool(const applause::Frame*)>& exclude);
 
 // Count this frame and all descendants (cheap; used to detect tree changes).
 int recursiveFrameCount(const applause::Frame* frame);

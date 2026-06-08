@@ -30,6 +30,7 @@ public:
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorWindowBackground);
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorWindowBorder);
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorToolbarBackground);
+    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorToolbarText);
 
     static constexpr int kPollIntervalMs = 100;
     static constexpr float kDefaultWidth = 1020.0f;
@@ -37,6 +38,15 @@ public:
     static constexpr float kToolbarHeight = 28.0f;
     static constexpr float kContentPadding = 6.0f;
     static constexpr float kColumnGap = 6.0f;
+    static constexpr float kMetricSlotWidth = 78.0f;
+    static constexpr float kCpuSlotWidth    = 128.0f;
+    static constexpr float kMetricFontSize = 10.0f;
+    static constexpr float kMetricSmoothing = 0.1f;
+    static constexpr float kPickButtonWidth = 56.0f;
+    // Frame budget is OS-paced (MTKView preferredFramesPerSecond = 120 on
+    // macOS). Hardcoded here; in theory we could pull the live refresh rate
+    // off Canvas but it's not exposed publicly.
+    static constexpr float kFrameBudgetMs   = 1000.0f / 120.0f;
     // Three-column layout: tree | properties | theme. Ratios are fractions
     // of the column-content width (after subtracting padding + gaps).
     static constexpr float kTreeColumnRatio  = 0.28f;
@@ -62,12 +72,10 @@ public:
 
     applause::Frame& editor() { return editor_; }
 
-    // The palette the inspector creates and attaches to the editor on first
-    // show. Initialized lazily with defaults — until then, it is empty and
-    // not attached. After attachment, `editor_.setPalette(&palette_)` makes
-    // every theme lookup resolve through this palette instead of through the
-    // theme-system defaults.
-    applause::Palette& palette() { return palette_; }
+    // The editor's palette. The inspector edits this in place; it does not
+    // own a palette of its own. Safe to call any time after construction —
+    // ApplauseEditor installs its palette before constructing the inspector.
+    applause::Palette& palette() { return *editor_.palette(); }
 
     // True for frames the inspector itself parents onto the editor (the
     // transient pick-capture overlay and the selection-outline overlay). The
@@ -97,16 +105,9 @@ private:
     // so the native-close button doesn't leave the selection overlay attached
     // to the host editor.
     void detachOverlays();
-    // Lazy palette initialization. Idempotent; first call populates the
-    // palette from theme defaults and attaches it to the editor.
-    void ensurePaletteAttached();
-
     applause::Frame& editor_;
-    // Palette member must be declared BEFORE theme_panel_ / theme_ so that
-    // the editors holding pointers into it are destroyed first.
-    applause::Palette palette_;
-    bool palette_attached_ = false;
     std::unique_ptr<applause::ToggleTextButton> pick_button_;
+    applause::Font metric_font_;
     // Panels host the tree / properties / theme as children of their content()
     // frames. Declared before the views so the views are destroyed first and
     // self-detach from the panel hierarchy cleanly.
@@ -123,6 +124,11 @@ private:
     applause::Frame* hovered_ = nullptr;
     bool pick_mode_ = false;
     int last_frame_count_ = 0;
+
+    float smoothed_fps_ = 0.0f;
+    float smoothed_cpu_ms_ = 0.0f;
+    float smoothed_gpu_ms_ = 0.0f;
+    bool bgfx_profiler_enabled_ = false;
 
     applause::CallbackList<void(applause::Frame*)> on_selection_changed_;
     applause::CallbackList<void(applause::Frame*)> on_hover_changed_;

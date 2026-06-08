@@ -24,7 +24,6 @@ APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorThemeView, ApplauseInspectorThemeText,  
 APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorThemeView, ApplauseInspectorThemeTextMuted,             0xff7a7a80);
 APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorThemeView, ApplauseInspectorThemeRowHover,              0x22ffffff);
 APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorThemeView, ApplauseInspectorThemeRowSelected,           0x4466bbff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorThemeView, ApplauseInspectorThemeGroupBackground,       0xff1c1c22);
 APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorThemeView, ApplauseInspectorThemeGroupBackgroundActive, 0xff262630);
 APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorThemeView, ApplauseInspectorThemeSwatchBorder,          0xff3a3a40);
 APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorThemeView, ApplauseInspectorThemePickerBackground,      0xff141418);
@@ -266,10 +265,13 @@ public:
         const auto matches = InspectorThemeView::matchingGroupsFor(sel);
         const bool active = std::find(matches.begin(), matches.end(), group_) != matches.end();
 
-        canvas.setColor(active
-            ? InspectorThemeView::ApplauseInspectorThemeGroupBackgroundActive
-            : InspectorThemeView::ApplauseInspectorThemeGroupBackground);
-        canvas.rectangle(0, 0, bounds.width(), bounds.height());
+        // Inactive groups paint no background — let the panel show through,
+        // matching the component tree's flat look. The active variant remains
+        // a deliberate visual cue.
+        if (active) {
+            canvas.setColor(InspectorThemeView::ApplauseInspectorThemeGroupBackgroundActive);
+            canvas.rectangle(0, 0, bounds.width(), bounds.height());
+        }
 
         const float tri_x = InspectorThemeView::kPaddingX;
         const float tri_cy = bounds.height() * 0.5f;

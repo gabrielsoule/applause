@@ -11,6 +11,12 @@
 
 namespace applause {
 ApplauseEditor::ApplauseEditor(ParamsExtension* params) : params_(params) {
+    // Install the palette before any children are added so they inherit it via setParent.
+    // This SHOULD be the proper way to do Palettes in Visage, but Visage is undocumented
+    // so who knows... :-)
+    palette_.initWithDefaults();
+    setPalette(&palette_);
+
     // If params provided, connect our message queue and start the timer
     if (params_) {
         params_->setMessageQueue(&message_queue_);

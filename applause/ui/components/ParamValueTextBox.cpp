@@ -10,19 +10,13 @@
 #include <applause/util/DebugHelpers.h>
 
 namespace applause {
-APPLAUSE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorBackground, 0x00000000);  // Transparent
-APPLAUSE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorBorder, 0x00000000);  // No border
-APPLAUSE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorText, 0xFFFFFFFF);  // White text
-APPLAUSE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorDefaultText, 0xFF999999);  // Light gray
-APPLAUSE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorCaret, 0xFFFFFFFF);  // White caret
-APPLAUSE_THEME_IMPLEMENT_COLOR(ParamValueTextBox, ApplauseTextEditorSelection, 0x22ffffff);  // Light selection
-APPLAUSE_THEME_IMPLEMENT_VALUE(ParamValueTextBox, ApplauseTextEditorRounding, 0.0f);  // No rounding
 
 ParamValueTextBox::ParamValueTextBox(ParamInfo& paramInfo) : param_info_(paramInfo) {
     text_editor_.setMultiLine(false);
     text_editor_.setJustification(applause::Font::kCenter);
     text_editor_.setFont(applause::Font(12, applause::fonts::Jost_Regular_ttf));
     text_editor_.setMargin(0, 0);
+
     addChild(&text_editor_);
 
     updateTextDisplay();
@@ -80,31 +74,6 @@ ParamValueTextBox::ParamValueTextBox(ParamInfo& paramInfo) : param_info_(paramIn
             this->updateTextDisplay();
         }
     });
-}
-
-void ParamValueTextBox::init() {
-    // Call parent init
-    applause::Frame::init();
-
-    // Map our Applause theme colors to TextEditor's expected theme IDs
-    // Basically, each ParamValueTextBox reads the global ApplauseXYZ color IDs,
-    // makes a local palette, and tells the underlying editor (which this class
-    // extends) to use that palette. This allows users to customize appearance
-    // via a top-level palette, while keeping the default Visage text editor
-    // theme untouched. This is a bit of a hack, but it does the trick.
-    custom_palette_.initWithDefaults();
-    custom_palette_.setColor(applause::TextEditor::TextEditorBackground, paletteColor(ApplauseTextEditorBackground));
-    custom_palette_.setColor(applause::TextEditor::TextEditorBorder, paletteColor(ApplauseTextEditorBorder));
-    custom_palette_.setColor(applause::TextEditor::TextEditorText, paletteColor(ApplauseTextEditorText));
-    custom_palette_.setColor(applause::TextEditor::TextEditorDefaultText, paletteColor(ApplauseTextEditorDefaultText));
-    custom_palette_.setColor(applause::TextEditor::TextEditorCaret, paletteColor(ApplauseTextEditorCaret));
-    custom_palette_.setColor(applause::TextEditor::TextEditorSelection, paletteColor(ApplauseTextEditorSelection));
-
-    // TODO: Also handle rounding value if needed
-    // float rounding = paletteValue(ApplauseTextEditorRounding);
-    // text_editor_->setBackgroundRounding(rounding);
-
-    setPalette(&custom_palette_);
 }
 
 void ParamValueTextBox::updateTextDisplay() {

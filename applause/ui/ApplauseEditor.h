@@ -71,9 +71,17 @@ public:
     void* inspector() { return nullptr; }
 #endif
 
+    // The palette this editor installs on itself at construction. Every theme
+    // lookup in the editor's subtree resolves through this palette. The
+    // inspector edits this in place rather than installing a competing palette.
+    applause::Palette& palette() { return palette_; }
+
 private:
     ParamMessageQueue message_queue_;  // Owned by the editor
     ParamsExtension* params_ = nullptr;
+    // Declared before tooltip_display_/inspector_window_ so destruction order
+    // tears those down before the palette they point at.
+    applause::Palette palette_;
     std::unique_ptr<TooltipDisplay> tooltip_display_;
 #ifndef NDEBUG
     std::unique_ptr<inspector::InspectorWindow> inspector_window_;

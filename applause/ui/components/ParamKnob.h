@@ -34,7 +34,6 @@ private:
     Knob knob_;
     ParamValueTextBox paramValueText_;
     applause::TextEditor paramNameText_{"param_name"};
-    applause::Palette name_text_palette_;
     rocket::scoped_connection param_connection_;
     rocket::scoped_connection mod_changed_conn_;
     const ModDestination* destination_ = nullptr;

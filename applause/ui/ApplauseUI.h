@@ -30,7 +30,6 @@
 #include <visage_utils/events.h>
 #include <visage_utils/space.h>
 #include <visage_utils/string_utils.h>
-#include <visage_widgets/text_editor.h>
 #include <visage_windowing/windowing.h>
 
 namespace applause {
@@ -60,7 +59,6 @@ using MouseCursor       = visage::MouseCursor;
 using KeyEvent          = visage::KeyEvent;
 using KeyCode           = visage::KeyCode;
 
-using TextEditor = visage::TextEditor;
 using String     = visage::String;
 
 using EmbeddedFile = visage::EmbeddedFile;
@@ -94,3 +92,6 @@ using namespace visage::dimension;
 #define APPLAUSE_THEME_IMPLEMENT_VALUE(container, value, default_value) \
     VISAGE_THEME_IMPLEMENT_VALUE(container, value, default_value)
 #define APPLAUSE_LEAK_CHECKER(className) VISAGE_LEAK_CHECKER(className)
+
+// Re-export the forked TextEditor so `applause::TextEditor` resolves
+#include <applause/ui/components/TextEditor.h>

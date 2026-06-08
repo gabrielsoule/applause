@@ -24,9 +24,7 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo, const ModDestination* dst) :
     paramNameText_.setText(param_info_.shortName);
     paramNameText_.setIgnoresMouseEvents(true, false);
     paramNameText_.setMargin(0, 0);
-    name_text_palette_.setColor(applause::TextEditor::TextEditorText, paletteColor(ApplauseParamKnobText));
-    name_text_palette_.setColor(applause::TextEditor::TextEditorBackground, applause::Color(0x00000000));
-    paramNameText_.setPalette(&name_text_palette_);
+    paramNameText_.setTextColorId(ApplauseParamKnobText);
     addChild(&paramNameText_);
 
     // Push the parameter's default position into the knob (normalized to 0-1).

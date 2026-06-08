@@ -27,7 +27,6 @@ public:
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorThemeTextMuted);
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorThemeRowHover);
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorThemeRowSelected);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorThemeGroupBackground);
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorThemeGroupBackgroundActive);
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorThemeSwatchBorder);
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorThemePickerBackground);
