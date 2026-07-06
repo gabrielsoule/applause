@@ -87,12 +87,14 @@ std::optional<float> ParamsExtension::defaultTextToValue(const std::string& text
 float ParamInfo::getValue() const noexcept { return handle_->getValue(); }
 
 void ParamInfo::setValueNotifyingHost(float value) const noexcept {
+    value = std::clamp(value, minValue, maxValue);
+
     // Queue message to audio thread if message queue exists (GUI is present)
     if (registry_->message_queue_) {
         registry_->message_queue_->toAudio().enqueue({ParamMessageQueue::PARAM_VALUE, clapId, value});
     }
 
-    handle_->value_->store(std::clamp(value, minValue, maxValue), std::memory_order_relaxed);
+    handle_->value_->store(value, std::memory_order_relaxed);
 
     // Immediately notify all UI listeners for instant synchronization
     on_value_changed(value);
@@ -156,7 +158,7 @@ bool ParamsExtension::clap_params_get_info(const clap_plugin_t* plugin, uint32_t
     const ParamInfo& info = ext->infos_[internal_index];
 
     param_info->id = info.clapId;
-    param_info->cookie = nullptr;  // We don't use cookies
+    param_info->cookie = &ext->handles_[internal_index];
 
     std::strncpy(param_info->name, info.name.c_str(), CLAP_NAME_SIZE - 1);
     param_info->name[CLAP_NAME_SIZE - 1] = '\0';
@@ -391,11 +393,19 @@ void ParamsExtension::processEvents(const clap_input_events_t* in, const clap_ou
             if (header->type == CLAP_EVENT_PARAM_VALUE) {
                 const clap_event_param_value_t* param_event = reinterpret_cast<const clap_event_param_value_t*>(header);
                 const clap_id param_id = param_event->param_id;
-                // Look up the parameter
-                auto it = clap_id_to_index_.find(param_id);
-                ASSERT(it != clap_id_to_index_.end(), "Parameter ID {} not found in registry", param_id);
 
-                uint32_t index = it->second;
+                // Fast path: the host echoes back the handle pointer we issued as the
+                // cookie in get_info(); hosts that don't support cookies send nullptr.
+                uint32_t index;
+                if (param_event->cookie) [[likely]] {
+                    index = static_cast<uint32_t>(static_cast<ParamHandle*>(param_event->cookie) - handles_.get());
+                    ASSERT(index < param_count_ && infos_[index].clapId == param_id,
+                           "Cookie for parameter ID {} does not match registry", param_id);
+                } else {
+                    auto it = clap_id_to_index_.find(param_id);
+                    ASSERT(it != clap_id_to_index_.end(), "Parameter ID {} not found in registry", param_id);
+                    index = it->second;
+                }
                 const auto& param_info = infos_[index];
                 ASSERT(!param_info.internal,
                        "Received parameter event for internal parameter '{}' "
@@ -436,7 +446,7 @@ void ParamsExtension::processEvents(const clap_input_events_t* in, const clap_ou
                     event.header.flags = 0;
 
                     event.param_id = message.paramId;
-                    event.cookie = nullptr;
+                    event.cookie = nullptr;  // hosts route plugin output by param_id, not cookie
                     event.note_id = -1;     // Wildcard - not note-specific
                     event.port_index = -1;  // Wildcard
                     event.channel = -1;     // Wildcard

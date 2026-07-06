@@ -4,6 +4,7 @@
 #include <clap/ext/params.h>
 #include <clap/host.h>
 
+#include <algorithm>
 #include <atomic>
 #include <functional>
 #include <memory>
@@ -543,11 +544,13 @@ inline bool ParamsExtension::loadFromJson(const applause::json& json) noexcept {
             auto it = clap_id_to_index_.find(param_id);
             if (it != clap_id_to_index_.end()) {
                 uint32_t index = it->second;
-                values_[index].store(value, std::memory_order_relaxed);
+                const auto& info = infos_[index];
+                const float clamped = std::clamp(value, info.minValue, info.maxValue);
+                values_[index].store(clamped, std::memory_order_relaxed);
 
                 // Notify UI of parameter change if message queue exists
                 if (message_queue_) {
-                    message_queue_->toUi().enqueue({ParamMessageQueue::PARAM_VALUE, param_id, value});
+                    message_queue_->toUi().enqueue({ParamMessageQueue::PARAM_VALUE, param_id, clamped});
                 }
 
                 loaded_count++;
