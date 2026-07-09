@@ -198,6 +198,20 @@ bool ExampleShowcasePlugin::activate(const applause::ProcessInfo& info) noexcept
 
 void ExampleShowcasePlugin::deactivate() noexcept { LOG_INFO("ExampleShowcase::deactivate()"); }
 
+bool ExampleShowcasePlugin::startProcessing() noexcept {
+    LOG_INFO("ExampleShowcase::startProcessing()");
+    return true;
+}
+
+void ExampleShowcasePlugin::stopProcessing() noexcept { LOG_INFO("ExampleShowcase::stopProcessing()"); }
+
+void ExampleShowcasePlugin::reset() noexcept {
+    LOG_INFO("ExampleShowcase::reset()");
+    // Clear DSP state so processing resumes as if freshly started, without
+    // touching parameter values (the host keeps those across a reset).
+    lfo_phase_ = 0.0f;
+}
+
 clap_process_status ExampleShowcasePlugin::process(const clap_process_t* process) noexcept {
     params_.processEvents(process->in_events, process->out_events);
 

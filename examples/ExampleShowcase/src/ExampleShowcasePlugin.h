@@ -21,6 +21,9 @@ public:
     void destroy() noexcept override;
     bool activate(const applause::ProcessInfo& info) noexcept override;
     void deactivate() noexcept override;
+    bool startProcessing() noexcept override;
+    void stopProcessing() noexcept override;
+    void reset() noexcept override;
 
     // Audio processing
     clap_process_status process(const clap_process_t* process) noexcept override;
