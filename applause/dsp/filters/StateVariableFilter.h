@@ -4,6 +4,7 @@
 #include <applause/util/DebugHelpers.h>
 #include <algorithm>
 #include <complex>
+#include <type_traits>
 
 namespace applause {
 
@@ -11,6 +12,7 @@ enum class StateVariableFilterType {
     Lowpass,
     Bandpass,
     Highpass,
+    MultiMode,  ///< Continuous lowpass -> bandpass -> highpass blend, controlled via setMode()
 };
 
 /**
@@ -30,6 +32,9 @@ public:
     using ScalarType = scalar_t<S>;
 
     static constexpr StateVariableFilterType filter_type = Type;
+
+    static_assert(!(UnityGain && Type == StateVariableFilterType::MultiMode),
+                  "UnityGain is not supported for MultiMode: a blended response has no single peak gain");
 
     StateVariableFilter() {
         reset();
@@ -78,11 +83,41 @@ public:
     }
 
     /**
+     * Sets the filter response for MultiMode filters: 0 is lowpass, 0.5 is
+     * bandpass, 1 is highpass, blending with constant power in between.
+     * Does not touch the filter coefficients, so no update() is needed.
+     */
+    void setMode(SampleType mode)
+        requires (Type == StateVariableFilterType::MultiMode)
+    {
+        if constexpr (SimdBatch<SampleType>) {
+            ASSERT(xsimd::all(mode >= SampleType(0.0)) && xsimd::all(mode <= SampleType(1.0)),
+                   "Mode must be in [0, 1]");
+        } else {
+            ASSERT(mode >= SampleType(0.0) && mode <= SampleType(1.0), "Mode must be in [0, 1]");
+        }
+
+        const auto lp = SampleType(1.0) - SampleType(2.0) * applause::min(mode, SampleType(0.5));
+        const auto bp = SampleType(1.0) - applause::abs(SampleType(2.0) * mode - SampleType(1.0));
+        const auto hp = SampleType(2.0) * applause::max(mode, SampleType(0.5)) - SampleType(1.0);
+
+        // sin() shaping gives a constant-power crossfade; the bandpass tap is
+        // quieter than the other two by design, so compensate by sqrt(2).
+        using std::sin;
+        using xsimd::sin;
+        const auto half_pi = SampleType(ScalarType(M_PI_2));
+        mix_.lp = sin(half_pi * lp);
+        mix_.bp = sin(half_pi * bp) * SampleType(ScalarType(M_SQRT2));
+        mix_.hp = sin(half_pi * hp);
+    }
+
+    /**
      * Returns the peak gain of the filter (maximum amplitude response).
      * For LP/HP filters, resonance creates a peak only when Q > 1/sqrt(2).
      * For BP filters, peak gain equals Q.
      */
-    [[nodiscard]] SampleType getPeakGain() const noexcept {
+    [[nodiscard]] SampleType getPeakGain() const noexcept
+        requires (Type != StateVariableFilterType::MultiMode) {
         constexpr ScalarType inv_sqrt_two = ScalarType(0.70710678118654752440);
 
         if constexpr (filter_type == StateVariableFilterType::Lowpass ||
@@ -116,7 +151,8 @@ public:
         return q_;
     }
 
-    [[nodiscard]] SampleType getPeakFrequency() const noexcept {
+    [[nodiscard]] SampleType getPeakFrequency() const noexcept
+        requires (Type != StateVariableFilterType::MultiMode) {
         constexpr ScalarType inv_sqrt_two = ScalarType(0.70710678118654752440);
 
         if constexpr (filter_type == StateVariableFilterType::Bandpass) {
@@ -165,7 +201,8 @@ public:
      * peak frequency is equal to cutoff frequency.
      */
     template <bool should_update = true>
-    void setPeakFrequency(SampleType frequency) {
+    void setPeakFrequency(SampleType frequency)
+        requires (Type != StateVariableFilterType::MultiMode) {
         if constexpr (SimdBatch<SampleType>) {
             ASSERT(xsimd::all(frequency < SampleType(nyquist_limit_)),
                    "Frequency exceeds Nyquist");
@@ -262,13 +299,30 @@ public:
             g_.store_aligned(g_arr);
             k_.store_aligned(k_arr);
 
-            for (size_t i = 0; i < SampleType::size; ++i) {
-                result_arr[i] = computePhaseDelayScalar(freq_arr[i], g_arr[i], k_arr[i]);
+            if constexpr (filter_type == StateVariableFilterType::MultiMode) {
+                alignas(64) ScalarType lp_arr[SampleType::size];
+                alignas(64) ScalarType bp_arr[SampleType::size];
+                alignas(64) ScalarType hp_arr[SampleType::size];
+                mix_.lp.store_aligned(lp_arr);
+                mix_.bp.store_aligned(bp_arr);
+                mix_.hp.store_aligned(hp_arr);
+
+                for (size_t i = 0; i < SampleType::size; ++i) {
+                    result_arr[i] = computePhaseDelayScalar(freq_arr[i], g_arr[i], k_arr[i],
+                                                            lp_arr[i], bp_arr[i], hp_arr[i]);
+                }
+            } else {
+                for (size_t i = 0; i < SampleType::size; ++i) {
+                    result_arr[i] = computePhaseDelayScalar(freq_arr[i], g_arr[i], k_arr[i]);
+                }
             }
 
             return SampleType::load_aligned(result_arr);
         } else {
-            return computePhaseDelayScalar(frequency, g_, k_);
+            if constexpr (filter_type == StateVariableFilterType::MultiMode)
+                return computePhaseDelayScalar(frequency, g_, k_, mix_.lp, mix_.bp, mix_.hp);
+            else
+                return computePhaseDelayScalar(frequency, g_, k_);
         }
     }
 
@@ -291,6 +345,8 @@ private:
             output = ybp;
         } else if constexpr (filter_type == StateVariableFilterType::Highpass) {
             output = yhp;
+        } else if constexpr (filter_type == StateVariableFilterType::MultiMode) {
+            output = applause::fma(mix_.lp, ylp, applause::fma(mix_.bp, ybp, mix_.hp * yhp));
         } else {
             LOG_ERR("Unknown filter type; this should never happen!");
             return SampleType(0);
@@ -307,7 +363,9 @@ private:
      * Computes phase delay for a single set of scalar parameters using complex arithmetic.
      * This evaluates the filter's z-domain transfer function at the given frequency.
      */
-    [[nodiscard]] ScalarType computePhaseDelayScalar(ScalarType freq, ScalarType g, ScalarType k) const noexcept {
+    [[nodiscard]] ScalarType computePhaseDelayScalar(ScalarType freq, ScalarType g, ScalarType k,
+                                                     ScalarType lp = 0, ScalarType bp = 0,
+                                                     ScalarType hp = 0) const noexcept {
         if (freq <= ScalarType(0))
             return ScalarType(0);
 
@@ -327,6 +385,14 @@ private:
         } else if constexpr (filter_type == StateVariableFilterType::Highpass) {
             const auto z_minus_one = z - ScalarType(1);
             num = z_minus_one * z_minus_one;
+        } else if constexpr (filter_type == StateVariableFilterType::MultiMode) {
+            // The blend shares the denominator, so its response is exactly the
+            // mix-weighted sum of the three numerators.
+            const auto one_plus_z = ScalarType(1) + z;
+            const auto z_minus_one = z - ScalarType(1);
+            num = lp * (g2 * one_plus_z * one_plus_z)
+                + bp * (g * (z * z - ScalarType(1)))
+                + hp * (z_minus_one * z_minus_one);
         }
 
         const auto z_minus_one = z - ScalarType(1);
@@ -353,6 +419,15 @@ private:
     SampleType s2_;
     SampleType one_over_peak_gain_ = SampleType(1.0);
 
+    struct MultiModeMix {
+        SampleType lp = SampleType(1.0);  // pure lowpass until setMode() is called
+        SampleType bp = SampleType(0.0);
+        SampleType hp = SampleType(0.0);
+    };
+    struct Empty {};
+    [[no_unique_address]] std::conditional_t<Type == StateVariableFilterType::MultiMode,
+                                             MultiModeMix, Empty> mix_;
+
     double sample_rate_ = -1;
     ScalarType nyquist_limit_ = -1;
 };
@@ -365,5 +440,8 @@ using SVFHighpass = StateVariableFilter<S, StateVariableFilterType::Highpass, fa
 
 template <Sample S = float>
 using SVFBandpass = StateVariableFilter<S, StateVariableFilterType::Bandpass, false>;
+
+template <Sample S = float>
+using SVFMultiMode = StateVariableFilter<S, StateVariableFilterType::MultiMode, false>;
 
 } // namespace applause
