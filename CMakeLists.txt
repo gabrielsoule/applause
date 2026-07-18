@@ -26,7 +26,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ApplausePlugin.cmake)
 CPMAddPackage(
     NAME clap
     GITHUB_REPOSITORY free-audio/clap
-    GIT_TAG main
+    GIT_TAG 1.2.10
     OPTIONS "CLAP_BUILD_TESTS OFF"
 )
 
@@ -34,7 +34,8 @@ CPMAddPackage(
 CPMAddPackage(
     NAME clap-helpers
     GITHUB_REPOSITORY free-audio/clap-helpers
-    GIT_TAG main
+    # clap-helpers publishes no release tags, so pin to a commit SHA.
+    GIT_TAG 629ae7526740e3d0ee4d64c230df183ecdb2ff5a
     OPTIONS "CLAP_HELPERS_BUILD_TESTS OFF"
 )
 
@@ -54,7 +55,7 @@ target_compile_definitions(nlohmann_json INTERFACE JSON_HAS_FILESYSTEM=0)
 CPMAddPackage(
     NAME xsimd
     GITHUB_REPOSITORY xtensor-stack/xsimd
-    GIT_TAG 14.2.0
+    GIT_TAG 14.3.0
     OPTIONS
         "BUILD_TESTS OFF"
         "BUILD_BENCHMARK OFF"
@@ -64,7 +65,7 @@ CPMAddPackage(
 CPMAddPackage(
     NAME visage
     GITHUB_REPOSITORY vitalaudio/visage
-    GIT_TAG b0b2ee8
+    GIT_TAG 20de59464243447816d142e9d38e9723d068f755
         OPTIONS
         "VISAGE_BUILD_EXAMPLES OFF"
         "VISAGE_BUILD_TESTS OFF"
@@ -75,7 +76,7 @@ if(APPLE)
     CPMAddPackage(
         NAME clap-wrapper
         GITHUB_REPOSITORY free-audio/clap-wrapper
-        GIT_TAG main
+        GIT_TAG v0.15.1
         OPTIONS
             "CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}"
             "CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE"
@@ -85,7 +86,7 @@ else()
     CPMAddPackage(
         NAME clap-wrapper
         GITHUB_REPOSITORY free-audio/clap-wrapper
-        GIT_TAG main
+        GIT_TAG v0.15.1
         OPTIONS
             "CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE"
             "CLAP_WRAPPER_BUILD_TESTS OFF"
@@ -148,7 +149,7 @@ if(APPLAUSE_USE_FMT)
     CPMAddPackage(
         NAME fmt
         GITHUB_REPOSITORY fmtlib/fmt
-        GIT_TAG 12.1.0
+        GIT_TAG 12.2.0
     )
     target_link_libraries(applause PUBLIC fmt)
     target_compile_definitions(applause PUBLIC APPLAUSE_USE_FMT)

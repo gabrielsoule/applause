@@ -1,7 +1,7 @@
 CPMAddPackage("gh:catchorg/Catch2@3.7.1")
 include(${Catch2_SOURCE_DIR}/extras/Catch.cmake)
 
-file(GLOB_RECURSE APPLAUSE_TEST_SOURCES
+file(GLOB_RECURSE APPLAUSE_TEST_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
 )
 
