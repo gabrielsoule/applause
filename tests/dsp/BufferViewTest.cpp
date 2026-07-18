@@ -5,7 +5,54 @@
 #include <applause/util/SampleType.h>
 
 #include <array>
+#include <concepts>
+#include <span>
+#include <utility>
 #include <vector>
+
+namespace {
+
+template <typename Buffer>
+concept HasBufferMutation = requires(const Buffer& buffer,
+                                     typename Buffer::Value value) {
+    buffer.store(0, 0, value);
+    buffer.add(0, 0, typename Buffer::Scalar{});
+    buffer.clear();
+    buffer.clearChannel(0);
+};
+
+template <typename Buffer>
+concept HasChannelMutation = requires(const Buffer& buffer,
+                                      typename Buffer::Value value) {
+    buffer.channel(0).store(0, value);
+    buffer.channel(0).add(0, value);
+};
+
+using MutableFloatBuffer = applause::BufferView<float, 2>;
+using ReadOnlyFloatBuffer = applause::BufferView<const float, 2>;
+
+static_assert(std::constructible_from<ReadOnlyFloatBuffer,
+                                      MutableFloatBuffer>);
+static_assert(!std::constructible_from<MutableFloatBuffer,
+                                       ReadOnlyFloatBuffer>);
+static_assert(HasBufferMutation<MutableFloatBuffer>);
+static_assert(HasChannelMutation<MutableFloatBuffer>);
+static_assert(!HasBufferMutation<ReadOnlyFloatBuffer>);
+static_assert(!HasChannelMutation<ReadOnlyFloatBuffer>);
+static_assert(std::same_as<
+              decltype(std::declval<const MutableFloatBuffer&>()
+                           .channelSamples(0)),
+              float*>);
+static_assert(std::same_as<
+              decltype(std::declval<const ReadOnlyFloatBuffer&>()
+                           .channelSamples(0)),
+              const float*>);
+static_assert(std::same_as<
+              decltype(std::declval<const ReadOnlyFloatBuffer&>()
+                           .channelSampleSpan(0)),
+              std::span<const float>>);
+
+}  // namespace
 
 TEST_CASE("BufferView default construction", "[dsp][buffer]")
 {
@@ -205,6 +252,59 @@ TEST_CASE("BufferView load/store", "[dsp][buffer]")
             REQUIRE(buffer.load(0, fr) == 1000.0f + static_cast<float>(fr));
             REQUIRE(buffer.load(1, fr) == 2000.0f + static_cast<float>(fr));
         }
+    }
+}
+
+TEST_CASE("BufferView const element access", "[dsp][buffer]")
+{
+    constexpr std::size_t frames = 16;
+    alignas(64) std::array<float, frames * 2> backing{};
+    std::array<float*, 2> channels{backing.data(), backing.data() + frames};
+    applause::BufferView<float, 2> mutable_buffer{channels.data(), 2, frames};
+
+    SECTION("mutable host channel pointers construct a read-only view")
+    {
+        applause::BufferView<const float, 2> read_only_buffer{
+            channels.data(), 2, frames};
+
+        REQUIRE(read_only_buffer.numChannels() == 2);
+        REQUIRE(read_only_buffer.numFrames() == frames);
+        REQUIRE(read_only_buffer.channelSamples(0) == backing.data());
+        REQUIRE(read_only_buffer.channel(1).data() == backing.data() + frames);
+    }
+
+    SECTION("mutable views convert to read-only views without copying")
+    {
+        mutable_buffer.store(1, 4, 12.0f);
+        applause::BufferView<const float, 2> read_only_buffer = mutable_buffer;
+
+        REQUIRE(read_only_buffer.channelSamples(1) ==
+                mutable_buffer.channelSamples(1));
+        REQUIRE(read_only_buffer.load(1, 4) == 12.0f);
+
+        mutable_buffer.store(1, 4, 24.0f);
+        REQUIRE(read_only_buffer.load(1, 4) == 24.0f);
+    }
+
+    SECTION("read-only subviews preserve const element access")
+    {
+        applause::BufferView<const float, 2> read_only_buffer = mutable_buffer;
+        auto subview = read_only_buffer.getSubView(3, 9);
+
+        static_assert(std::same_as<decltype(subview),
+                                   applause::BufferView<const float, 2>>);
+        REQUIRE(subview.numFrames() == 6);
+        REQUIRE(subview.channelSamples(0) == backing.data() + 3);
+    }
+
+    SECTION("const mutable descriptors retain shallow write access")
+    {
+        const auto& descriptor = mutable_buffer;
+        descriptor.store(0, 2, 7.0f);
+        descriptor.channel(1).store(3, 8.0f);
+
+        REQUIRE(backing[2] == 7.0f);
+        REQUIRE(backing[frames + 3] == 8.0f);
     }
 }
 
@@ -580,6 +680,47 @@ TEMPLATE_TEST_CASE("BufferView with SIMD types", "[dsp][buffer][simd]",
             buffer.add(0, 5, Scalar{5});
             REQUIRE(buffer.load(0, 5) == Scalar{15});
         }
+    }
+
+    SECTION("mutable view converts to const element view")
+    {
+        applause::BufferView<const SampleType, 2> read_only = buffer;
+        REQUIRE(read_only.numChannels() == channels);
+        REQUIRE(read_only.numFrames() == frames);
+        REQUIRE(read_only.channelSamples(0) == buffer.channelSamples(0));
+    }
+}
+
+TEST_CASE("Invalid BufferView construction returns an empty view",
+          "[dsp][buffer]")
+{
+    constexpr std::size_t frames = 8;
+    alignas(64) std::array<float, frames * 2> backing{};
+
+    SECTION("channel count exceeding capacity")
+    {
+        applause::BufferView<float, 1> buffer{backing.data(), 2, frames};
+        REQUIRE(buffer.numChannels() == 0);
+        REQUIRE(buffer.numFrames() == 0);
+        REQUIRE(buffer.isValid());
+    }
+
+    SECTION("null contiguous storage with frames")
+    {
+        applause::BufferView<float, 2> buffer{
+            static_cast<float*>(nullptr), 2, frames};
+        REQUIRE(buffer.numChannels() == 0);
+        REQUIRE(buffer.numFrames() == 0);
+        REQUIRE(buffer.isValid());
+    }
+
+    SECTION("null channel storage with frames")
+    {
+        std::array<float*, 2> channels{backing.data(), nullptr};
+        applause::BufferView<float, 2> buffer{channels.data(), 2, frames};
+        REQUIRE(buffer.numChannels() == 0);
+        REQUIRE(buffer.numFrames() == 0);
+        REQUIRE(buffer.isValid());
     }
 }
 
