@@ -9,7 +9,7 @@ namespace applause {
  * Represents a CLAP note with all its expressive dimensions.
  *
  * The CLAP note spec is distinct to the CLAP protocol (and CLAP hosts); it can be interpreted as a
- * modern MIDI-like protocol that is, in a sense, a supserset of both MIDI 1.0 and MPE.
+ * modern MIDI-like protocol that is, in a sense, a superset of both MIDI 1.0 and MPE.
  *
  * As such, Applause wraps and translates all incoming note events into the CLAP note format. As a developer, you can
  * design your MIDI handling with respect to the CLAP note protocol. Applause will handle the rest.
@@ -39,7 +39,7 @@ struct Note {
     double note_off_velocity = 0.0;  // 0..1, set at note off
 
     // The CLAP spec defines several note expressions, which can change during the lifetime of a note.
-    // Some of these are similar to MPE expressions, and map neatly tom those parameters.
+    // Some of these are similar to MPE expressions, and map neatly to those parameters.
     // Some others are new, and have limited host support!
     // These can be modulated during the note's lifetime
 
@@ -50,7 +50,7 @@ struct Note {
     // 0..1 (0=left, 0.5=center, 1=right)
     double pan = 0.5;
 
-    // -120..+120 semitones relative to key
+    // -120...+120 semitones relative to key
     // This changes when the tuning is modulated, either via A MPE "slide" or through a MIDI 1.0 pitch bend wheel event.
     // In the latter case, a "wildcard" message is sent from the host to Applause, indicating that all notes
     // should be tuned by the same amount. Meanwhile, MPE notes will be tuned individually.
