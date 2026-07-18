@@ -145,6 +145,13 @@ class Synthesizer {
                   "VoiceType must derive from SynthesizerVoice<T, MaxChannels>");
 
 public:
+    Synthesizer() = default;
+    Synthesizer(const Synthesizer&) = default;
+    Synthesizer(Synthesizer&&) = default;
+    Synthesizer& operator=(const Synthesizer&) = default;
+    Synthesizer& operator=(Synthesizer&&) = default;
+    virtual ~Synthesizer() = default;
+
     [[nodiscard]] int getNumVoices() const noexcept { return NumVoices; }
 
     void activate(ProcessInfo info);
@@ -155,6 +162,19 @@ public:
     VoiceType& stealVoice();
     void process(BufferView<T, MaxChannels> buffer, const clap_input_events_t* events);
     [[nodiscard]] std::span<VoiceType> getVoices() noexcept { return voices_; }
+
+protected:
+    /**
+     * Renders one non-empty, event-stable range of the current process block.
+     *
+     * The default implementation processes each active voice independently.
+     * Override this to use a different rendering strategy, such as processing
+     * several logical voices together in SIMD lanes. process() clears the
+     * output before the first call, and all events at start_sample have already
+     * been applied. Implementations should render only the range
+     * [start_sample, start_sample + num_samples).
+     */
+    virtual void renderSubBlock(BufferView<T, MaxChannels> buffer, int start_sample, int num_samples);
 
 private:
     std::array<VoiceType, NumVoices> voices_;
@@ -237,6 +257,17 @@ void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::noteChoke(const clap_eve
 }
 
 template <Scalar T, size_t MaxChannels, size_t NumVoices, typename VoiceType>
+void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::renderSubBlock(BufferView<T, MaxChannels> buffer,
+                                                                      int start_sample,
+                                                                      int num_samples) {
+    for (auto& voice : voices_) {
+        if (voice.active_) {
+            voice.process(buffer, start_sample, num_samples);
+        }
+    }
+}
+
+template <Scalar T, size_t MaxChannels, size_t NumVoices, typename VoiceType>
 void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::process(BufferView<T, MaxChannels> buffer,
                                                                 const clap_input_events_t* events) {
     buffer.clear();
@@ -258,11 +289,7 @@ void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::process(BufferView<T, Ma
             // Render chunk before this event
             if (event_time > current_sample) {
                 const int num_samples = event_time - current_sample;
-                for (auto& voice : voices_) {
-                    if (voice.active_) {
-                        voice.process(buffer, current_sample, num_samples);
-                    }
-                }
+                renderSubBlock(buffer, static_cast<int>(current_sample), num_samples);
             }
 
             // Handle note events
@@ -299,11 +326,7 @@ void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::process(BufferView<T, Ma
     // Render remaining samples after last event
     if (current_sample < total_frames) {
         const int num_samples = total_frames - current_sample;
-        for (auto& voice : voices_) {
-            if (voice.active_) {
-                voice.process(buffer, current_sample, num_samples);
-            }
-        }
+        renderSubBlock(buffer, static_cast<int>(current_sample), num_samples);
     }
 }
 }  // namespace applause
