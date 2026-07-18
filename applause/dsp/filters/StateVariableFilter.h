@@ -3,6 +3,8 @@
 #include <applause/util/SampleType.h>
 #include <applause/util/DebugHelpers.h>
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <complex>
 #include <type_traits>
 
@@ -20,43 +22,57 @@ enum class StateVariableFilterType {
  * This filter is stable under rapid parameter
  * modulation, unlike the second order biquad, and it is stable for all valid
  * cutoff and resonance values, unlike the Chamberlin digital SVF.
+ * Call init() before processing or querying frequency-dependent behavior.
  *
  * @tparam S The sample type to be used in the filter (scalar or SIMD batch)
  * @tparam Type The filter type (low, band, high, etc)
  * @tparam UnityGain If true, normalizes output to prevent gain boost at resonance
+ * @tparam MaxChannels The number of independent channels of filter state
  */
-template <Sample S, StateVariableFilterType Type, bool UnityGain = false>
+template <Sample S, StateVariableFilterType Type, bool UnityGain = false, size_t MaxChannels = 2>
 class StateVariableFilter {
 public:
     using SampleType = S;
     using ScalarType = scalar_t<S>;
 
     static constexpr StateVariableFilterType filter_type = Type;
+    static constexpr size_t max_channel_count = MaxChannels;
 
     static_assert(!(UnityGain && Type == StateVariableFilterType::MultiMode),
                   "UnityGain is not supported for MultiMode: a blended response has no single peak gain");
+    static_assert(MaxChannels >= 1, "The filter needs at least one channel of state");
 
     StateVariableFilter() {
         reset();
     }
 
+    /** Sets the sample rate, updates coefficients, and clears the filter state. */
     void init(double sample_rate) {
+        ASSERT(sample_rate > 0.0, "Sample rate must be positive");
+
         sample_rate_ = sample_rate;
         nyquist_limit_ = static_cast<ScalarType>(sample_rate * 0.4999);
+
+        const auto max_cutoff = std::nextafter(nyquist_limit_, ScalarType(0.0));
+        cutoff_ = applause::min(cutoff_, SampleType(max_cutoff));
+        setCutoffFrequency(cutoff_);
+        reset();
     }
 
     void reset() {
-        s1_ = s2_ = SampleType(0.0);
+        s1_.fill(SampleType(0.0));
+        s2_.fill(SampleType(0.0));
     }
 
     template <bool should_update = true>
     void setCutoffFrequency(SampleType frequency) {
         if constexpr (SimdBatch<SampleType>) {
-            ASSERT(xsimd::all(frequency < SampleType(nyquist_limit_)),
-                   "Frequency exceeds Nyquist");
+            ASSERT(xsimd::all(frequency >= SampleType(0.0))
+                       && xsimd::all(frequency < SampleType(nyquist_limit_)),
+                   "Frequency must be non-negative and below Nyquist");
         } else {
-            ASSERT(frequency < nyquist_limit_,
-                   "Frequency exceeds Nyquist");
+            ASSERT(frequency >= SampleType(0.0) && frequency < nyquist_limit_,
+                   "Frequency must be non-negative and below Nyquist");
         }
 
         cutoff_ = frequency;
@@ -127,7 +143,9 @@ public:
             if constexpr (SimdBatch<SampleType>) {
                 const auto has_resonance = q_ > SampleType(inv_sqrt_two);
                 const auto k2 = k_ * k_;
-                const auto peak = SampleType(2.0) / (k2 * sqrt(SampleType(4.0) / k2 - SampleType(1.0)));
+                const auto safe_k2 = xsimd::select(has_resonance, k2, SampleType(1.0));
+                const auto peak = SampleType(2.0)
+                                / (safe_k2 * sqrt(SampleType(4.0) / safe_k2 - SampleType(1.0)));
                 return xsimd::select(has_resonance, peak, SampleType(1.0));
             } else {
                 if (q_ > inv_sqrt_two) {
@@ -168,7 +186,8 @@ public:
         if constexpr (SimdBatch<SampleType>) {
             const auto has_peak = q_ > SampleType(inv_sqrt_two);
             const auto q2 = q_ * q_;
-            const auto factor = sqrt(SampleType(1.0) - SampleType(0.5) / q2);
+            const auto safe_q2 = xsimd::select(has_peak, q2, SampleType(1.0));
+            const auto factor = sqrt(SampleType(1.0) - SampleType(0.5) / safe_q2);
             const auto g_peak = [&]() {
                 if constexpr (filter_type == StateVariableFilterType::Lowpass) {
                     return g_ * factor;
@@ -204,11 +223,12 @@ public:
     void setPeakFrequency(SampleType frequency)
         requires (Type != StateVariableFilterType::MultiMode) {
         if constexpr (SimdBatch<SampleType>) {
-            ASSERT(xsimd::all(frequency < SampleType(nyquist_limit_)),
-                   "Frequency exceeds Nyquist");
+            ASSERT(xsimd::all(frequency >= SampleType(0.0))
+                       && xsimd::all(frequency < SampleType(nyquist_limit_)),
+                   "Frequency must be non-negative and below Nyquist");
         } else {
-            ASSERT(frequency < nyquist_limit_,
-                   "Frequency exceeds Nyquist");
+            ASSERT(frequency >= SampleType(0.0) && frequency < nyquist_limit_,
+                   "Frequency must be non-negative and below Nyquist");
         }
 
         if constexpr (filter_type == StateVariableFilterType::Bandpass) {
@@ -263,22 +283,47 @@ public:
     }
 
     void update() {
-        gk_  = g_ + k_;
-        d_ = static_cast<ScalarType>(1.0) / (static_cast<ScalarType>(1.0) + g_ * gk_);
+        const auto gk = g_ + k_;
+        gt0_ = static_cast<ScalarType>(1.0) / (static_cast<ScalarType>(1.0) + g_ * gk);
+        gk0_ = gk * gt0_;
+        gt1_ = g_ * gt0_;
+        gk1_ = g_ * gk0_;
+        gt2_ = g_ * gt1_;
 
         if constexpr (UnityGain) {
             one_over_peak_gain_ = SampleType(1.0) / getPeakGain();
         }
     }
 
+    /** Processes one sample on channel 0. */
     [[nodiscard]] SampleType processSample(SampleType input) noexcept {
-        return processSampleInternal(input);
+        return processSampleInternal(input, s1_[0], s2_[0]);
     }
 
+    /** Processes one sample on the given channel. All channels share the same coefficients. */
+    [[nodiscard]] SampleType processSample(size_t channel, SampleType input) noexcept {
+        ASSERT(channel < MaxChannels, "Channel index out of range");
+        return processSampleInternal(input, s1_[channel], s2_[channel]);
+    }
+
+    /** Processes a block of samples on channel 0. In-place processing (input == output) is allowed. */
     void process(const S* input, S* output, size_t num_frames) noexcept {
-        for(size_t i=0; i<num_frames; ++i) {
-            output[i] = processSampleInternal(input[i]);
+        process(0, input, output, num_frames);
+    }
+
+    /** Processes a block of samples on the given channel. All channels share the same coefficients. */
+    void process(size_t channel, const S* input, S* output, size_t num_frames) noexcept {
+        ASSERT(channel < MaxChannels, "Channel index out of range");
+        // Run the loop on local copies of the state: the compiler can't prove
+        // that `output` never aliases `this`, so going through the members
+        // would force the state back to memory on every sample.
+        SampleType s1 = s1_[channel];
+        SampleType s2 = s2_[channel];
+        for (size_t i = 0; i < num_frames; ++i) {
+            output[i] = processSampleInternal(input[i], s1, s2);
         }
+        s1_[channel] = s1;
+        s2_[channel] = s2;
     }
 
     /**
@@ -327,30 +372,36 @@ public:
     }
 
 private:
-    [[nodiscard]] __attribute__((always_inline)) SampleType processSampleInternal(SampleType x) noexcept {
-        const auto yhp = (x - gk_ * s1_ - s2_) * d_;
-
-        const auto v1 = g_ * yhp;
-        const auto ybp = v1 + s1_;
-        s1_ = ybp + v1;
-
-        const auto v2 = g_ * ybp;
-        const auto ylp = v2 + s2_;
-        s2_ = ylp + v2;
+    [[nodiscard]] __attribute__((always_inline)) SampleType
+    processSampleInternal(SampleType x, SampleType& s1, SampleType& s2) noexcept {
+        // Simper's "tick parallel": both integrator increments (t1, t2) come
+        // straight off the input and the previous state through premultiplied
+        // coefficients, so the loop-carried dependency chain is ~3 FLOPs
+        // instead of the serial form's ~8; the extra multiplies run on FP
+        // units the recurrence leaves idle.
+        const auto t0 = x - s2;
+        const auto t1 = gt1_ * t0 - gk1_ * s1;
+        const auto t2 = gt2_ * t0 + gt1_ * s1;
 
         SampleType output;
         if constexpr (filter_type == StateVariableFilterType::Lowpass) {
-            output = ylp;
+            output = t2 + s2;
         } else if constexpr (filter_type == StateVariableFilterType::Bandpass) {
-            output = ybp;
+            output = t1 + s1;
         } else if constexpr (filter_type == StateVariableFilterType::Highpass) {
-            output = yhp;
+            output = gt0_ * t0 - gk0_ * s1;
         } else if constexpr (filter_type == StateVariableFilterType::MultiMode) {
+            const auto yhp = gt0_ * t0 - gk0_ * s1;
+            const auto ybp = t1 + s1;
+            const auto ylp = t2 + s2;
             output = applause::fma(mix_.lp, ylp, applause::fma(mix_.bp, ybp, mix_.hp * yhp));
         } else {
             LOG_ERR("Unknown filter type; this should never happen!");
             return SampleType(0);
         }
+
+        s1 = s1 + SampleType(2.0) * t1;
+        s2 = s2 + SampleType(2.0) * t2;
 
         if constexpr (UnityGain) {
             return output * one_over_peak_gain_;
@@ -407,16 +458,25 @@ private:
         return -phase / omega;
     }
 
-    SampleType cutoff_;
-    SampleType q_;
-    SampleType k_;
+    SampleType cutoff_ = SampleType(ScalarType(1000.0));
+    SampleType q_ = SampleType(ScalarType(0.70710678118654752440));
+    SampleType k_ = SampleType(1.0) / q_;
 
-    SampleType g_;
-    SampleType gk_;
-    SampleType d_;
+    SampleType g_ = SampleType(0.0);
 
-    SampleType s1_;
-    SampleType s2_;
+    // Premultiplied "tick parallel" coefficients: gt0 = 1/(1 + g(g+k)),
+    // gk0 = (g+k)*gt0, gt1 = g*gt0, gk1 = g*gk0, gt2 = g^2*gt0.
+    // Defaults match update() evaluated at g = 0.
+    SampleType gt0_ = SampleType(1.0);
+    SampleType gk0_ = k_;
+    SampleType gt1_ = SampleType(0.0);
+    SampleType gk1_ = SampleType(0.0);
+    SampleType gt2_ = SampleType(0.0);
+
+    // Per-channel signal state; the parameters and coefficients around it are
+    // shared by all channels.
+    std::array<SampleType, MaxChannels> s1_;
+    std::array<SampleType, MaxChannels> s2_;
     SampleType one_over_peak_gain_ = SampleType(1.0);
 
     struct MultiModeMix {
@@ -432,16 +492,16 @@ private:
     ScalarType nyquist_limit_ = -1;
 };
 
-template <Sample S = float>
-using SVFLowpass = StateVariableFilter<S, StateVariableFilterType::Lowpass, false>;
+template <Sample S = float, size_t MaxChannels = 2>
+using SVFLowpass = StateVariableFilter<S, StateVariableFilterType::Lowpass, false, MaxChannels>;
 
-template <Sample S = float>
-using SVFHighpass = StateVariableFilter<S, StateVariableFilterType::Highpass, false>;
+template <Sample S = float, size_t MaxChannels = 2>
+using SVFHighpass = StateVariableFilter<S, StateVariableFilterType::Highpass, false, MaxChannels>;
 
-template <Sample S = float>
-using SVFBandpass = StateVariableFilter<S, StateVariableFilterType::Bandpass, false>;
+template <Sample S = float, size_t MaxChannels = 2>
+using SVFBandpass = StateVariableFilter<S, StateVariableFilterType::Bandpass, false, MaxChannels>;
 
-template <Sample S = float>
-using SVFMultiMode = StateVariableFilter<S, StateVariableFilterType::MultiMode, false>;
+template <Sample S = float, size_t MaxChannels = 2>
+using SVFMultiMode = StateVariableFilter<S, StateVariableFilterType::MultiMode, false, MaxChannels>;
 
 } // namespace applause
