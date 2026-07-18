@@ -35,17 +35,13 @@ void ExampleSineWaveSynthPlugin::deactivate() noexcept {
     LOG_INFO("ExampleSineWaveSynth::deactivate()");
 }
 
-clap_process_status ExampleSineWaveSynthPlugin::process(
-    const clap_process_t* process) noexcept {
-    if (process->audio_outputs_count == 0) {
-        return CLAP_PROCESS_SLEEP;
+applause::ProcessStatus ExampleSineWaveSynthPlugin::process(
+    applause::ProcessContext& context) noexcept {
+    if (context.audioOutputs().empty()) {
+        return applause::ProcessStatus::Sleep;
     }
 
-    const clap_audio_buffer_t* output = &process->audio_outputs[0];
+    synth_.process(context.output<float, 2>(), context.inputEvents());
 
-    applause::BufferView<float, 2> buffer(output->data32, output->channel_count, process->frames_count);
-
-    synth_.process(buffer, process->in_events);
-
-    return CLAP_PROCESS_CONTINUE;
+    return applause::ProcessStatus::Continue;
 }

@@ -212,19 +212,22 @@ void ExampleShowcasePlugin::reset() noexcept {
     lfo_phase_ = 0.0f;
 }
 
-clap_process_status ExampleShowcasePlugin::process(const clap_process_t* process) noexcept {
-    params_.processEvents(process->in_events, process->out_events);
+applause::ProcessStatus ExampleShowcasePlugin::process(applause::ProcessContext& context) noexcept {
+    params_.processEvents(context.inputEvents(), context.outputEvents());
+
+    if (!context.audioOutputs().empty())
+        context.output<float, 2>().clear();
 
     constexpr float kLfoHz = 1.0f;
     constexpr float kTwoPi = 6.28318530718f;
 
     const float phase_inc_per_sample = kTwoPi * kLfoHz / static_cast<float>(sample_rate_);
-    lfo_phase_ += phase_inc_per_sample * static_cast<float>(process->frames_count);
+    lfo_phase_ += phase_inc_per_sample * static_cast<float>(context.numFrames());
     while (lfo_phase_ >= kTwoPi) lfo_phase_ -= kTwoPi;
 
     mod_matrix_.loadParamBaseValues(params_);
     mod_matrix_.setMonoSourceValue(lfo1_src_idx_, std::sin(lfo_phase_));
     mod_matrix_.process();
 
-    return CLAP_PROCESS_CONTINUE;
+    return applause::ProcessStatus::Continue;
 }

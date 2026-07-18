@@ -1,7 +1,7 @@
 #include "ExampleGenericParameterUIPlugin.h"
 #include <applause/util/DebugHelpers.h>
 #include <applause/util/Json.h>
-#include <cstring>
+#include <algorithm>
 
 ExampleGenericParameterUIPlugin::ExampleGenericParameterUIPlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
     : PluginBase(descriptor, host),
@@ -94,10 +94,22 @@ void ExampleGenericParameterUIPlugin::deactivate() noexcept {
     LOG_INFO("ExampleGenericParameterUI::deactivate()");
 }
 
-clap_process_status ExampleGenericParameterUIPlugin::process(const clap_process_t* process) noexcept {
+applause::ProcessStatus ExampleGenericParameterUIPlugin::process(applause::ProcessContext& context) noexcept {
     // Let the parameter module process events.
-    params_.processEvents(process->in_events, process->out_events);
-    
-    // This example doesn't process audio, just demonstrates the UI
-    return CLAP_PROCESS_SLEEP;
+    params_.processEvents(context.inputEvents(), context.outputEvents());
+
+    auto input = context.input<float, 2>();
+    auto output = context.output<float, 2>();
+
+    const std::size_t channel_count = std::min(input.numChannels(), output.numChannels());
+    for (std::size_t channel = 0; channel < channel_count; ++channel) {
+        auto input_channel = input.channel(channel);
+        auto output_channel = output.channel(channel);
+        for (std::size_t frame = 0; frame < context.numFrames(); ++frame)
+            output_channel.store(frame, input_channel.load(frame));
+    }
+    for (std::size_t channel = channel_count; channel < output.numChannels(); ++channel)
+        output.clearChannel(channel);
+
+    return applause::ProcessStatus::Continue;
 }

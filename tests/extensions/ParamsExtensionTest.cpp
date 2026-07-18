@@ -20,7 +20,7 @@ const clap_plugin_descriptor_t kDesc{};
 struct TestPlugin : PluginBase {
     ParamsExtension params{8};
     explicit TestPlugin(const clap_host_t* host = nullptr) : PluginBase(&kDesc, host) { registerExtension(params); }
-    clap_process_status process(const clap_process_t*) override { return CLAP_PROCESS_CONTINUE; }
+    ProcessStatus process(ProcessContext&) noexcept override { return ProcessStatus::Continue; }
 };
 
 struct EventList {

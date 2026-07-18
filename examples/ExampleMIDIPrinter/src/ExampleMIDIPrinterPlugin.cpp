@@ -1,5 +1,4 @@
 #include "ExampleMIDIPrinterPlugin.h"
-#include <cstring>
 #include <iomanip>
 
 ExampleMIDIPrinterPlugin::ExampleMIDIPrinterPlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
@@ -55,26 +54,20 @@ void ExampleMIDIPrinterPlugin::deactivate() noexcept
     LOG_INFO("Events processed in this session: {}", event_count_);
 }
 
-clap_process_status ExampleMIDIPrinterPlugin::process(const clap_process_t* process) noexcept
+applause::ProcessStatus ExampleMIDIPrinterPlugin::process(applause::ProcessContext& context) noexcept
 {
     // Emit silence if we have an audio output bus to keep hosts happy
-    if (process->audio_outputs_count > 0)
-    {
-        const clap_audio_buffer_t* out = &process->audio_outputs[0];
-        for (uint32_t ch = 0; ch < out->channel_count; ++ch)
-        {
-            if (out->data32[ch])
-                std::memset(out->data32[ch], 0, sizeof(float) * process->frames_count);
-        }
-    }
+    if (!context.audioOutputs().empty())
+        context.output<float, 2>().clear();
 
-    if (process->in_events)
+    const clap_input_events_t* input_events = context.inputEvents();
+    if (input_events)
     {
-        uint32_t event_count = process->in_events->size(process->in_events);
+        uint32_t event_count = input_events->size(input_events);
 
         for (uint32_t i = 0; i < event_count; ++i)
         {
-            const clap_event_header_t* header = process->in_events->get(process->in_events, i);
+            const clap_event_header_t* header = input_events->get(input_events, i);
             if (!header) continue;
 
             event_count_++;
@@ -123,7 +116,7 @@ clap_process_status ExampleMIDIPrinterPlugin::process(const clap_process_t* proc
         }
     }
 
-    return CLAP_PROCESS_CONTINUE;
+    return applause::ProcessStatus::Continue;
 }
 
 void ExampleMIDIPrinterPlugin::printNoteEvent(const clap_event_note_t* event, const char* event_name)

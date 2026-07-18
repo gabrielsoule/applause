@@ -18,7 +18,7 @@ public:
     bool activate(const applause::ProcessInfo& info) noexcept override;
     void deactivate() noexcept override;
     
-    clap_process_status process(const clap_process_t* process) noexcept override;
+    applause::ProcessStatus process(applause::ProcessContext& context) noexcept override;
     
 private:
     applause::AudioPortsExtension audio_ports_;

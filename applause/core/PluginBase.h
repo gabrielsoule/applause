@@ -1,6 +1,7 @@
 #pragma once
 
 #include <applause/core/ModMatrix.h>
+#include <applause/core/ProcessContext.h>
 #include <applause/core/ProcessInfo.h>
 #include <applause/util/MemoryArena.h>
 #include <clap/clap.h>
@@ -74,9 +75,13 @@ private:
         self->reset();
     }
 
-    static clap_process_status clapProcess(const clap_plugin_t* plugin, const clap_process_t* process) noexcept {
+    static clap_process_status clapProcess(
+        const clap_plugin_t* plugin,
+        const clap_process_t* process) noexcept {
+        if (process == nullptr) return CLAP_PROCESS_ERROR;
         auto* self = static_cast<PluginBase*>(plugin->plugin_data);
-        return self->process(process);
+        ProcessContext context{*process};
+        return static_cast<clap_process_status>(self->process(context));
     }
 
     static const void* clapGetExtension(const clap_plugin_t* plugin, const char* id) noexcept {
@@ -194,8 +199,51 @@ public:
 
     virtual void reset() {}
 
-    virtual clap_process_status process(const clap_process_t* process) = 0;
+    /**
+     * Process one block of audio and events.
+     *
+     * The default implementation forwards to the deprecated raw CLAP
+     * overload so existing plugin sources continue to work while migrating.
+     */
+    virtual ProcessStatus process(ProcessContext& context) noexcept;
+
+    /**
+     * Legacy process callback retained for source compatibility.
+     *
+     * New plugins should override process(ProcessContext&) instead.
+     */
+    [[deprecated("Override process(ProcessContext&) instead")]]
+    virtual clap_process_status process(const clap_process_t* process);
 
     virtual void onMainThread() {}
 };
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#endif
+
+inline ProcessStatus PluginBase::process(ProcessContext& context) noexcept {
+    return static_cast<ProcessStatus>(process(&context.native()));
+}
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+
+inline clap_process_status PluginBase::process(const clap_process_t*) {
+    LOG_ERR("PluginBase: neither process overload was overridden");
+    return CLAP_PROCESS_ERROR;
+}
+
 }  // namespace applause

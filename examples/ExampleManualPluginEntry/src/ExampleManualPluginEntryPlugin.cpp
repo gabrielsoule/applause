@@ -1,5 +1,4 @@
 #include "ExampleManualPluginEntryPlugin.h"
-#include <cstring>
 #include <ExampleManualPluginEntryEditor.h>
 #include <applause/util/DebugHelpers.h>
 #include <applause/ui/ApplauseEditor.h>
@@ -101,10 +100,13 @@ void ExampleManualPluginEntryPlugin::deactivate() noexcept
     LOG_INFO("ExampleManualPluginEntry::deactivate()");
 }
 
-clap_process_status ExampleManualPluginEntryPlugin::process(const clap_process_t* process) noexcept
+applause::ProcessStatus ExampleManualPluginEntryPlugin::process(applause::ProcessContext& context) noexcept
 {
     // Let the parameter module process events.
-    params_.processEvents(process->in_events, process->out_events);
+    params_.processEvents(context.inputEvents(), context.outputEvents());
 
-    return CLAP_PROCESS_SLEEP;
+    if (!context.audioOutputs().empty())
+        context.output<float, 2>().clear();
+
+    return applause::ProcessStatus::Sleep;
 }

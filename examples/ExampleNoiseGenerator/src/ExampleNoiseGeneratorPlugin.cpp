@@ -1,5 +1,4 @@
 #include "ExampleNoiseGeneratorPlugin.h"
-#include <cstring>
 #include <applause/util/DebugHelpers.h>
 
 ExampleNoiseGeneratorPlugin::ExampleNoiseGeneratorPlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host)
@@ -42,30 +41,25 @@ void ExampleNoiseGeneratorPlugin::deactivate() noexcept {
     LOG_INFO("ExampleNoiseGenerator::deactivate()");
 }
 
-clap_process_status ExampleNoiseGeneratorPlugin::process(const clap_process_t* process) noexcept {
+applause::ProcessStatus ExampleNoiseGeneratorPlugin::process(applause::ProcessContext& context) noexcept {
     // Check if we have outputs
-    if (process->audio_outputs_count == 0) {
-        return CLAP_PROCESS_SLEEP;
+    if (context.audioOutputs().empty()) {
+        return applause::ProcessStatus::Sleep;
     }
-    
-    // Get the output buffer
-    const clap_audio_buffer_t* output = &process->audio_outputs[0];
-    
+
+    auto output = context.output<float, 2>();
+    output.clear();
+
     // Generate white noise for each frame
-    for (uint32_t i = 0; i < process->frames_count; ++i) {
+    for (std::size_t frame = 0; frame < context.numFrames(); ++frame) {
         // Fast PRNG: Linear congruential generator
         noise_seed_ = noise_seed_ * 196314165 + 907633515;
         int temp = static_cast<int>(noise_seed_ >> 7) - 16777216;
         float sample = static_cast<float>(temp) / 16777216.0f;
-        
-        // Write the same sample to both channels (stereo)
-        if (output->channel_count >= 1 && output->data32[0]) {
-            output->data32[0][i] = sample;
-        }
-        if (output->channel_count >= 2 && output->data32[1]) {
-            output->data32[1][i] = sample;
-        }
+
+        for (std::size_t channel = 0; channel < output.numChannels(); ++channel)
+            output.channel(channel).store(frame, sample);
     }
-    
-    return CLAP_PROCESS_CONTINUE;
+
+    return applause::ProcessStatus::Continue;
 }

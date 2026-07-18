@@ -1,6 +1,6 @@
 #include "ExampleFilterPlugin.h"
 #include "ExampleFilterEditor.h"
-#include <cstring>
+#include <algorithm>
 #include <applause/util/DebugHelpers.h>
 #include <applause/util/Json.h>
 #include <clap/events.h>
@@ -119,34 +119,22 @@ void ExampleFilterPlugin::deactivate() noexcept
     LOG_INFO("ExampleFilter deactivate");
 }
 
-clap_process_status ExampleFilterPlugin::process(const clap_process_t* process) noexcept
+applause::ProcessStatus ExampleFilterPlugin::process(applause::ProcessContext& context) noexcept
 {
-    // Ensure we have matching input and output configurations
-    if (process->audio_inputs_count == 0 || process->audio_outputs_count == 0)
-    {
-        return CLAP_PROCESS_CONTINUE;
-    }
-
-    // We only define 1 input audio port and 1 output audio port.
-    // As such, we grab the 0th input and output, knowing that len(audio_inputs) = len(audio_outputs) = 1.
-    const clap_audio_buffer_t* input = &process->audio_inputs[0];
-    clap_audio_buffer_t* output = &process->audio_outputs[0];
-
-    const uint32_t channel_count = std::min(input->channel_count, output->channel_count); // should usually be 2!
-    const uint32_t frame_count = process->frames_count;
+    auto input = context.input<float, 2>();
+    auto output = context.output<float, 2>();
+    const std::size_t channel_count = std::min(input.numChannels(), output.numChannels());
+    const std::size_t frame_count = context.numFrames();
 
     // Process parameter events through ParamsExtension
-    if (process->in_events && process->out_events)
-    {
-        params_.processEvents(process->in_events, process->out_events);
-    }
+    params_.processEvents(context.inputEvents(), context.outputEvents());
 
     // Check for parameter changes using cached handles (efficient audio-thread access)
     const float current_cutoff = param_cutoff_->getValue();
     const float current_resonance = param_res_->getValue();
     const float current_mode = param_mode_->getValue();
 
-    // Only update filter if parameters actually changed (our own dirty checking)
+    // Only update filter if parameters actually changed
     if (current_cutoff != last_cutoff_)
     {
         filter_.setCutoffFrequency(current_cutoff);
@@ -166,20 +154,27 @@ clap_process_status ExampleFilterPlugin::process(const clap_process_t* process) 
     }
 
     // Process audio if we have valid buffers
-    if (input->data32 && output->data32 && channel_count > 0 && frame_count > 0)
+    if (channel_count > 0 && frame_count > 0)
     {
         // Copy input to output first (for in-place processing)
-        for (uint32_t ch = 0; ch < channel_count; ++ch)
+        for (std::size_t ch = 0; ch < channel_count; ++ch)
         {
-            std::memcpy(output->data32[ch], input->data32[ch], frame_count * sizeof(float));
+            auto input_channel = input.channel(ch);
+            auto output_channel = output.channel(ch);
+            for (std::size_t frame = 0; frame < frame_count; ++frame)
+                output_channel.store(frame, input_channel.load(frame));
         }
 
-        // Create BufferView directly from CLAP output data for in-place processing
-        chowdsp::BufferView<float> buffer_view(output->data32, static_cast<int>(channel_count),
+        // chowdsp consumes the native channel-pointer array directly.
+        auto& raw_output = context.audioOutputs()[0];
+        chowdsp::BufferView<float> buffer_view(raw_output.data32, static_cast<int>(channel_count),
                                                static_cast<int>(frame_count));
 
         filter_.processBlock(buffer_view);
     }
 
-    return CLAP_PROCESS_CONTINUE;
+    for (std::size_t ch = channel_count; ch < output.numChannels(); ++ch)
+        output.clearChannel(ch);
+
+    return applause::ProcessStatus::Continue;
 }

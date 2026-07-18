@@ -26,7 +26,7 @@ public:
     void deactivate() noexcept override;
     
     // Audio processing
-    clap_process_status process(const clap_process_t* process) noexcept override;
+    applause::ProcessStatus process(applause::ProcessContext& context) noexcept override;
     
 private:
     // Extensions
