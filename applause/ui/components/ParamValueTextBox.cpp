@@ -14,7 +14,7 @@ namespace applause {
 ParamValueTextBox::ParamValueTextBox(ParamInfo& paramInfo) : param_info_(paramInfo) {
     text_editor_.setMultiLine(false);
     text_editor_.setJustification(applause::Font::kCenter);
-    text_editor_.setFont(applause::Font(12, applause::fonts::Jost_Regular_ttf));
+    text_editor_.setFont(applause::Font(12, applause::fonts::Barlow_Medium_ttf));
     text_editor_.setMargin(0, 0);
 
     addChild(&text_editor_);

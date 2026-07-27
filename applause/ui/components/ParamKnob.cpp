@@ -19,7 +19,7 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo, const ModDestination* dst) :
 
     paramNameText_.setMultiLine(false);
     paramNameText_.setJustification(applause::Font::kCenter);
-    paramNameText_.setFont(applause::Font(12, applause::fonts::Jost_Regular_ttf));
+    paramNameText_.setFont(applause::Font(12, applause::fonts::Barlow_Medium_ttf));
     paramNameText_.setActive(false);
     paramNameText_.setText(param_info_.shortName);
     paramNameText_.setIgnoresMouseEvents(true, false);

@@ -25,7 +25,7 @@ APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorWindow, ApplauseInspectorToolbarText,   
 
 InspectorWindow::InspectorWindow(applause::Frame& editor)
     : editor_(editor),
-      metric_font_(kMetricFontSize, applause::fonts::Jost_Regular_ttf) {
+      metric_font_(kMetricFontSize, applause::fonts::Barlow_Medium_ttf) {
     setName("InspectorWindow");
     setTitle("Applause Inspector");
     setWindowDecoration(visage::Window::Decoration::Native);

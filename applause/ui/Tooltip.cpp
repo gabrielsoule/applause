@@ -24,7 +24,7 @@ std::unordered_map<applause::Frame*, TooltipBinding> tooltip_bindings;
 
 }  // namespace
 
-TooltipDisplay::TooltipDisplay() : text_("", applause::Font(kFontSize, applause::fonts::Jost_Regular_ttf)) {
+TooltipDisplay::TooltipDisplay() : text_("", applause::Font(kFontSize, applause::fonts::Barlow_Medium_ttf)) {
     setIgnoresMouseEvents(true, false);
     opacity_.setSourceValue(0.0f);
     opacity_.setTargetValue(1.0f);

@@ -19,7 +19,7 @@ Panel::Panel() : has_title_(false) {
 }
 
 Panel::Panel(const std::string& title)
-    : title_(title, applause::Font(15, applause::fonts::Jost_Medium_ttf)),
+    : title_(title, applause::Font(15, applause::fonts::Barlow_Medium_ttf)),
       has_title_(true) {
     addChild(&content_);
 }

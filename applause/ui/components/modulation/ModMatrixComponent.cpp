@@ -199,7 +199,7 @@ void ModMatrixComponent::buildHeader() {
         canvas.fill(10, h.height() - 4, h.width() - 20, 1);
     };
 
-    applause::Font header_font(11, applause::fonts::Jost_Regular_ttf);
+    applause::Font header_font(11, applause::fonts::Barlow_Medium_ttf);
     auto setupLabel = [&](applause::Frame& frame, const char* text) {
         frame.onDraw() = [&frame, text, header_font](applause::Canvas& canvas) {
             canvas.setColor(0xff888888);

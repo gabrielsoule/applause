@@ -34,14 +34,14 @@ void configureNumberEditor(applause::TextEditor& e) {
     // commit time instead (std::strtof falls back if parsing fails).
     e.setMaxCharacters(8);
     e.setFont(applause::Font(InspectorPropertiesView::kFontSize,
-                             applause::fonts::Jost_Regular_ttf));
+                             applause::fonts::Barlow_Medium_ttf));
 }
 
 }  // namespace
 
 InspectorPropertiesView::InspectorPropertiesView(InspectorWindow& window)
     : window_(window),
-      label_font_(kFontSize, applause::fonts::Jost_Regular_ttf),
+      label_font_(kFontSize, applause::fonts::Barlow_Medium_ttf),
       x_editor_(std::make_unique<applause::TextEditor>("inspector_x")),
       y_editor_(std::make_unique<applause::TextEditor>("inspector_y")),
       w_editor_(std::make_unique<applause::TextEditor>("inspector_w")),
@@ -68,7 +68,7 @@ InspectorPropertiesView::InspectorPropertiesView(InspectorWindow& window)
                                              on_top_toggle_.get(),
                                              ignores_mouse_toggle_.get()};
     for (auto* t : toggles) {
-        t->setFont(applause::Font(kFontSize, applause::fonts::Jost_Regular_ttf));
+        t->setFont(applause::Font(kFontSize, applause::fonts::Barlow_Medium_ttf));
         addChild(t);
         t->setVisible(false);
     }

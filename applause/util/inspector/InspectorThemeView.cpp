@@ -164,7 +164,7 @@ public:
         editor_->setNumberEntry();
         editor_->setMaxCharacters(10);
         editor_->setFont(applause::Font(InspectorThemeView::kLabelFontSize,
-                                        applause::fonts::Jost_Regular_ttf));
+                                        applause::fonts::Barlow_Medium_ttf));
         editor_->onEnterKey() += [this]() {
             view_.applyValue(id_, editor_->text().toUtf8());
         };
@@ -346,7 +346,7 @@ private:
 
 InspectorThemeView::InspectorThemeView(InspectorWindow& window)
     : window_(window),
-      label_font_(kLabelFontSize, applause::fonts::Jost_Regular_ttf),
+      label_font_(kLabelFontSize, applause::fonts::Barlow_Medium_ttf),
       color_picker_(std::make_unique<visage::ColorPicker>()) {
     setName("InspectorThemeView");
 

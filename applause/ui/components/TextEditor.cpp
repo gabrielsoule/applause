@@ -23,7 +23,7 @@
 
 #include "TextEditor.h"
 
-#include <embedded/fonts.h>
+#include <embedded/applause_fonts.h>
 #include <visage_utils/string_utils.h>
 #include <visage_windowing/windowing.h>
 
@@ -123,8 +123,8 @@ TextEditor::TextEditor(const std::string& name) : applause::ScrollableFrame(name
     undone_history_.reserve(kMaxUndoHistory);
 
     setAcceptsKeystrokes(true);
-    text_.setFont(applause::Font(10, visage::fonts::Lato_Regular_ttf, 1.0f));
-    default_text_.setFont(applause::Font(10, visage::fonts::Lato_Regular_ttf, 1.0f));
+    text_.setFont(applause::Font(10, applause::fonts::Barlow_Medium_ttf, 1.0f));
+    default_text_.setFont(applause::Font(10, applause::fonts::Barlow_Medium_ttf, 1.0f));
 }
 
 void TextEditor::drawBackground(applause::Canvas& canvas) const {

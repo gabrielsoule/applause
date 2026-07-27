@@ -123,7 +123,7 @@ void Button::mouseUp(const applause::MouseEvent& e) {
     }
 }
 
-UiButton::UiButton(const std::string& text) : text_(text, applause::Font(12, applause::fonts::Jost_Regular_ttf)) {}
+UiButton::UiButton(const std::string& text) : text_(text, applause::Font(12, applause::fonts::Barlow_Medium_ttf)) {}
 
 UiButton::UiButton(const std::string& text, const applause::Font& font) : text_(text, font) {}
 
@@ -238,7 +238,7 @@ void ToggleIconButton::draw(applause::Canvas& canvas, float hover_amount) {
 }
 
 ToggleTextButton::ToggleTextButton(const std::string& name) :
-    ToggleButton(name), text_(name, applause::Font(12, applause::fonts::Jost_Regular_ttf)) {}
+    ToggleButton(name), text_(name, applause::Font(12, applause::fonts::Barlow_Medium_ttf)) {}
 
 ToggleTextButton::ToggleTextButton(const std::string& name, const applause::Font& font) :
     ToggleButton(name), text_(name, font) {}

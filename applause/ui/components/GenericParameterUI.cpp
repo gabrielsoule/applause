@@ -24,7 +24,7 @@ void GenericParameterEntry::draw(applause::Canvas& canvas) {
     float textHeight = height();
 
     // Draw the parameter name (right-aligned)
-    const applause::Font font(13, applause::fonts::Jost_Regular_ttf);
+    const applause::Font font(13, applause::fonts::Barlow_Medium_ttf);
     canvas.setColor(0xFFCCCCCC);
     canvas.text(paramInfo_.name, font, applause::Font::kRight, textX, textY, textWidth, textHeight);
 }

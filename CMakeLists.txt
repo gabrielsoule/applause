@@ -112,7 +112,7 @@ CPMAddPackage(
 )
 
 # Embed font resources
-file(GLOB APPLAUSE_FONT_FILES ${CMAKE_CURRENT_SOURCE_DIR}/resources/fonts/*.ttf)
+file(GLOB APPLAUSE_FONT_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/resources/fonts/*.ttf)
 add_embedded_resources(ApplauseEmbeddedFonts "applause_fonts.h" "applause::fonts" "${APPLAUSE_FONT_FILES}")
 
 file(GLOB_RECURSE APPLAUSE_SOURCES applause/*.cpp applause/*.h)

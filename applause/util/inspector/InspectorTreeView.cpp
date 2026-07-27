@@ -34,7 +34,7 @@ public:
     FrameTreeRow(applause::Frame* frame, InspectorWindow& window)
         : frame_(frame), window_(window),
           label_font_(InspectorTreeView::kLabelFontSize,
-                      applause::fonts::Jost_Regular_ttf) {}
+                      applause::fonts::Barlow_Medium_ttf) {}
 
     std::string stableKey() const override { return frameKey(frame_); }
 

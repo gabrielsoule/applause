@@ -152,7 +152,7 @@ void SelectionHighlightFrame::ResizeHandle::mouseDrag(const applause::MouseEvent
 }
 
 SelectionHighlightFrame::SelectionHighlightFrame()
-    : label_font_(kLabelFontSize, applause::fonts::Jost_Regular_ttf) {
+    : label_font_(kLabelFontSize, applause::fonts::Barlow_Medium_ttf) {
     setName("InspectorSelectionHighlight");
     setIgnoresMouseEvents(true, true);
     setOnTop(true);
