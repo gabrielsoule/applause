@@ -43,6 +43,11 @@ struct CountingVoice : applause::SynthesizerVoice<float, 1> {
     int process_calls = 0;
 };
 
+struct SynchronouslyTerminatingVoice : applause::SynthesizerVoice<float, 1> {
+    void process(applause::BufferView<float, 1>, int, int) override {}
+    void noteOff(bool) override { terminateVoice(); }
+};
+
 struct DispatchedVoice : applause::SynthesizerVoice<float, 1> {
     void process(applause::BufferView<float, 1>, int, int) override { ++process_calls; }
 
@@ -87,6 +92,28 @@ TEST_CASE("Synthesizer default sub-block renderer processes each active voice", 
     REQUIRE(voices[1].process_calls == 1);
     REQUIRE(voices[2].process_calls == 0);
     REQUIRE(voices[3].process_calls == 0);
+}
+
+TEST_CASE("Synthesizer keeps a synchronously terminated note-off voice idle", "[dsp][synthesizer]") {
+    using Voice = applause::SynthesizerVoice<float, 1>;
+
+    applause::Synthesizer<float, 1, 1, SynchronouslyTerminatingVoice> synth;
+    auto first_note = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 1, 60);
+    auto first_note_off = makeNoteEvent(CLAP_EVENT_NOTE_OFF, 0, 1, 60);
+
+    synth.noteOn(&first_note);
+    synth.noteOff(&first_note_off);
+
+    const auto voices = synth.getVoices();
+    REQUIRE_FALSE(voices[0].active_);
+    REQUIRE(voices[0].state_ == Voice::State::Idle);
+
+    auto second_note = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 2, 64);
+    synth.noteOn(&second_note);
+
+    REQUIRE(voices[0].active_);
+    REQUIRE(voices[0].state_ == Voice::State::KeyDown);
+    REQUIRE(voices[0].note_.note_id == 2);
 }
 
 TEST_CASE("Synthesizer override renders once per event-stable sub-block", "[dsp][synthesizer]") {

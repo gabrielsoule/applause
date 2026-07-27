@@ -234,7 +234,8 @@ void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::noteOff(const clap_event
             if (voice.note_.matches(event->key, event->note_id, event->port_index, event->channel)) {
                 voice.note_.setNoteOff(event);
                 voice.noteOff(false);
-                voice.state_ = SynthesizerVoice<T, MaxChannels>::State::Released;
+                if (voice.active_)
+                    voice.state_ = SynthesizerVoice<T, MaxChannels>::State::Released;
                 // If specific note_id provided, only release that one voice
                 if (event->note_id != -1) break;
             }
