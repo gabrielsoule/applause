@@ -121,8 +121,8 @@ void ExampleFilterPlugin::deactivate() noexcept
 
 applause::ProcessStatus ExampleFilterPlugin::process(applause::ProcessContext& context) noexcept
 {
-    auto input = context.input<float, 2>();
-    auto output = context.output<float, 2>();
+    auto input = context.input<float>();
+    auto output = context.output<float>();
     const std::size_t channel_count = std::min(input.numChannels(), output.numChannels());
     const std::size_t frame_count = context.numFrames();
 

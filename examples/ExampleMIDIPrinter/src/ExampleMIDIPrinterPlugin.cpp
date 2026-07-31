@@ -58,7 +58,7 @@ applause::ProcessStatus ExampleMIDIPrinterPlugin::process(applause::ProcessConte
 {
     // Emit silence if we have an audio output bus to keep hosts happy
     if (!context.audioOutputs().empty())
-        context.output<float, 2>().clear();
+        context.output<float>().clear();
 
     const clap_input_events_t* input_events = context.inputEvents();
     if (input_events)

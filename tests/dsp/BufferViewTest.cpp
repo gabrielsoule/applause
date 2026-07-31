@@ -1,12 +1,16 @@
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/catch_template_test_macros.hpp>
 #include <applause/dsp/BufferView.h>
 #include <applause/util/MemoryArena.h>
 #include <applause/util/SampleType.h>
+#include <catch2/catch_template_test_macros.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <array>
 #include <concepts>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
 #include <span>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -28,17 +32,67 @@ concept HasChannelMutation = requires(const Buffer& buffer,
     buffer.channel(0).add(0, value);
 };
 
-using MutableFloatBuffer = applause::BufferView<float, 2>;
-using ReadOnlyFloatBuffer = applause::BufferView<const float, 2>;
+template <typename SampleType>
+struct PlanarStorage {
+    using Value = std::remove_const_t<SampleType>;
+    using Scalar = applause::scalar_t<Value>;
+
+    PlanarStorage(std::size_t channels, std::size_t frames)
+        : scalars(channels * frames * applause::sampleWidth<Value>() +
+                  applause::sampleAlignment<Value>() / sizeof(Scalar)),
+          channel_ptrs(channels),
+          frame_count(frames) {
+        constexpr std::size_t alignment =
+            applause::sampleAlignment<Value>();
+        static_assert(alignment % alignof(Scalar) == 0);
+
+        const auto address =
+            reinterpret_cast<std::uintptr_t>(scalars.data());
+        const auto aligned_address =
+            (address + alignment - 1) & ~(alignment - 1);
+        scalar_data = reinterpret_cast<Scalar*>(aligned_address);
+
+        for (std::size_t channel = 0; channel < channels; ++channel) {
+            channel_ptrs[channel] =
+                frames == 0
+                    ? nullptr
+                    : scalar_data +
+                          channel * frame_count *
+                              applause::sampleWidth<Value>();
+        }
+    }
+
+    [[nodiscard]] applause::BufferView<Value> view() noexcept {
+        return {channel_ptrs.data(), channel_ptrs.size(), frame_count};
+    }
+
+    std::vector<Scalar> scalars;
+    std::vector<Scalar*> channel_ptrs;
+    std::size_t frame_count = 0;
+    Scalar* scalar_data = nullptr;
+};
+
+using MutableFloatBuffer = applause::BufferView<float>;
+using ReadOnlyFloatBuffer = applause::BufferView<const float>;
 
 static_assert(std::constructible_from<ReadOnlyFloatBuffer,
                                       MutableFloatBuffer>);
 static_assert(!std::constructible_from<MutableFloatBuffer,
                                        ReadOnlyFloatBuffer>);
+static_assert(std::constructible_from<ReadOnlyFloatBuffer, float* const*,
+                                      std::size_t, std::size_t>);
+static_assert(std::constructible_from<ReadOnlyFloatBuffer,
+                                      const float* const*, std::size_t,
+                                      std::size_t>);
+static_assert(!std::constructible_from<MutableFloatBuffer,
+                                       const float* const*, std::size_t,
+                                       std::size_t>);
 static_assert(HasBufferMutation<MutableFloatBuffer>);
 static_assert(HasChannelMutation<MutableFloatBuffer>);
 static_assert(!HasBufferMutation<ReadOnlyFloatBuffer>);
 static_assert(!HasChannelMutation<ReadOnlyFloatBuffer>);
+static_assert(sizeof(MutableFloatBuffer) ==
+              sizeof(float* const*) + 3 * sizeof(std::size_t));
 static_assert(std::same_as<
               decltype(std::declval<const MutableFloatBuffer&>()
                            .channelSamples(0)),
@@ -51,643 +105,125 @@ static_assert(std::same_as<
               decltype(std::declval<const ReadOnlyFloatBuffer&>()
                            .channelSampleSpan(0)),
               std::span<const float>>);
+using FloatBatch = xsimd::batch<float>;
+using SimdFloatBuffer = applause::BufferView<FloatBatch>;
+using ReadOnlySimdFloatBuffer = applause::BufferView<const FloatBatch>;
+
+template <typename Buffer>
+concept HasChannelSamples = requires(const Buffer& buffer) {
+    buffer.channelSamples(0);
+    buffer.channelSampleSpan(0);
+};
+
+template <typename Buffer>
+concept HasSampleTypedChannelPointers = requires(const Buffer& buffer) {
+    buffer.channel(0).data();
+    buffer.channel(0).samplePtr(0);
+};
+
+static_assert(!HasChannelSamples<SimdFloatBuffer>);
+static_assert(!HasChannelSamples<ReadOnlySimdFloatBuffer>);
+static_assert(!HasSampleTypedChannelPointers<SimdFloatBuffer>);
+static_assert(!HasSampleTypedChannelPointers<ReadOnlySimdFloatBuffer>);
+static_assert(HasBufferMutation<SimdFloatBuffer>);
+static_assert(HasChannelMutation<SimdFloatBuffer>);
+static_assert(!HasBufferMutation<ReadOnlySimdFloatBuffer>);
+static_assert(!HasChannelMutation<ReadOnlySimdFloatBuffer>);
+static_assert(std::same_as<
+              decltype(std::declval<const SimdFloatBuffer&>()
+                           .channelScalars(0)),
+              float*>);
+static_assert(std::same_as<
+              decltype(std::declval<const SimdFloatBuffer&>()
+                           .channelScalarSpan(0)),
+              std::span<float>>);
+static_assert(std::same_as<
+              decltype(std::declval<const ReadOnlySimdFloatBuffer&>()
+                           .channelScalars(0)),
+              const float*>);
+static_assert(std::same_as<
+              decltype(std::declval<const ReadOnlySimdFloatBuffer&>()
+                           .channelScalarSpan(0)),
+              std::span<const float>>);
 
 }  // namespace
 
 TEST_CASE("BufferView default construction", "[dsp][buffer]")
 {
-    applause::BufferView<float, 2> buffer;
+    applause::BufferView<float> buffer;
 
-    SECTION("Empty buffer has zero frames")
-    {
-        REQUIRE(buffer.numFrames() == 0);
-    }
-
-    SECTION("Empty buffer has zero channels")
-    {
-        REQUIRE(buffer.numChannels() == 0);
-    }
-
-    SECTION("Empty buffer is valid")
-    {
-        REQUIRE(buffer.isValid());
-    }
+    REQUIRE(buffer.numFrames() == 0);
+    REQUIRE(buffer.numChannels() == 0);
+    REQUIRE(buffer.isValid());
+    REQUIRE(buffer.isContiguous());
 }
 
-TEST_CASE("BufferView contiguous construction", "[dsp][buffer]")
+TEST_CASE("BufferView borrows a runtime-sized channel table", "[dsp][buffer]")
 {
-    constexpr std::size_t frames = 64;
-    constexpr std::size_t channels = 4;
-    alignas(64) std::array<float, frames * channels> backing{};
+    constexpr std::size_t frames = 32;
 
-    SECTION("2-arg constructor uses MaxChannels")
+    SECTION("More than eight contiguous channels are supported")
     {
-        applause::BufferView<float, 4> buffer{backing.data(), frames};
-        REQUIRE(buffer.numChannels() == 4);
+        PlanarStorage<float> storage{12, frames};
+        auto buffer = storage.view();
+
+        REQUIRE(buffer.numChannels() == 12);
         REQUIRE(buffer.numFrames() == frames);
-    }
-
-    SECTION("3-arg constructor sets explicit channel count")
-    {
-        applause::BufferView<float, 8> buffer{backing.data(), 2, frames};
-        REQUIRE(buffer.numChannels() == 2);
-        REQUIRE(buffer.numFrames() == frames);
-    }
-
-    SECTION("Contiguous buffer reports isContiguous")
-    {
-        applause::BufferView<float, 4> buffer{backing.data(), channels, frames};
+        REQUIRE(buffer.isValid());
         REQUIRE(buffer.isContiguous());
-    }
 
-    SECTION("Channel pointers are sequential")
-    {
-        applause::BufferView<float, 4> buffer{backing.data(), channels, frames};
-        for (std::size_t ch = 0; ch < channels; ++ch)
-        {
-            float* expected = backing.data() + ch * frames;
-            REQUIRE(buffer.channelSamples(ch) == expected);
+        for (std::size_t channel = 0; channel < 12; ++channel) {
+            REQUIRE(buffer.channelSamples(channel) ==
+                    storage.scalar_data + channel * frames);
         }
     }
 
-    SECTION("Null pointer with zero frames is valid")
+    SECTION("The channel table is borrowed rather than copied")
     {
-        applause::BufferView<float, 2> buffer{nullptr, 0};
-        REQUIRE(buffer.isValid());
-        REQUIRE(buffer.numFrames() == 0);
-    }
-}
+        alignas(64) std::array<float, frames> first{};
+        alignas(64) std::array<float, frames> replacement{};
+        std::array<float*, 1> channels{first.data()};
+        applause::BufferView<float> buffer{channels.data(), channels.size(),
+                                           frames};
 
-TEST_CASE("BufferView non-contiguous construction", "[dsp][buffer]")
-{
-    constexpr std::size_t frames = 64;
-    alignas(64) std::array<float, frames> ch0_data{};
-    alignas(64) std::array<float, frames> ch1_data{};
+        channels[0] = replacement.data();
 
-    std::array<float*, 2> channel_ptrs = {ch0_data.data(), ch1_data.data()};
-
-    SECTION("Host pointer array construction")
-    {
-        applause::BufferView<float, 2> buffer{channel_ptrs.data(), 2, frames};
-        REQUIRE(buffer.numChannels() == 2);
-        REQUIRE(buffer.numFrames() == frames);
-        REQUIRE(buffer.isValid());
+        REQUIRE(buffer.channelSamples(0) == replacement.data());
     }
 
-    SECTION("Non-contiguous buffer reports correctly")
+    SECTION("Non-contiguous channel planes are supported")
     {
-        applause::BufferView<float, 2> buffer{channel_ptrs.data(), 2, frames};
+        alignas(64) std::array<float, frames * 2 + 7> backing{};
+        std::array<float*, 2> channels{
+            backing.data(), backing.data() + frames + 7};
+        applause::BufferView<float> buffer{channels.data(), channels.size(),
+                                           frames};
+
+        REQUIRE(buffer.isValid());
         REQUIRE_FALSE(buffer.isContiguous());
+        REQUIRE(buffer.channelSamples(0) == channels[0]);
+        REQUIRE(buffer.channelSamples(1) == channels[1]);
     }
 
-    SECTION("Channel pointers match input")
+    SECTION("Zero channels may use a null table")
     {
-        applause::BufferView<float, 2> buffer{channel_ptrs.data(), 2, frames};
-        REQUIRE(buffer.channelSamples(0) == ch0_data.data());
-        REQUIRE(buffer.channelSamples(1) == ch1_data.data());
-    }
-}
+        applause::BufferView<float> buffer{
+            static_cast<float* const*>(nullptr), 0, frames};
 
-TEST_CASE("BufferView accessors", "[dsp][buffer]")
-{
-    constexpr std::size_t frames = 64;
-    constexpr std::size_t channels = 2;
-    alignas(64) std::array<float, frames * channels> backing{};
-    applause::BufferView<float, 4> buffer{backing.data(), channels, frames};
-
-    SECTION("numFrames returns frame count")
-    {
+        REQUIRE(buffer.numChannels() == 0);
         REQUIRE(buffer.numFrames() == frames);
+        REQUIRE(buffer.isValid());
     }
 
-    SECTION("numChannels returns channel count")
+    SECTION("Zero frames permit null channel planes")
     {
-        REQUIRE(buffer.numChannels() == channels);
-    }
+        std::array<float*, 2> channels{nullptr, nullptr};
+        applause::BufferView<float> buffer{channels.data(), channels.size(), 0};
 
-    SECTION("samplesPerChannel equals numFrames for scalar types")
-    {
-        REQUIRE(buffer.samplesPerChannel() == frames);
-    }
-
-    SECTION("scalarsPerChannel accounts for width")
-    {
-        REQUIRE(buffer.scalarsPerChannel() == frames * 1);
-    }
-
-    SECTION("channelSamples returns correct pointer")
-    {
-        REQUIRE(buffer.channelSamples(0) != nullptr);
-        REQUIRE(buffer.channelSamples(1) != nullptr);
-        REQUIRE(buffer.channelSamples(0) == backing.data());
-        REQUIRE(buffer.channelSamples(1) == backing.data() + frames);
-    }
-
-    SECTION("channelSampleSpan has correct size")
-    {
-        auto span0 = buffer.channelSampleSpan(0);
-        auto span1 = buffer.channelSampleSpan(1);
-        REQUIRE(span0.size() == frames);
-        REQUIRE(span1.size() == frames);
-    }
-
-    SECTION("const channelSamples works")
-    {
-        const auto& const_buffer = buffer;
-        REQUIRE(const_buffer.channelSamples(0) == backing.data());
-    }
-}
-
-TEST_CASE("BufferView load/store", "[dsp][buffer]")
-{
-    constexpr std::size_t frames = 32;
-    constexpr std::size_t channels = 2;
-    alignas(64) std::array<float, frames * channels> backing{};
-    applause::BufferView<float, 2> buffer{backing.data(), channels, frames};
-
-    SECTION("store and load round-trip")
-    {
-        buffer.store(0, 5, 42.0f);
-        REQUIRE(buffer.load(0, 5) == 42.0f);
-
-        buffer.store(1, 10, -3.14f);
-        REQUIRE(buffer.load(1, 10) == -3.14f);
-    }
-
-    SECTION("store affects correct location")
-    {
-        buffer.clear();
-        buffer.store(0, 5, 100.0f);
-
-        REQUIRE(buffer.load(0, 5) == 100.0f);
-        REQUIRE(buffer.load(0, 0) == 0.0f);
-        REQUIRE(buffer.load(0, 4) == 0.0f);
-        REQUIRE(buffer.load(0, 6) == 0.0f);
-        REQUIRE(buffer.load(1, 5) == 0.0f);
-    }
-
-    SECTION("Multiple frames accessible")
-    {
-        for (std::size_t fr = 0; fr < frames; ++fr)
-        {
-            buffer.store(0, fr, static_cast<float>(fr));
-        }
-
-        for (std::size_t fr = 0; fr < frames; ++fr)
-        {
-            REQUIRE(buffer.load(0, fr) == static_cast<float>(fr));
-        }
-    }
-
-    SECTION("Channel boundary respected")
-    {
-        for (std::size_t fr = 0; fr < frames; ++fr)
-        {
-            buffer.store(0, fr, 1000.0f + static_cast<float>(fr));
-            buffer.store(1, fr, 2000.0f + static_cast<float>(fr));
-        }
-
-        for (std::size_t fr = 0; fr < frames; ++fr)
-        {
-            REQUIRE(buffer.load(0, fr) == 1000.0f + static_cast<float>(fr));
-            REQUIRE(buffer.load(1, fr) == 2000.0f + static_cast<float>(fr));
-        }
-    }
-}
-
-TEST_CASE("BufferView const element access", "[dsp][buffer]")
-{
-    constexpr std::size_t frames = 16;
-    alignas(64) std::array<float, frames * 2> backing{};
-    std::array<float*, 2> channels{backing.data(), backing.data() + frames};
-    applause::BufferView<float, 2> mutable_buffer{channels.data(), 2, frames};
-
-    SECTION("mutable host channel pointers construct a read-only view")
-    {
-        applause::BufferView<const float, 2> read_only_buffer{
-            channels.data(), 2, frames};
-
-        REQUIRE(read_only_buffer.numChannels() == 2);
-        REQUIRE(read_only_buffer.numFrames() == frames);
-        REQUIRE(read_only_buffer.channelSamples(0) == backing.data());
-        REQUIRE(read_only_buffer.channel(1).data() == backing.data() + frames);
-    }
-
-    SECTION("mutable views convert to read-only views without copying")
-    {
-        mutable_buffer.store(1, 4, 12.0f);
-        applause::BufferView<const float, 2> read_only_buffer = mutable_buffer;
-
-        REQUIRE(read_only_buffer.channelSamples(1) ==
-                mutable_buffer.channelSamples(1));
-        REQUIRE(read_only_buffer.load(1, 4) == 12.0f);
-
-        mutable_buffer.store(1, 4, 24.0f);
-        REQUIRE(read_only_buffer.load(1, 4) == 24.0f);
-    }
-
-    SECTION("read-only subviews preserve const element access")
-    {
-        applause::BufferView<const float, 2> read_only_buffer = mutable_buffer;
-        auto subview = read_only_buffer.getSubView(3, 9);
-
-        static_assert(std::same_as<decltype(subview),
-                                   applause::BufferView<const float, 2>>);
-        REQUIRE(subview.numFrames() == 6);
-        REQUIRE(subview.channelSamples(0) == backing.data() + 3);
-    }
-
-    SECTION("const mutable descriptors retain shallow write access")
-    {
-        const auto& descriptor = mutable_buffer;
-        descriptor.store(0, 2, 7.0f);
-        descriptor.channel(1).store(3, 8.0f);
-
-        REQUIRE(backing[2] == 7.0f);
-        REQUIRE(backing[frames + 3] == 8.0f);
-    }
-}
-
-TEST_CASE("BufferView add operation", "[dsp][buffer]")
-{
-    constexpr std::size_t frames = 16;
-    alignas(64) std::array<float, frames * 2> backing{};
-    applause::BufferView<float, 2> buffer{backing.data(), 2, frames};
-
-    SECTION("add accumulates scalar value")
-    {
-        buffer.clear();
-        buffer.store(0, 5, 10.0f);
-        buffer.add(0, 5, 3.0f);
-        REQUIRE(buffer.load(0, 5) == 13.0f);
-    }
-
-    SECTION("add works on zeroed buffer")
-    {
-        buffer.clear();
-        buffer.add(0, 5, 7.0f);
-        REQUIRE(buffer.load(0, 5) == 7.0f);
-    }
-
-    SECTION("Multiple adds accumulate")
-    {
-        buffer.clear();
-        buffer.add(1, 10, 1.0f);
-        buffer.add(1, 10, 2.0f);
-        buffer.add(1, 10, 3.0f);
-        REQUIRE(buffer.load(1, 10) == 6.0f);
-    }
-}
-
-TEST_CASE("BufferView ChannelView", "[dsp][buffer]")
-{
-    constexpr std::size_t frames = 32;
-    alignas(64) std::array<float, frames * 2> backing{};
-    applause::BufferView<float, 2> buffer{backing.data(), 2, frames};
-
-    SECTION("channel() returns valid view")
-    {
-        auto view = buffer.channel(0);
-        REQUIRE(view.data() != nullptr);
-        REQUIRE(view.frames() == frames);
-    }
-
-    SECTION("ChannelView load/store round-trip")
-    {
-        auto view = buffer.channel(1);
-        view.store(10, 99.0f);
-        REQUIRE(view.load(10) == 99.0f);
-    }
-
-    SECTION("ChannelView add works")
-    {
-        buffer.clear();
-        auto view = buffer.channel(0);
-        view.store(5, 10.0f);
-        view.add(5, 5.0f);
-        REQUIRE(view.load(5) == 15.0f);
-    }
-
-    SECTION("ChannelView data() returns base")
-    {
-        auto view = buffer.channel(0);
-        REQUIRE(view.data() == buffer.channelSamples(0));
-    }
-
-    SECTION("ChannelView frames() correct")
-    {
-        auto view = buffer.channel(1);
-        REQUIRE(view.frames() == buffer.numFrames());
-    }
-
-    SECTION("samplePtr returns correct address")
-    {
-        auto view = buffer.channel(0);
-        REQUIRE(view.samplePtr(5) == view.data() + 5);
-    }
-
-    SECTION("framePtr returns scalar pointer")
-    {
-        auto view = buffer.channel(0);
-        auto* frame_ptr = view.framePtr(5);
-        REQUIRE(frame_ptr == reinterpret_cast<float*>(view.data() + 5));
-    }
-}
-
-TEST_CASE("BufferView getSubView", "[dsp][buffer]")
-{
-    constexpr std::size_t frames = 64;
-    constexpr std::size_t channels = 2;
-    alignas(64) std::array<float, frames * channels> backing{};
-    applause::BufferView<float, 2> buffer{backing.data(), channels, frames};
-
-    // Fill with distinctive values
-    for (std::size_t ch = 0; ch < channels; ++ch)
-    {
-        for (std::size_t fr = 0; fr < frames; ++fr)
-        {
-            buffer.store(ch, fr, static_cast<float>(ch * 1000 + fr));
-        }
-    }
-
-    SECTION("SubView has correct frame count")
-    {
-        auto sub = buffer.getSubView(10, 30);
-        REQUIRE(sub.numFrames() == 20);
-    }
-
-    SECTION("SubView preserves channel count")
-    {
-        auto sub = buffer.getSubView(10, 30);
-        REQUIRE(sub.numChannels() == channels);
-    }
-
-    SECTION("SubView data points to correct offset")
-    {
-        auto sub = buffer.getSubView(10, 30);
-        // SubView's channel 0 should point to parent's frame 10
-        REQUIRE(sub.channelSamples(0) == buffer.channelSamples(0) + 10);
-    }
-
-    SECTION("Full-range subview equals original")
-    {
-        auto sub = buffer.getSubView(0, frames);
-        REQUIRE(sub.numFrames() == buffer.numFrames());
-        REQUIRE(sub.channelSamples(0) == buffer.channelSamples(0));
-    }
-
-    SECTION("Empty subview for equal bounds")
-    {
-        auto sub = buffer.getSubView(20, 20);
-        REQUIRE(sub.numFrames() == 0);
-    }
-
-    SECTION("Writes through subview affect parent")
-    {
-        auto sub = buffer.getSubView(10, 30);
-        sub.store(0, 5, 12345.0f);  // sub[0,5] aliases parent[0,15]
-        REQUIRE(buffer.load(0, 15) == 12345.0f);
-    }
-
-    SECTION("SubView of SubView works")
-    {
-        auto sub1 = buffer.getSubView(10, 50);
-        auto sub2 = sub1.getSubView(5, 15);  // = parent frames 15-24
-
-        REQUIRE(sub2.numFrames() == 10);
-        REQUIRE(sub2.channelSamples(0) == buffer.channelSamples(0) + 15);
-
-        REQUIRE(sub2.load(0, 0) == 15.0f);
-        REQUIRE(sub2.load(0, 9) == 24.0f);
-    }
-}
-
-TEST_CASE("BufferView clear operations", "[dsp][buffer]")
-{
-    constexpr std::size_t frames = 32;
-    constexpr std::size_t channels = 2;
-    alignas(64) std::array<float, frames * channels> backing{};
-    applause::BufferView<float, 2> buffer{backing.data(), channels, frames};
-
-    SECTION("clear zeros all channels")
-    {
-        for (std::size_t ch = 0; ch < channels; ++ch)
-        {
-            for (std::size_t fr = 0; fr < frames; ++fr)
-            {
-                buffer.store(ch, fr, 100.0f);
-            }
-        }
-
-        buffer.clear();
-
-        for (std::size_t ch = 0; ch < channels; ++ch)
-        {
-            for (std::size_t fr = 0; fr < frames; ++fr)
-            {
-                REQUIRE(buffer.load(ch, fr) == 0.0f);
-            }
-        }
-    }
-
-    SECTION("clear on empty buffer is safe")
-    {
-        applause::BufferView<float, 2> empty;
-        empty.clear();
-        REQUIRE(empty.numFrames() == 0);
-    }
-
-    SECTION("clearChannel zeros one channel")
-    {
-        for (std::size_t fr = 0; fr < frames; ++fr)
-        {
-            buffer.store(0, fr, 50.0f);
-            buffer.store(1, fr, 100.0f);
-        }
-
-        buffer.clearChannel(0);
-
-        for (std::size_t fr = 0; fr < frames; ++fr)
-        {
-            REQUIRE(buffer.load(0, fr) == 0.0f);
-        }
-    }
-
-    SECTION("clearChannel preserves others")
-    {
-        for (std::size_t fr = 0; fr < frames; ++fr)
-        {
-            buffer.store(0, fr, 50.0f);
-            buffer.store(1, fr, 100.0f);
-        }
-
-        buffer.clearChannel(0);
-
-        for (std::size_t fr = 0; fr < frames; ++fr)
-        {
-            REQUIRE(buffer.load(1, fr) == 100.0f);
-        }
-    }
-
-    SECTION("clear after writes resets all")
-    {
-        buffer.store(0, 10, 999.0f);
-        buffer.store(1, 20, 888.0f);
-        buffer.clear();
-        REQUIRE(buffer.load(0, 10) == 0.0f);
-        REQUIRE(buffer.load(1, 20) == 0.0f);
-    }
-}
-
-TEST_CASE("BufferView edge cases", "[dsp][buffer]")
-{
-    SECTION("Single channel buffer works")
-    {
-        alignas(64) std::array<float, 64> backing{};
-        applause::BufferView<float, 1> buffer{backing.data(), 1, 64};
-
-        REQUIRE(buffer.numChannels() == 1);
-        buffer.store(0, 10, 42.0f);
-        REQUIRE(buffer.load(0, 10) == 42.0f);
-    }
-
-    SECTION("Single frame buffer works")
-    {
-        alignas(64) std::array<float, 2> backing{};
-        applause::BufferView<float, 2> buffer{backing.data(), 2, 1};
-
-        REQUIRE(buffer.numFrames() == 1);
-        buffer.store(0, 0, 1.0f);
-        buffer.store(1, 0, 2.0f);
-        REQUIRE(buffer.load(0, 0) == 1.0f);
-        REQUIRE(buffer.load(1, 0) == 2.0f);
-    }
-
-    SECTION("Max channels respects template")
-    {
-        alignas(64) std::array<float, 512> backing{};
-        applause::BufferView<float, 8> buffer{backing.data(), 8, 64};
-        REQUIRE(buffer.max_channel_count == 8);
-        REQUIRE(buffer.numChannels() == 8);
-    }
-
-    SECTION("Zero frame buffer clear is safe")
-    {
-        applause::BufferView<float, 2> buffer{nullptr, 0};
-        buffer.clear();
+        REQUIRE(buffer.numChannels() == 2);
         REQUIRE(buffer.numFrames() == 0);
-    }
-
-    SECTION("Large frame count works")
-    {
-        constexpr std::size_t large_frames = 2048;
-        std::vector<float> backing(large_frames * 2, 0.0f);
-        applause::BufferView<float, 2> buffer{backing.data(), 2, large_frames};
-
-        REQUIRE(buffer.numFrames() == large_frames);
-
-        buffer.store(0, 0, 1.0f);
-        buffer.store(0, large_frames - 1, 2.0f);
-        buffer.store(1, large_frames - 1, 3.0f);
-
-        REQUIRE(buffer.load(0, 0) == 1.0f);
-        REQUIRE(buffer.load(0, large_frames - 1) == 2.0f);
-        REQUIRE(buffer.load(1, large_frames - 1) == 3.0f);
-    }
-}
-
-TEMPLATE_TEST_CASE("BufferView with SIMD types", "[dsp][buffer][simd]",
-                   float, double, xsimd::batch<float>, xsimd::batch<double>)
-{
-    using SampleType = TestType;
-    using Scalar = applause::scalar_t<SampleType>;
-    constexpr std::size_t width = applause::sampleWidth<SampleType>();
-    constexpr std::size_t frames = 32;
-    constexpr std::size_t channels = 2;
-
-    alignas(64) std::vector<Scalar> backing(frames * channels * width, Scalar{0});
-    applause::BufferView<SampleType, 2> buffer{backing.data(), channels, frames};
-
-    SECTION("sample_width correct")
-    {
-        if constexpr (applause::SimdBatch<SampleType>)
-        {
-            REQUIRE(buffer.sample_width == SampleType::size);
-        }
-        else
-        {
-            REQUIRE(buffer.sample_width == 1);
-        }
-    }
-
-    SECTION("is_simd correct")
-    {
-        if constexpr (applause::SimdBatch<SampleType>)
-        {
-            REQUIRE(buffer.is_simd == true);
-        }
-        else
-        {
-            REQUIRE(buffer.is_simd == false);
-        }
-    }
-
-    SECTION("scalarsPerChannel correct")
-    {
-        REQUIRE(buffer.scalarsPerChannel() == frames * width);
-    }
-
-    SECTION("store/load round-trip")
-    {
-        if constexpr (applause::SimdBatch<SampleType>)
-        {
-            SampleType value = applause::set1<SampleType>(Scalar{42});
-            buffer.store(0, 5, value);
-            SampleType loaded = buffer.load(0, 5);
-
-            for (std::size_t i = 0; i < SampleType::size; ++i)
-            {
-                REQUIRE(loaded.get(i) == Scalar{42});
-            }
-        }
-        else
-        {
-            buffer.store(0, 5, Scalar{42});
-            REQUIRE(buffer.load(0, 5) == Scalar{42});
-        }
-    }
-
-    SECTION("add broadcasts scalar to lanes")
-    {
-        buffer.clear();
-
-        if constexpr (applause::SimdBatch<SampleType>)
-        {
-            SampleType initial = applause::set1<SampleType>(Scalar{10});
-            buffer.store(0, 5, initial);
-
-            buffer.add(0, 5, Scalar{5});
-
-            SampleType result = buffer.load(0, 5);
-            for (std::size_t i = 0; i < SampleType::size; ++i)
-            {
-                REQUIRE(result.get(i) == Scalar{15});
-            }
-        }
-        else
-        {
-            buffer.store(0, 5, Scalar{10});
-            buffer.add(0, 5, Scalar{5});
-            REQUIRE(buffer.load(0, 5) == Scalar{15});
-        }
-    }
-
-    SECTION("mutable view converts to const element view")
-    {
-        applause::BufferView<const SampleType, 2> read_only = buffer;
-        REQUIRE(read_only.numChannels() == channels);
-        REQUIRE(read_only.numFrames() == frames);
-        REQUIRE(read_only.channelSamples(0) == buffer.channelSamples(0));
+        REQUIRE(buffer.isValid());
+        REQUIRE(buffer.channelSampleSpan(0).empty());
     }
 }
 
@@ -695,100 +231,434 @@ TEST_CASE("Invalid BufferView construction returns an empty view",
           "[dsp][buffer]")
 {
     constexpr std::size_t frames = 8;
-    alignas(64) std::array<float, frames * 2> backing{};
+    alignas(64) std::array<float, frames> backing{};
 
-    SECTION("channel count exceeding capacity")
+    SECTION("Null channel table")
     {
-        applause::BufferView<float, 1> buffer{backing.data(), 2, frames};
+        applause::BufferView<float> buffer{
+            static_cast<float* const*>(nullptr), 1, frames};
+
         REQUIRE(buffer.numChannels() == 0);
         REQUIRE(buffer.numFrames() == 0);
         REQUIRE(buffer.isValid());
     }
 
-    SECTION("null contiguous storage with frames")
-    {
-        applause::BufferView<float, 2> buffer{
-            static_cast<float*>(nullptr), 2, frames};
-        REQUIRE(buffer.numChannels() == 0);
-        REQUIRE(buffer.numFrames() == 0);
-        REQUIRE(buffer.isValid());
-    }
-
-    SECTION("null channel storage with frames")
+    SECTION("Null channel plane")
     {
         std::array<float*, 2> channels{backing.data(), nullptr};
-        applause::BufferView<float, 2> buffer{channels.data(), 2, frames};
+        applause::BufferView<float> buffer{channels.data(), channels.size(),
+                                           frames};
+
+        REQUIRE(buffer.numChannels() == 0);
+        REQUIRE(buffer.numFrames() == 0);
+        REQUIRE(buffer.isValid());
+    }
+
+    SECTION("Misaligned channel plane")
+    {
+        alignas(64) std::array<std::byte, 64> bytes{};
+        std::array<float*, 1> channels{
+            reinterpret_cast<float*>(bytes.data() + 1)};
+        applause::BufferView<float> buffer{channels.data(), channels.size(), 1};
+
+        REQUIRE(buffer.numChannels() == 0);
+        REQUIRE(buffer.numFrames() == 0);
+        REQUIRE(buffer.isValid());
+    }
+
+    SECTION("A scalar-aligned plane may still be misaligned for SIMD")
+    {
+        using Batch = xsimd::batch<float>;
+        alignas(64) std::array<std::byte, 128> bytes{};
+        std::array<float*, 1> channels{
+            reinterpret_cast<float*>(bytes.data() + sizeof(float))};
+        applause::BufferView<Batch> buffer{
+            channels.data(), channels.size(), 1};
+
+        REQUIRE(buffer.numChannels() == 0);
+        REQUIRE(buffer.numFrames() == 0);
+        REQUIRE(buffer.isValid());
+    }
+
+    SECTION("Frame byte count overflow")
+    {
+        std::array<float*, 1> channels{backing.data()};
+        constexpr std::size_t overflowing_frames =
+            std::numeric_limits<std::size_t>::max() / sizeof(float) + 1;
+        applause::BufferView<float> buffer{
+            channels.data(), channels.size(), overflowing_frames};
+
         REQUIRE(buffer.numChannels() == 0);
         REQUIRE(buffer.numFrames() == 0);
         REQUIRE(buffer.isValid());
     }
 }
 
-TEST_CASE("BufferView type aliases", "[dsp][buffer]")
+TEST_CASE("BufferView sample access", "[dsp][buffer]")
 {
-    SECTION("MonoBuffer has 1 channel max")
+    constexpr std::size_t frames = 32;
+    PlanarStorage<float> storage{2, frames};
+    auto buffer = storage.view();
+
+    SECTION("Accessors describe the view")
     {
-        REQUIRE(applause::MonoBuffer::max_channel_count == 1);
+        REQUIRE(buffer.numFrames() == frames);
+        REQUIRE(buffer.numChannels() == 2);
+        REQUIRE(buffer.samplesPerChannel() == frames);
+        REQUIRE(buffer.scalarsPerChannel() == frames);
+        REQUIRE(buffer.channelSampleSpan(0).size() == frames);
+        REQUIRE(buffer.channelSampleSpan(1).data() ==
+                storage.scalar_data + frames);
     }
 
-    SECTION("StereoBuffer has 2 channel max")
+    SECTION("Store, load, and add affect the selected sample")
     {
-        REQUIRE(applause::StereoBuffer::max_channel_count == 2);
+        buffer.store(0, 5, 40.0f);
+        buffer.add(0, 5, 2.0f);
+
+        REQUIRE(buffer.load(0, 5) == 42.0f);
+        REQUIRE(buffer.load(0, 4) == 0.0f);
+        REQUIRE(buffer.load(1, 5) == 0.0f);
     }
 
-    SECTION("SurroundBuffer has 8 channel max")
+    SECTION("ChannelView accesses the selected plane")
     {
-        REQUIRE(applause::SurroundBuffer::max_channel_count == 8);
+        auto channel = buffer.channel(1);
+        channel.store(10, 99.0f);
+        channel.add(10, 1.0f);
+
+        REQUIRE(channel.frames() == frames);
+        REQUIRE(channel.data() == buffer.channelSamples(1));
+        REQUIRE(channel.samplePtr(10) == channel.data() + 10);
+        REQUIRE(channel.framePtr(10) ==
+                reinterpret_cast<float*>(channel.data() + 10));
+        REQUIRE(channel.load(10) == 100.0f);
     }
 
-    SECTION("FlexBuffer has 8 channel max")
+    SECTION("A const descriptor retains shallow write access")
     {
-        REQUIRE(applause::FlexBuffer::max_channel_count == 8);
+        const auto& descriptor = buffer;
+        descriptor.store(0, 2, 7.0f);
+        descriptor.channel(1).store(3, 8.0f);
+
+        REQUIRE(buffer.load(0, 2) == 7.0f);
+        REQUIRE(buffer.load(1, 3) == 8.0f);
     }
 }
 
-TEST_CASE("BufferView with MemoryArena allocation", "[dsp][buffer][memory]")
+TEST_CASE("BufferView read-only conversion shares descriptor state",
+          "[dsp][buffer]")
 {
-    alignas(64) std::array<std::byte, 8192> arena_backing{};
+    constexpr std::size_t frames = 16;
+    PlanarStorage<float> storage{2, frames};
+    auto mutable_buffer = storage.view();
+
+    SECTION("Mutable host pointers construct a read-only view")
+    {
+        applause::BufferView<const float> read_only_buffer{
+            storage.channel_ptrs.data(), storage.channel_ptrs.size(), frames};
+
+        REQUIRE(read_only_buffer.numChannels() == 2);
+        REQUIRE(read_only_buffer.numFrames() == frames);
+        REQUIRE(read_only_buffer.channelSamples(0) == storage.scalar_data);
+    }
+
+    SECTION("Writable views convert without copying samples or pointers")
+    {
+        applause::BufferView<const float> read_only_buffer = mutable_buffer;
+        mutable_buffer.store(1, 4, 12.0f);
+
+        REQUIRE(read_only_buffer.channelSamples(1) ==
+                mutable_buffer.channelSamples(1));
+        REQUIRE(read_only_buffer.load(1, 4) == 12.0f);
+
+        alignas(64) std::array<float, frames> replacement{};
+        storage.channel_ptrs[1] = replacement.data();
+        replacement[4] = 24.0f;
+
+        REQUIRE(read_only_buffer.channelSamples(1) == replacement.data());
+        REQUIRE(read_only_buffer.load(1, 4) == 24.0f);
+    }
+
+    SECTION("Read-only conversion preserves a subview offset")
+    {
+        auto mutable_subview = mutable_buffer.getSubView(3, 9);
+        applause::BufferView<const float> read_only_subview = mutable_subview;
+
+        static_assert(std::same_as<decltype(read_only_subview),
+                                   applause::BufferView<const float>>);
+        REQUIRE(read_only_subview.numFrames() == 6);
+        REQUIRE(read_only_subview.channelSamples(0) ==
+                storage.scalar_data + 3);
+    }
+}
+
+TEST_CASE("BufferView subviews are offset-aware", "[dsp][buffer]")
+{
+    constexpr std::size_t frames = 64;
+    PlanarStorage<float> storage{2, frames};
+    auto buffer = storage.view();
+
+    for (std::size_t channel = 0; channel < buffer.numChannels(); ++channel) {
+        for (std::size_t frame = 0; frame < frames; ++frame) {
+            buffer.store(channel, frame,
+                         static_cast<float>(channel * 1000 + frame));
+        }
+    }
+
+    SECTION("Subview exposes the requested frame range")
+    {
+        auto subview = buffer.getSubView(10, 30);
+
+        REQUIRE(subview.numFrames() == 20);
+        REQUIRE(subview.numChannels() == 2);
+        REQUIRE(subview.channelSamples(0) ==
+                buffer.channelSamples(0) + 10);
+        REQUIRE(subview.channelSampleSpan(1).data() ==
+                buffer.channelSamples(1) + 10);
+        REQUIRE(subview.load(0, 0) == 10.0f);
+        REQUIRE(subview.load(1, 19) == 1029.0f);
+    }
+
+    SECTION("Nested subviews accumulate their frame offsets")
+    {
+        auto first = buffer.getSubView(10, 50);
+        auto second = first.getSubView(5, 15);
+
+        REQUIRE(second.numFrames() == 10);
+        REQUIRE(second.channelSamples(0) ==
+                buffer.channelSamples(0) + 15);
+        REQUIRE(second.load(0, 0) == 15.0f);
+        REQUIRE(second.load(0, 9) == 24.0f);
+
+        second.store(1, 3, 12345.0f);
+        REQUIRE(buffer.load(1, 18) == 12345.0f);
+    }
+
+    SECTION("Only a full-width multi-channel subview is contiguous")
+    {
+        REQUIRE(buffer.getSubView(0, frames).isContiguous());
+        REQUIRE_FALSE(buffer.getSubView(10, 30).isContiguous());
+
+        PlanarStorage<float> mono_storage{1, frames};
+        REQUIRE(mono_storage.view().getSubView(10, 30).isContiguous());
+    }
+
+    SECTION("Empty subview retains the selected position")
+    {
+        auto subview = buffer.getSubView(20, 20);
+
+        REQUIRE(subview.numFrames() == 0);
+        REQUIRE(subview.channelSamples(0) ==
+                buffer.channelSamples(0) + 20);
+        REQUIRE(subview.channelSampleSpan(0).empty());
+    }
+}
+
+TEST_CASE("BufferView clear operations honor subview offsets",
+          "[dsp][buffer]")
+{
+    constexpr std::size_t frames = 12;
+    PlanarStorage<float> storage{2, frames};
+    auto buffer = storage.view();
+
+    for (std::size_t channel = 0; channel < buffer.numChannels(); ++channel) {
+        for (std::size_t frame = 0; frame < frames; ++frame) {
+            buffer.store(channel, frame, 1.0f);
+        }
+    }
+
+    SECTION("clear zeros only the selected frame range")
+    {
+        buffer.getSubView(3, 9).clear();
+
+        for (std::size_t channel = 0; channel < buffer.numChannels();
+             ++channel) {
+            for (std::size_t frame = 0; frame < frames; ++frame) {
+                REQUIRE(buffer.load(channel, frame) ==
+                        (frame >= 3 && frame < 9 ? 0.0f : 1.0f));
+            }
+        }
+    }
+
+    SECTION("clearChannel zeros one channel in the selected frame range")
+    {
+        buffer.getSubView(3, 9).clearChannel(0);
+
+        for (std::size_t frame = 0; frame < frames; ++frame) {
+            REQUIRE(buffer.load(0, frame) ==
+                    (frame >= 3 && frame < 9 ? 0.0f : 1.0f));
+            REQUIRE(buffer.load(1, frame) == 1.0f);
+        }
+    }
+
+    SECTION("Clearing a default or zero-frame view is safe")
+    {
+        applause::BufferView<float> empty;
+        empty.clear();
+        buffer.getSubView(5, 5).clear();
+
+        REQUIRE(empty.numFrames() == 0);
+        REQUIRE(buffer.load(0, 5) == 1.0f);
+    }
+}
+
+TEMPLATE_TEST_CASE("BufferView supports scalar and SIMD samples",
+                   "[dsp][buffer][simd]", float, double,
+                   xsimd::batch<float>, xsimd::batch<double>)
+{
+    using SampleType = TestType;
+    using Scalar = applause::scalar_t<SampleType>;
+    constexpr std::size_t width = applause::sampleWidth<SampleType>();
+    constexpr std::size_t frames = 32;
+
+    PlanarStorage<SampleType> storage{2, frames};
+    auto buffer = storage.view();
+
+    REQUIRE(buffer.sample_width == width);
+    REQUIRE(buffer.is_simd == applause::SimdBatch<SampleType>);
+    REQUIRE(buffer.scalarsPerChannel() == frames * width);
+    REQUIRE(buffer.isContiguous());
+    REQUIRE(reinterpret_cast<std::uintptr_t>(buffer.channelScalars(0)) %
+                applause::sampleAlignment<SampleType>() ==
+            0);
+    REQUIRE(buffer.channelScalarSpan(0).size() == frames * width);
+    REQUIRE(buffer.channelScalars(1) ==
+            buffer.channelScalars(0) + frames * width);
+
+    SampleType initial = applause::set1<SampleType>(Scalar{10});
+    buffer.store(0, 5, initial);
+    for (std::size_t lane = 0; lane < width; ++lane) {
+        REQUIRE(buffer.channelScalars(0)[5 * width + lane] == Scalar{10});
+    }
+
+    buffer.add(0, 5, Scalar{5});
+    SampleType result = buffer.load(0, 5);
+
+    if constexpr (applause::SimdBatch<SampleType>) {
+        for (std::size_t lane = 0; lane < SampleType::size; ++lane) {
+            REQUIRE(result.get(lane) == Scalar{15});
+        }
+    } else {
+        REQUIRE(result == Scalar{15});
+    }
+
+    auto channel = buffer.channel(1);
+    channel.store(7, applause::set1<SampleType>(Scalar{20}));
+    channel.add(7, Scalar{2});
+    REQUIRE(channel.scalarData() == buffer.channelScalars(1));
+    REQUIRE(channel.framePtr(7) ==
+            channel.scalarData() + 7 * width);
+    const auto channel_result = channel.load(7);
+    if constexpr (applause::SimdBatch<SampleType>) {
+        for (std::size_t lane = 0; lane < SampleType::size; ++lane) {
+            REQUIRE(channel_result.get(lane) == Scalar{22});
+        }
+    } else {
+        REQUIRE(channel_result == Scalar{22});
+    }
+
+    applause::BufferView<const SampleType> read_only = buffer;
+    REQUIRE(read_only.channelScalars(0) == buffer.channelScalars(0));
+
+    auto subview = buffer.getSubView(4, 8);
+    REQUIRE(subview.channelScalars(0) ==
+            buffer.channelScalars(0) + 4 * width);
+    subview.clear();
+    for (std::size_t frame = 4; frame < 8; ++frame) {
+        auto cleared = buffer.load(0, frame);
+        if constexpr (applause::SimdBatch<SampleType>) {
+            for (std::size_t lane = 0; lane < SampleType::size; ++lane) {
+                REQUIRE(cleared.get(lane) == Scalar{0});
+            }
+        } else {
+            REQUIRE(cleared == Scalar{0});
+        }
+    }
+}
+
+TEST_CASE("BufferView with runtime MemoryArena allocation",
+          "[dsp][buffer][memory]")
+{
+    alignas(64) std::array<std::byte, 32768> arena_backing{};
     applause::MemoryArena arena{arena_backing.data(), arena_backing.size()};
 
-    SECTION("Arena-allocated buffer is valid")
+    SECTION("Runtime channel counts are valid and contiguous")
     {
-        auto buffer = arena.allocateAudioBuffer<float, 2>(64);
+        constexpr std::size_t channels = 12;
+        constexpr std::size_t frames = 32;
+        auto buffer = arena.allocateAudioBuffer<float>(channels, frames);
+
         REQUIRE(buffer.isValid());
-        REQUIRE(buffer.numFrames() == 64);
-        REQUIRE(buffer.numChannels() == 2);
-    }
-
-    SECTION("Arena-allocated buffer is contiguous")
-    {
-        auto buffer = arena.allocateAudioBuffer<float, 2>(64);
         REQUIRE(buffer.isContiguous());
+        REQUIRE(buffer.numChannels() == channels);
+        REQUIRE(buffer.numFrames() == frames);
+        REQUIRE(buffer.channelSamples(11) ==
+                buffer.channelSamples(0) + 11 * frames);
+        REQUIRE(arena.getBytesUsed() >=
+                channels * sizeof(float*) +
+                    channels * frames * sizeof(float));
     }
 
-    SECTION("Buffer works within arena frame")
+    SECTION("SIMD planes are aligned and correctly spaced")
     {
-        auto frame = arena.createFrame();
-        auto buffer = arena.allocateAudioBuffer<float, 2>(32);
+        using Batch = xsimd::batch<float>;
+        constexpr std::size_t frames = 16;
+        constexpr std::size_t width = applause::sampleWidth<Batch>();
+        auto buffer = arena.allocateAudioBuffer<Batch>(2, frames);
 
-        buffer.store(0, 10, 42.0f);
-        REQUIRE(buffer.load(0, 10) == 42.0f);
-
-        buffer.clear();
-        REQUIRE(buffer.load(0, 10) == 0.0f);
+        REQUIRE(reinterpret_cast<std::uintptr_t>(buffer.channelScalars(0)) %
+                    applause::sampleAlignment<Batch>() ==
+                0);
+        REQUIRE(buffer.channelScalars(1) ==
+                buffer.channelScalars(0) + frames * width);
     }
 
-    SECTION("Multiple buffers from arena are independent")
+    SECTION("Multiple buffers are independent")
     {
-        auto buffer1 = arena.allocateAudioBuffer<float, 2>(32);
-        auto buffer2 = arena.allocateAudioBuffer<float, 2>(32);
+        auto first = arena.allocateAudioBuffer<float>(2, 32);
+        auto second = arena.allocateAudioBuffer<float>(2, 32);
 
-        buffer1.store(0, 0, 100.0f);
-        buffer2.store(0, 0, 200.0f);
+        first.store(0, 0, 100.0f);
+        second.store(0, 0, 200.0f);
 
-        REQUIRE(buffer1.load(0, 0) == 100.0f);
-        REQUIRE(buffer2.load(0, 0) == 200.0f);
+        REQUIRE(first.load(0, 0) == 100.0f);
+        REQUIRE(second.load(0, 0) == 200.0f);
+        REQUIRE(first.channelSamples(0) != second.channelSamples(0));
+    }
 
-        REQUIRE(buffer1.channelSamples(0) != buffer2.channelSamples(0));
+    SECTION("Zero dimensions return a canonical empty view without allocation")
+    {
+        const auto initial_bytes = arena.getBytesUsed();
+        auto no_channels = arena.allocateAudioBuffer<float>(0, 32);
+        auto no_frames = arena.allocateAudioBuffer<float>(2, 0);
+
+        REQUIRE(no_channels.numChannels() == 0);
+        REQUIRE(no_channels.numFrames() == 0);
+        REQUIRE(no_frames.numChannels() == 0);
+        REQUIRE(no_frames.numFrames() == 0);
+        REQUIRE(arena.getBytesUsed() == initial_bytes);
+    }
+
+    SECTION("Arena frames reclaim both the table and sample storage")
+    {
+        const auto initial_bytes = arena.getBytesUsed();
+        {
+            auto frame = arena.createFrame();
+            auto buffer = arena.allocateAudioBuffer<float>(2, 32);
+            REQUIRE(buffer.isValid());
+            REQUIRE(arena.getBytesUsed() > initial_bytes);
+        }
+
+        REQUIRE(arena.getBytesUsed() == initial_bytes);
+    }
+
+    SECTION("Arena buffers convert to read-only views")
+    {
+        auto mutable_buffer = arena.allocateAudioBuffer<float>(2, 32);
+        applause::BufferView<const float> read_only = mutable_buffer;
+
+        mutable_buffer.store(1, 3, 42.0f);
+        REQUIRE(read_only.load(1, 3) == 42.0f);
     }
 }

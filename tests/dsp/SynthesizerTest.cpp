@@ -33,28 +33,30 @@ struct NoteEventList {
     };
 };
 
-struct CountingVoice : applause::SynthesizerVoice<float, 1> {
-    void process(applause::BufferView<float, 1> buffer, int start_sample, int num_samples) override {
+struct CountingVoice : applause::SynthesizerVoice<float> {
+    void process(applause::BufferView<float> buffer, int start_sample, int num_samples) override {
         ++process_calls;
-        for (int i = 0; i < num_samples; ++i)
-            buffer.add(0, static_cast<size_t>(start_sample + i), 1.0f);
+        for (std::size_t channel = 0; channel < buffer.numChannels(); ++channel) {
+            for (int i = 0; i < num_samples; ++i)
+                buffer.add(channel, static_cast<std::size_t>(start_sample + i), 1.0f);
+        }
     }
 
     int process_calls = 0;
 };
 
-struct SynchronouslyTerminatingVoice : applause::SynthesizerVoice<float, 1> {
-    void process(applause::BufferView<float, 1>, int, int) override {}
+struct SynchronouslyTerminatingVoice : applause::SynthesizerVoice<float> {
+    void process(applause::BufferView<float>, int, int) override {}
     void noteOff(bool) override { terminateVoice(); }
 };
 
-struct DispatchedVoice : applause::SynthesizerVoice<float, 1> {
-    void process(applause::BufferView<float, 1>, int, int) override { ++process_calls; }
+struct DispatchedVoice : applause::SynthesizerVoice<float> {
+    void process(applause::BufferView<float>, int, int) override { ++process_calls; }
 
     int process_calls = 0;
 };
 
-class AggregateTestSynth final : public applause::Synthesizer<float, 1, 4, DispatchedVoice> {
+class AggregateTestSynth final : public applause::Synthesizer<float, 4, DispatchedVoice> {
 public:
     struct Chunk {
         int start = 0;
@@ -65,27 +67,31 @@ public:
     size_t chunk_count = 0;
 
 protected:
-    void renderSubBlock(applause::BufferView<float, 1> buffer, int start_sample, int num_samples) override {
+    void renderSubBlock(applause::BufferView<float> buffer, int start_sample, int num_samples) override {
         chunks[chunk_count++] = {.start = start_sample, .count = num_samples};
         for (int i = 0; i < num_samples; ++i)
-            buffer.add(0, static_cast<size_t>(start_sample + i), 1.0f);
+            buffer.add(0, static_cast<std::size_t>(start_sample + i), 1.0f);
     }
 };
 }  // namespace
 
-TEST_CASE("Synthesizer default sub-block renderer processes each active voice", "[dsp][synthesizer]") {
-    applause::Synthesizer<float, 1, 4, CountingVoice> synth;
+TEST_CASE("Synthesizer default renderer processes runtime-sized stereo buffers", "[dsp][synthesizer]") {
+    applause::Synthesizer<float, 4, CountingVoice> synth;
     auto first_note = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 1, 60);
     auto second_note = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 2, 64);
     synth.noteOn(&first_note);
     synth.noteOn(&second_note);
 
-    std::array<float, 16> samples{};
-    applause::BufferView<float, 1> buffer{samples.data(), 1, samples.size()};
+    std::array<float, 16> left_samples{};
+    std::array<float, 16> right_samples{};
+    std::array<float*, 2> channels{left_samples.data(), right_samples.data()};
+    applause::BufferView<float> buffer{channels.data(), channels.size(), left_samples.size()};
     synth.process(buffer, nullptr);
 
-    for (const auto sample : samples)
-        REQUIRE(sample == 2.0f);
+    for (const auto* channel : channels) {
+        for (std::size_t frame = 0; frame < left_samples.size(); ++frame)
+            REQUIRE(channel[frame] == 2.0f);
+    }
 
     const auto voices = synth.getVoices();
     REQUIRE(voices[0].process_calls == 1);
@@ -95,9 +101,9 @@ TEST_CASE("Synthesizer default sub-block renderer processes each active voice", 
 }
 
 TEST_CASE("Synthesizer keeps a synchronously terminated note-off voice idle", "[dsp][synthesizer]") {
-    using Voice = applause::SynthesizerVoice<float, 1>;
+    using Voice = applause::SynthesizerVoice<float>;
 
-    applause::Synthesizer<float, 1, 1, SynchronouslyTerminatingVoice> synth;
+    applause::Synthesizer<float, 1, SynchronouslyTerminatingVoice> synth;
     auto first_note = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 1, 60);
     auto first_note_off = makeNoteEvent(CLAP_EVENT_NOTE_OFF, 0, 1, 60);
 
@@ -124,7 +130,8 @@ TEST_CASE("Synthesizer override renders once per event-stable sub-block", "[dsp]
     event_list.events.push_back(makeNoteEvent(CLAP_EVENT_NOTE_OFF, 10, 7, 60));
 
     std::array<float, 16> samples{};
-    applause::BufferView<float, 1> buffer{samples.data(), 1, samples.size()};
+    std::array<float*, 1> channels{samples.data()};
+    applause::BufferView<float> buffer{channels.data(), channels.size(), samples.size()};
     synth.process(buffer, &event_list.input);
 
     REQUIRE(synth.chunk_count == 3);

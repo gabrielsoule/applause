@@ -216,7 +216,7 @@ applause::ProcessStatus ExampleShowcasePlugin::process(applause::ProcessContext&
     params_.processEvents(context.inputEvents(), context.outputEvents());
 
     if (!context.audioOutputs().empty())
-        context.output<float, 2>().clear();
+        context.output<float>().clear();
 
     constexpr float kLfoHz = 1.0f;
     constexpr float kTwoPi = 6.28318530718f;

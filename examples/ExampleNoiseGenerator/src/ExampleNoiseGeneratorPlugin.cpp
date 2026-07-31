@@ -47,7 +47,7 @@ applause::ProcessStatus ExampleNoiseGeneratorPlugin::process(applause::ProcessCo
         return applause::ProcessStatus::Sleep;
     }
 
-    auto output = context.output<float, 2>();
+    auto output = context.output<float>();
     output.clear();
 
     // Generate white noise for each frame

@@ -103,16 +103,14 @@ public:
 
     /**
      * Returns a read-only sample view of an input port for the requested sample
-     * type. Returns an empty view if the port, format, channels, or capacity are
-     * unavailable.
+     * type. Returns an empty view if the port, format, or channels are unavailable.
      *
      * @tparam T float or double sample type.
-     * @tparam ChannelCapacity Maximum number of channels the view can hold.
      * @param port Zero-based input port index; defaults to the first port.
      */
-    template <typename T, std::size_t ChannelCapacity>
+    template <typename T>
         requires std::same_as<T, float> || std::same_as<T, double>
-    [[nodiscard]] BufferView<const T, ChannelCapacity> input(std::size_t port = 0) const noexcept {
+    [[nodiscard]] BufferView<const T> input(std::size_t port = 0) const noexcept {
         const auto inputs = audioInputs();
         if (port >= inputs.size()) {
             LOG_ERR("ProcessContext: audio input port {} is unavailable", port);
@@ -120,11 +118,6 @@ public:
         }
 
         const auto& buffer = inputs[port];
-        if (buffer.channel_count > ChannelCapacity) {
-            LOG_ERR("ProcessContext: input port {} has {} channels, capacity is {}", port, buffer.channel_count,
-                    ChannelCapacity);
-            return {};
-        }
         if (buffer.channel_count == 0) return {};
 
         T* const* channels = nullptr;
@@ -144,16 +137,14 @@ public:
 
     /**
      * Returns a writable sample view of an output port for the requested sample
-     * type. Returns an empty view if the port, format, channels, or capacity are
-     * unavailable.
+     * type. Returns an empty view if the port, format, or channels are unavailable.
      *
      * @tparam T float or double sample type.
-     * @tparam ChannelCapacity Maximum number of channels the view can hold.
      * @param port Zero-based output port index; defaults to the first port.
      */
-    template <typename T, std::size_t ChannelCapacity>
+    template <typename T>
         requires std::same_as<T, float> || std::same_as<T, double>
-    [[nodiscard]] BufferView<T, ChannelCapacity> output(std::size_t port = 0) noexcept {
+    [[nodiscard]] BufferView<T> output(std::size_t port = 0) noexcept {
         const auto outputs = audioOutputs();
         if (port >= outputs.size()) {
             LOG_ERR("ProcessContext: audio output port {} is unavailable", port);
@@ -161,11 +152,6 @@ public:
         }
 
         auto& buffer = outputs[port];
-        if (buffer.channel_count > ChannelCapacity) {
-            LOG_ERR("ProcessContext: output port {} has {} channels, capacity is {}", port, buffer.channel_count,
-                    ChannelCapacity);
-            return {};
-        }
         if (buffer.channel_count == 0) return {};
 
         T* const* channels = nullptr;

@@ -4,7 +4,9 @@
 #include <applause/util/SampleType.h>
 
 #include <algorithm>
+#include <bit>
 #include <cassert>
+#include <cstdint>
 #include <limits>
 #include <span>
 #include <vector>
@@ -103,37 +105,121 @@ struct MemoryArena {
                          static_cast<size_t>(count)};
     }
 
-    /** Allocates contiguous channel planes and returns a BufferView wrapper. */
-    template <Sample SampleT, std::size_t Channels>
-    [[nodiscard]] BufferView<SampleT, Channels> allocateAudioBuffer(
-        std::size_t frame_count, std::size_t alignment = defaultByteAlignment) {
-        ASSERT(Channels > 0, "Channel count must be positive");
+    /**
+     * Allocates a channel-pointer table followed by aligned, contiguous channel
+     * planes and returns a view borrowing both. The view and all of its
+     * subviews must not outlive this allocation (or the arena frame containing
+     * it).
+     */
+    template <Sample SampleT>
+    [[nodiscard]] BufferView<SampleT> allocateAudioBuffer(
+        std::size_t channel_count, std::size_t frame_count,
+        std::size_t alignment = defaultByteAlignment) {
+        if (channel_count == 0 || frame_count == 0) {
+            return {};
+        }
 
-        if (frame_count == 0) {
-            return BufferView<SampleT, Channels>{nullptr, 0};
+        if (!std::has_single_bit(alignment)) {
+            ASSERT_FALSE("Audio buffer alignment must be a power of two");
+            return {};
         }
 
         using Scalar = scalar_t<SampleT>;
-
-        constexpr std::size_t sample_alignment = alignof(SampleT);
-        const std::size_t effective_alignment =
-            std::max(alignment, sample_alignment);
-
         constexpr std::size_t width = sampleWidth<SampleT>();
+        constexpr std::size_t max_size =
+            std::numeric_limits<std::size_t>::max();
 
-        ASSERT(frame_count <= std::numeric_limits<std::size_t>::max() / width,
-               "Frame count overflow!");
+        if (channel_count > max_size / sizeof(Scalar*)) {
+            ASSERT_FALSE("Audio buffer channel-pointer table size overflow");
+            return {};
+        }
+        const std::size_t pointer_table_bytes =
+            channel_count * sizeof(Scalar*);
+
+        if (frame_count > max_size / width) {
+            ASSERT_FALSE("Audio buffer channel size overflow");
+            return {};
+        }
         const std::size_t scalars_per_channel = frame_count * width;
-        ASSERT(scalars_per_channel <=
-                   std::numeric_limits<std::size_t>::max() / Channels,
-               "Sample count overflow!");
-        const std::size_t total_scalars = scalars_per_channel * Channels;
 
-        Scalar* storage = allocate<Scalar>(total_scalars, effective_alignment);
-        ASSERT(storage != nullptr,
-               "Storage allocation failed! This should never happen.");
+        if (channel_count > max_size / scalars_per_channel) {
+            ASSERT_FALSE("Audio buffer sample count overflow");
+            return {};
+        }
+        const std::size_t total_scalars =
+            channel_count * scalars_per_channel;
 
-        return BufferView<SampleT, Channels>{storage, frame_count};
+        if (total_scalars > max_size / sizeof(Scalar)) {
+            ASSERT_FALSE("Audio buffer sample storage size overflow");
+            return {};
+        }
+        const std::size_t sample_bytes = total_scalars * sizeof(Scalar);
+        const std::size_t sample_alignment =
+            std::max(alignment, sampleAlignment<SampleT>());
+
+        if (bytes_used_ > raw_data_.size()) {
+            ASSERT_FALSE("MemoryArena allocation state is invalid");
+            return {};
+        }
+
+        const std::size_t remaining_bytes = raw_data_.size() - bytes_used_;
+        if (remaining_bytes == 0) {
+            ASSERT_FALSE("Audio buffer allocation failed: arena exhausted");
+            return {};
+        }
+
+        auto* current = raw_data_.data() + bytes_used_;
+        constexpr std::size_t pointer_alignment = alignof(Scalar*);
+        const auto current_address =
+            reinterpret_cast<std::uintptr_t>(current);
+        const std::size_t allocation_padding =
+            (pointer_alignment - current_address % pointer_alignment) %
+            pointer_alignment;
+
+        if (allocation_padding > remaining_bytes ||
+            pointer_table_bytes > remaining_bytes - allocation_padding) {
+            ASSERT_FALSE("Audio buffer allocation failed: arena exhausted");
+            return {};
+        }
+
+        auto* allocation_start = current + allocation_padding;
+        auto* after_pointer_table = allocation_start + pointer_table_bytes;
+        const auto samples_address =
+            reinterpret_cast<std::uintptr_t>(after_pointer_table);
+        const std::size_t sample_padding =
+            (sample_alignment - samples_address % sample_alignment) %
+            sample_alignment;
+
+        if (pointer_table_bytes > max_size - sample_padding) {
+            ASSERT_FALSE("Audio buffer allocation size overflow");
+            return {};
+        }
+        const std::size_t metadata_bytes =
+            pointer_table_bytes + sample_padding;
+
+        if (sample_bytes > max_size - metadata_bytes ||
+            metadata_bytes + sample_bytes >
+                remaining_bytes - allocation_padding) {
+            ASSERT_FALSE("Audio buffer allocation failed: arena exhausted");
+            return {};
+        }
+        const std::size_t allocation_bytes = metadata_bytes + sample_bytes;
+
+        auto* allocation = static_cast<std::byte*>(
+            allocateBytes(allocation_bytes, pointer_alignment));
+        if (allocation == nullptr) {
+            return {};
+        }
+
+        auto** channels = reinterpret_cast<Scalar**>(allocation);
+        auto* samples =
+            reinterpret_cast<Scalar*>(allocation + metadata_bytes);
+        for (std::size_t channel = 0; channel < channel_count; ++channel) {
+            channels[channel] =
+                samples + channel * scalars_per_channel;
+        }
+
+        return BufferView<SampleT>{channels, channel_count, frame_count};
     }
 
     /** Returns a pointer to the internal buffer with a given offset in bytes */

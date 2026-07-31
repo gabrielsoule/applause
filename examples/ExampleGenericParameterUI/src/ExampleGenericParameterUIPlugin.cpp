@@ -98,8 +98,8 @@ applause::ProcessStatus ExampleGenericParameterUIPlugin::process(applause::Proce
     // Let the parameter module process events.
     params_.processEvents(context.inputEvents(), context.outputEvents());
 
-    auto input = context.input<float, 2>();
-    auto output = context.output<float, 2>();
+    auto input = context.input<float>();
+    auto output = context.output<float>();
 
     const std::size_t channel_count = std::min(input.numChannels(), output.numChannels());
     for (std::size_t channel = 0; channel < channel_count; ++channel) {

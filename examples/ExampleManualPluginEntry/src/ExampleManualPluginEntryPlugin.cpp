@@ -106,7 +106,7 @@ applause::ProcessStatus ExampleManualPluginEntryPlugin::process(applause::Proces
     params_.processEvents(context.inputEvents(), context.outputEvents());
 
     if (!context.audioOutputs().empty())
-        context.output<float, 2>().clear();
+        context.output<float>().clear();
 
     return applause::ProcessStatus::Sleep;
 }

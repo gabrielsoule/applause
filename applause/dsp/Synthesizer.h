@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <span>
 #include <type_traits>
 
@@ -14,26 +15,19 @@
 
 namespace applause {
 /**
- *
- * The voice is templated with both the sample type (float/double) and the
- * maximum number of channels supported by the DSP graph. In practice, the
- * number of active channels can be fewer. For example, one may template with
- * respect to 8 maximum channels, for surround sound compatibility, but work
- * with two-channel stereo sound most of the time.
+ * Base class for a reusable synthesizer voice.
  *
  * @tparam T The sample type of the voice (float or double).
- * @tparam MaxChannels The maximum number of channels supported by the DSP
- * system
  *
  * All voices live in a pool where they can be reused indefinitely.
  */
 
-template <Scalar T, size_t MaxChannels>
+template <Scalar T>
 class SynthesizerVoice {
 public:
     virtual ~SynthesizerVoice() = default;
 
-    virtual void process(BufferView<T, MaxChannels> buffer, int start_sample, int num_samples) = 0;
+    virtual void process(BufferView<T> buffer, int start_sample, int num_samples) = 0;
     /**
      * Terminates the voice immediately, releasing it back into the pool
      * for reuse. The voice should call its own terminateVoice() function
@@ -130,19 +124,16 @@ To use, extend SynthesizerVoice and add your own DSP code. Supports both
 standard MIDI and MPE.
 
 This class is designed for performance and does not do heap allocations.
-Many parameters, such as the maximum number of voices and audio channels,
-are templated at compile time. Sorry!
+The maximum number of voices is fixed at compile time.
 
 @tparam T The sample type (float or double)
-@tparam MaxChannels Maximum number of audio channels
 @tparam NumVoices Maximum number of polyphonic voices
 @tparam VoiceType The concrete voice class (must derive from SynthesizerVoice)
 */
-template <Scalar T, size_t MaxChannels = 8, size_t NumVoices = 16,
-          typename VoiceType = SynthesizerVoice<T, MaxChannels>>
+template <Scalar T, std::size_t NumVoices = 16, typename VoiceType = SynthesizerVoice<T>>
 class Synthesizer {
-    static_assert(std::is_base_of_v<SynthesizerVoice<T, MaxChannels>, VoiceType>,
-                  "VoiceType must derive from SynthesizerVoice<T, MaxChannels>");
+    static_assert(std::is_base_of_v<SynthesizerVoice<T>, VoiceType>,
+                  "VoiceType must derive from SynthesizerVoice<T>");
 
 public:
     Synthesizer() = default;
@@ -160,7 +151,7 @@ public:
     void noteChoke(const clap_event_note_t* event);
     VoiceType& findFreeVoice();
     VoiceType& stealVoice();
-    void process(BufferView<T, MaxChannels> buffer, const clap_input_events_t* events);
+    void process(BufferView<T> buffer, const clap_input_events_t* events);
     [[nodiscard]] std::span<VoiceType> getVoices() noexcept { return voices_; }
 
 protected:
@@ -174,7 +165,7 @@ protected:
      * been applied. Implementations should render only the range
      * [start_sample, start_sample + num_samples).
      */
-    virtual void renderSubBlock(BufferView<T, MaxChannels> buffer, int start_sample, int num_samples);
+    virtual void renderSubBlock(BufferView<T> buffer, int start_sample, int num_samples);
 
 private:
     std::array<VoiceType, NumVoices> voices_;
@@ -182,17 +173,17 @@ private:
     // oldest voice during voice stealing
 };
 
-template <Scalar T, size_t MaxChannels, size_t NumVoices, typename VoiceType>
-void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::activate(ProcessInfo info) {
+template <Scalar T, std::size_t NumVoices, typename VoiceType>
+void Synthesizer<T, NumVoices, VoiceType>::activate(ProcessInfo info) {
     for (auto& voice : voices_) {
         voice.setSampleRate(info.sample_rate);
     }
 }
 
-template <Scalar T, size_t MaxChannels, size_t NumVoices, typename VoiceType>
-VoiceType& Synthesizer<T, MaxChannels, NumVoices, VoiceType>::findFreeVoice() {
+template <Scalar T, std::size_t NumVoices, typename VoiceType>
+VoiceType& Synthesizer<T, NumVoices, VoiceType>::findFreeVoice() {
     for (auto& voice : voices_) {
-        if (!voice.active_ || voice.state_ == SynthesizerVoice<T, MaxChannels>::State::Idle) {
+        if (!voice.active_ || voice.state_ == SynthesizerVoice<T>::State::Idle) {
             return voice;
         }
     }
@@ -200,8 +191,8 @@ VoiceType& Synthesizer<T, MaxChannels, NumVoices, VoiceType>::findFreeVoice() {
     return stealVoice();
 }
 
-template <Scalar T, size_t MaxChannels, size_t NumVoices, typename VoiceType>
-VoiceType& Synthesizer<T, MaxChannels, NumVoices, VoiceType>::stealVoice() {
+template <Scalar T, std::size_t NumVoices, typename VoiceType>
+VoiceType& Synthesizer<T, NumVoices, VoiceType>::stealVoice() {
     VoiceType* oldest = &voices_[0];
     for (auto& voice : voices_) {
         if (voice.play_order_ < oldest->play_order_) {
@@ -213,29 +204,29 @@ VoiceType& Synthesizer<T, MaxChannels, NumVoices, VoiceType>::stealVoice() {
     return *oldest;
 }
 
-template <Scalar T, size_t MaxChannels, size_t NumVoices, typename VoiceType>
-void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::noteOn(const clap_event_note_t* event) {
+template <Scalar T, std::size_t NumVoices, typename VoiceType>
+void Synthesizer<T, NumVoices, VoiceType>::noteOn(const clap_event_note_t* event) {
     VoiceType& voice = findFreeVoice();
 
     // Use Note struct to store all note data with full precision
     voice.note_ = Note::fromNoteOn(event);
     voice.play_order_ = notes_played_++;
-    voice.state_ = SynthesizerVoice<T, MaxChannels>::State::KeyDown;
+    voice.state_ = SynthesizerVoice<T>::State::KeyDown;
     voice.active_ = true;
 
     voice.noteOn();
 }
 
-template <Scalar T, size_t MaxChannels, size_t NumVoices, typename VoiceType>
-void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::noteOff(const clap_event_note_t* event) {
+template <Scalar T, std::size_t NumVoices, typename VoiceType>
+void Synthesizer<T, NumVoices, VoiceType>::noteOff(const clap_event_note_t* event) {
     for (auto& voice : voices_) {
-        if (voice.active_ && voice.state_ == SynthesizerVoice<T, MaxChannels>::State::KeyDown) {
+        if (voice.active_ && voice.state_ == SynthesizerVoice<T>::State::KeyDown) {
             // Use CLAP wildcard matching: (port, channel, key, note_id)
             if (voice.note_.matches(event->key, event->note_id, event->port_index, event->channel)) {
                 voice.note_.setNoteOff(event);
                 voice.noteOff(false);
                 if (voice.active_)
-                    voice.state_ = SynthesizerVoice<T, MaxChannels>::State::Released;
+                    voice.state_ = SynthesizerVoice<T>::State::Released;
                 // If specific note_id provided, only release that one voice
                 if (event->note_id != -1) break;
             }
@@ -243,8 +234,8 @@ void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::noteOff(const clap_event
     }
 }
 
-template <Scalar T, size_t MaxChannels, size_t NumVoices, typename VoiceType>
-void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::noteChoke(const clap_event_note_t* event) {
+template <Scalar T, std::size_t NumVoices, typename VoiceType>
+void Synthesizer<T, NumVoices, VoiceType>::noteChoke(const clap_event_note_t* event) {
     for (auto& voice : voices_) {
         if (voice.active_) {
             // Use CLAP wildcard matching: (port, channel, key, note_id)
@@ -257,10 +248,10 @@ void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::noteChoke(const clap_eve
     }
 }
 
-template <Scalar T, size_t MaxChannels, size_t NumVoices, typename VoiceType>
-void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::renderSubBlock(BufferView<T, MaxChannels> buffer,
-                                                                      int start_sample,
-                                                                      int num_samples) {
+template <Scalar T, std::size_t NumVoices, typename VoiceType>
+void Synthesizer<T, NumVoices, VoiceType>::renderSubBlock(BufferView<T> buffer,
+                                                          int start_sample,
+                                                          int num_samples) {
     for (auto& voice : voices_) {
         if (voice.active_) {
             voice.process(buffer, start_sample, num_samples);
@@ -268,9 +259,9 @@ void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::renderSubBlock(BufferVie
     }
 }
 
-template <Scalar T, size_t MaxChannels, size_t NumVoices, typename VoiceType>
-void Synthesizer<T, MaxChannels, NumVoices, VoiceType>::process(BufferView<T, MaxChannels> buffer,
-                                                                const clap_input_events_t* events) {
+template <Scalar T, std::size_t NumVoices, typename VoiceType>
+void Synthesizer<T, NumVoices, VoiceType>::process(BufferView<T> buffer,
+                                                   const clap_input_events_t* events) {
     buffer.clear();
 
     const uint32_t total_frames = buffer.numFrames();

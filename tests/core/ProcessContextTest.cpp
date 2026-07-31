@@ -86,13 +86,11 @@ concept WritableSamples = requires(Buffer& buffer) {
     *buffer.channelSamples(0) = 1.0f;
 };
 
-using InputView = decltype(std::declval<const ProcessContext&>()
-                               .input<float, 2>());
-using OutputView = decltype(std::declval<ProcessContext&>()
-                                .output<float, 2>());
+using InputView = decltype(std::declval<const ProcessContext&>().input<float>());
+using OutputView = decltype(std::declval<ProcessContext&>().output<float>());
 
-static_assert(std::same_as<InputView, BufferView<const float, 2>>);
-static_assert(std::same_as<OutputView, BufferView<float, 2>>);
+static_assert(std::same_as<InputView, BufferView<const float>>);
+static_assert(std::same_as<OutputView, BufferView<float>>);
 static_assert(!WritableSamples<InputView>);
 static_assert(WritableSamples<OutputView>);
 
@@ -148,8 +146,8 @@ TEST_CASE("ProcessContext creates typed views for each audio port",
     ProcessContext context{fixture.process};
 
     SECTION("the default port selects float input and output buffers") {
-        auto input = context.input<float, 2>();
-        auto output = context.output<float, 2>();
+        auto input = context.input<float>();
+        auto output = context.output<float>();
 
         REQUIRE(input.numChannels() == 2);
         REQUIRE(input.numFrames() == kFrames);
@@ -166,8 +164,8 @@ TEST_CASE("ProcessContext creates typed views for each audio port",
     }
 
     SECTION("an explicit port selects double input and output buffers") {
-        auto input = context.input<double, 1>(1);
-        auto output = context.output<double, 1>(1);
+        auto input = context.input<double>(1);
+        auto output = context.output<double>(1);
 
         REQUIRE(input.numChannels() == 1);
         REQUIRE(input.numFrames() == kFrames);
@@ -180,6 +178,36 @@ TEST_CASE("ProcessContext creates typed views for each audio port",
         output.store(0, 2, 84.0);
         REQUIRE(fixture.output_double[2] == 84.0);
     }
+
+    SECTION("the runtime channel count is not capped by the view type") {
+        constexpr std::size_t channel_count = 9;
+        std::array<std::array<float, kFrames>, channel_count> input_samples{};
+        std::array<std::array<float, kFrames>, channel_count> output_samples{};
+        std::array<float*, channel_count> input_channels{};
+        std::array<float*, channel_count> output_channels{};
+
+        for (std::size_t channel = 0; channel < channel_count; ++channel) {
+            input_channels[channel] = input_samples[channel].data();
+            output_channels[channel] = output_samples[channel].data();
+        }
+
+        fixture.inputs[0].data32 = input_channels.data();
+        fixture.inputs[0].channel_count =
+            static_cast<uint32_t>(channel_count);
+        fixture.outputs[0].data32 = output_channels.data();
+        fixture.outputs[0].channel_count =
+            static_cast<uint32_t>(channel_count);
+
+        const auto input = context.input<float>();
+        auto output = context.output<float>();
+
+        REQUIRE(input.numChannels() == channel_count);
+        REQUIRE(input.channelSamples(channel_count - 1) ==
+                input_samples.back().data());
+        REQUIRE(output.numChannels() == channel_count);
+        REQUIRE(output.channelSamples(channel_count - 1) ==
+                output_samples.back().data());
+    }
 }
 
 TEST_CASE("ProcessContext returns empty views for unavailable audio",
@@ -188,8 +216,8 @@ TEST_CASE("ProcessContext returns empty views for unavailable audio",
     ProcessContext context{fixture.process};
 
     SECTION("missing ports") {
-        const auto input = context.input<float, 2>(fixture.inputs.size());
-        const auto output = context.output<float, 2>(fixture.outputs.size());
+        const auto input = context.input<float>(fixture.inputs.size());
+        const auto output = context.output<float>(fixture.outputs.size());
         REQUIRE(input.numChannels() == 0);
         REQUIRE(input.numFrames() == 0);
         REQUIRE(output.numChannels() == 0);
@@ -197,8 +225,8 @@ TEST_CASE("ProcessContext returns empty views for unavailable audio",
     }
 
     SECTION("the requested precision is unavailable") {
-        const auto input = context.input<double, 2>();
-        const auto output = context.output<double, 2>();
+        const auto input = context.input<double>();
+        const auto output = context.output<double>();
         REQUIRE(input.numChannels() == 0);
         REQUIRE(input.numFrames() == 0);
         REQUIRE(output.numChannels() == 0);
@@ -209,8 +237,8 @@ TEST_CASE("ProcessContext returns empty views for unavailable audio",
         fixture.inputs[0].data32 = nullptr;
         fixture.outputs[0].data32 = nullptr;
 
-        const auto input = context.input<float, 2>();
-        const auto output = context.output<float, 2>();
+        const auto input = context.input<float>();
+        const auto output = context.output<float>();
         REQUIRE(input.numChannels() == 0);
         REQUIRE(input.numFrames() == 0);
         REQUIRE(output.numChannels() == 0);
@@ -221,17 +249,8 @@ TEST_CASE("ProcessContext returns empty views for unavailable audio",
         fixture.input_float_channels[1] = nullptr;
         fixture.output_float_channels[1] = nullptr;
 
-        const auto input = context.input<float, 2>();
-        const auto output = context.output<float, 2>();
-        REQUIRE(input.numChannels() == 0);
-        REQUIRE(input.numFrames() == 0);
-        REQUIRE(output.numChannels() == 0);
-        REQUIRE(output.numFrames() == 0);
-    }
-
-    SECTION("the runtime channel count exceeds the view capacity") {
-        const auto input = context.input<float, 1>();
-        const auto output = context.output<float, 1>();
+        const auto input = context.input<float>();
+        const auto output = context.output<float>();
         REQUIRE(input.numChannels() == 0);
         REQUIRE(input.numFrames() == 0);
         REQUIRE(output.numChannels() == 0);
@@ -248,8 +267,8 @@ TEST_CASE("ProcessContext handles null CLAP audio arrays",
 
     REQUIRE(context.audioInputs().empty());
     REQUIRE(context.audioOutputs().empty());
-    REQUIRE((context.input<float, 2>().numChannels() == 0));
-    REQUIRE((context.output<float, 2>().numChannels() == 0));
+    REQUIRE(context.input<float>().numChannels() == 0);
+    REQUIRE(context.output<float>().numChannels() == 0);
 }
 
 TEST_CASE("PluginBase dispatches ProcessStatus values to CLAP",

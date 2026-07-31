@@ -3,8 +3,6 @@
 #include <applause/util/DebugHelpers.h>
 #include <applause/util/SampleType.h>
 
-#include <algorithm>
-#include <array>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -15,22 +13,26 @@
 
 namespace applause {
 /**
- * Non-owning view over a planar audio buffer with capacity for MaxChannels.
- * The active channel count is tracked at runtime and may be smaller than that
- * capacity. Each channel contains samples in time order and may live at an
- * arbitrary memory location.
+ * Non-owning view over a planar audio buffer. Each channel contains samples in
+ * time order and may live at an arbitrary memory location.
  *
  * Samples can be either raw floats/doubles or SIMD batches. A SIMD batch is
  * one time-domain frame whose lanes represent parallel streams such as voices.
+ * Storage is always addressed as the underlying scalar type; SIMD values are
+ * transferred with explicit aligned loads and stores.
  *
- * It is recommended that a MemoryArena be used to allocate memory for this
- * class. It is the responsibility of the developer to ensure that underlying
- * memory is allocated and freed in a way that is compatible with the lifetime
- * of the BufferView.
+ * BufferView borrows both the channel-pointer table and the sample storage. The
+ * table, every pointer stored in it, and all referenced samples must remain
+ * valid for the lifetime of the view and any subviews created from it. A
+ * MemoryArena can be used to give the table and samples a shared lifetime.
  */
-template <typename S, std::size_t MaxChannels = 8>
+template <typename S>
     requires Sample<std::remove_const_t<S>>
 class BufferView {
+    template <typename OtherSample>
+        requires Sample<std::remove_const_t<OtherSample>>
+    friend class BufferView;
+
 public:
     using Sample = S;
     using Value = std::remove_const_t<Sample>;
@@ -38,32 +40,35 @@ public:
     using ScalarElement =
         std::conditional_t<std::is_const_v<Sample>, const Scalar, Scalar>;
 
-    static constexpr std::size_t max_channel_count = MaxChannels;
     static constexpr std::size_t sample_width = sampleWidth<Value>();
     static constexpr bool is_simd = SimdBatch<Value>;
-    static_assert(sample_width * sizeof(Scalar) == sizeof(Value),
-                  "BufferView requires Sample to be tightly packed scalars");
+    static_assert(
+        sample_width * sizeof(Scalar) % sampleAlignment<Value>() == 0,
+        "BufferView requires every scalar-backed frame to remain aligned");
 
     /**
      * A lightweight view over a single channel. Grabbing one of these, and then
      * iterating through all the samples in a channel, is marginally more
-     * efficient using the buffer's load/store function, since you only need to
-     * compute the channel offset once.
+     * efficient than using the buffer's load/store functions, since the channel
+     * pointer is resolved only once.
      */
     class ChannelView {
     public:
-        constexpr ChannelView(Sample* base, std::size_t frames) noexcept
+        constexpr ChannelView(ScalarElement* base,
+                              std::size_t frames) noexcept
             : base_{base}, frame_count_{frames} {}
 
         [[nodiscard]] Value load(std::size_t frame) const noexcept {
             ASSERT(frame < frame_count_, "ChannelView: frame out of range");
-            return base_[frame];
+            return applause::load_aligned<Value>(
+                base_ + frame * sample_width);
         }
 
         void store(std::size_t frame, const Value& value) const noexcept
             requires(!std::is_const_v<Sample>) {
             ASSERT(frame < frame_count_, "ChannelView: frame out of range");
-            base_[frame] = value;
+            applause::store_aligned<Value>(
+                value, base_ + frame * sample_width);
         }
 
         /**
@@ -73,10 +78,20 @@ public:
         void add(std::size_t frame, const Value& value) const noexcept
             requires(!std::is_const_v<Sample>) {
             ASSERT(frame < frame_count_, "ChannelView: frame out of range");
-            base_[frame] += value;
+            auto* frame_ptr = base_ + frame * sample_width;
+            applause::store_aligned<Value>(
+                applause::load_aligned<Value>(frame_ptr) + value,
+                frame_ptr);
         }
 
-        [[nodiscard]] Sample* samplePtr(std::size_t frame) const noexcept {
+        /** Broadcasts and adds a scalar value to every lane of a SIMD sample. */
+        void add(std::size_t frame, Scalar value) const noexcept
+            requires(!std::is_const_v<Sample> && is_simd) {
+            add(frame, applause::set1<Value>(value));
+        }
+
+        [[nodiscard]] Sample* samplePtr(std::size_t frame) const noexcept
+            requires(!is_simd) {
             ASSERT(frame < frame_count_, "ChannelView: frame out of range");
             return base_ + frame;
         }
@@ -84,71 +99,37 @@ public:
         [[nodiscard]] ScalarElement* framePtr(
             std::size_t frame) const noexcept {
             ASSERT(frame < frame_count_, "ChannelView: frame out of range");
-            return reinterpret_cast<ScalarElement*>(base_ + frame);
+            return base_ + frame * sample_width;
         }
 
-        [[nodiscard]] Sample* data() const noexcept { return base_; }
+        [[nodiscard]] ScalarElement* scalarData() const noexcept {
+            return base_;
+        }
+
+        [[nodiscard]] Sample* data() const noexcept
+            requires(!is_simd) {
+            return base_;
+        }
+
         [[nodiscard]] std::size_t frames() const noexcept {
             return frame_count_;
         }
 
     private:
-        Sample* base_ = nullptr;
+        ScalarElement* base_ = nullptr;
         std::size_t frame_count_ = 0;
     };
 
     constexpr BufferView() noexcept = default;
 
     /**
-     * Constructor for contiguous memory layout (sequential channel planes)
-     * Channels are stored sequentially: all of channel 0, then all of channel
-     * 1, etc.
-     */
-    constexpr BufferView(ScalarElement* base_ptr, std::size_t channel_count,
-                         std::size_t frame_count) noexcept {
-        if (channel_count > MaxChannels) {
-            LOG_ERR("BufferView: channel count {} exceeds capacity {}",
-                    channel_count, MaxChannels);
-            return;
-        }
-        if (base_ptr == nullptr && channel_count != 0 && frame_count != 0) {
-            LOG_ERR(
-                "BufferView: null base pointer with nonzero channel and frame counts");
-            return;
-        }
-        if (base_ptr != nullptr &&
-            reinterpret_cast<std::uintptr_t>(base_ptr) % alignof(Value) != 0) {
-            LOG_ERR("BufferView: base pointer not aligned for sample type");
-            return;
-        }
-
-        frame_count_ = frame_count;
-        active_channels_ = channel_count;
-        Sample* base_sample = reinterpret_cast<Sample*>(base_ptr);
-        for (std::size_t ch = 0; ch < active_channels_; ++ch) {
-            channel_ptrs_[ch] =
-                base_sample ? base_sample + ch * frame_count_ : nullptr;
-        }
-        for (std::size_t ch = active_channels_; ch < MaxChannels; ++ch) {
-            channel_ptrs_[ch] = nullptr;
-        }
-    }
-
-    /**
-     * Compatibility overload that assumes all template channels are active.
-     */
-    constexpr BufferView(ScalarElement* base_ptr,
-                         std::size_t frame_count) noexcept
-        : BufferView(base_ptr, MaxChannels, frame_count) {}
-
-    /**
-     * Convenience constructor for hosts that expose raw `float**`
-     * buffers. Each pointer represents one channel plane that may live at an
-     * arbitrary location. Contiguity can be queried with isContiguous().
+     * Constructs a view over a borrowed table of channel pointers. Each pointer
+     * represents one channel plane that may live at an arbitrary location.
+     * Contiguity can be queried with isContiguous().
      *
-     * @param channels_ptr Pointer to the array of per-channel buffers supplied
-     * by the host
-     * @param frame_count  Number of frames available in each channel
+     * @param channels_ptr Borrowed table of per-channel buffers
+     * @param channel_count Number of pointers in the table
+     * @param frame_count Number of frames available in each channel
      */
     template <typename InputScalar>
         requires std::same_as<std::remove_const_t<InputScalar>, Scalar> &&
@@ -156,13 +137,15 @@ public:
     constexpr BufferView(InputScalar* const* channels_ptr,
                          std::size_t channel_count,
                          std::size_t frame_count) noexcept {
-        if (channel_count > MaxChannels) {
-            LOG_ERR("BufferView: channel count {} exceeds capacity {}",
-                    channel_count, MaxChannels);
-            return;
-        }
         if (channels_ptr == nullptr && channel_count != 0) {
             LOG_ERR("BufferView: null channel pointer array");
+            return;
+        }
+        constexpr std::size_t max_size =
+            std::numeric_limits<std::size_t>::max();
+        if (frame_count > max_size / sample_width ||
+            frame_count * sample_width > max_size / sizeof(Scalar)) {
+            LOG_ERR("BufferView: frame count exceeds addressable sample storage");
             return;
         }
         for (std::size_t c = 0; c < channel_count; ++c) {
@@ -172,7 +155,7 @@ public:
             }
             if (channels_ptr[c] != nullptr &&
                 reinterpret_cast<std::uintptr_t>(channels_ptr[c]) %
-                        alignof(Value) !=
+                        sampleAlignment<Value>() !=
                     0) {
                 LOG_ERR(
                     "BufferView: channel {} pointer not aligned for sample type",
@@ -181,21 +164,9 @@ public:
             }
         }
 
+        channel_ptrs_ = channels_ptr;
+        channel_count_ = channel_count;
         frame_count_ = frame_count;
-        active_channels_ = channel_count;
-
-        // Copy channel pointers supplied by the host
-        using InputSample =
-            std::conditional_t<std::is_const_v<InputScalar>, const Value,
-                               Value>;
-        for (std::size_t ch = 0; ch < active_channels_; ++ch) {
-            channel_ptrs_[ch] =
-                reinterpret_cast<InputSample*>(channels_ptr[ch]);
-        }
-        // Zero remaining pointers for safety
-        for (std::size_t ch = active_channels_; ch < MaxChannels; ++ch) {
-            channel_ptrs_[ch] = nullptr;
-        }
     }
 
     /** Converts a writable view to a read-only view without copying samples. */
@@ -203,13 +174,11 @@ public:
         requires std::is_const_v<Sample> &&
                  std::same_as<OtherSample, Value>
     constexpr BufferView(
-        const BufferView<OtherSample, MaxChannels>& other) noexcept
-        : frame_count_{other.numFrames()},
-          active_channels_{other.numChannels()} {
-        for (std::size_t ch = 0; ch < active_channels_; ++ch) {
-            channel_ptrs_[ch] = other.channelSamples(ch);
-        }
-    }
+        const BufferView<OtherSample>& other) noexcept
+        : channel_ptrs_{other.channel_ptrs_},
+          channel_count_{other.channel_count_},
+          frame_count_{other.frame_count_},
+          frame_offset_{other.frame_offset_} {}
 
     [[nodiscard]] constexpr std::size_t numFrames() const noexcept {
         return frame_count_;
@@ -221,55 +190,114 @@ public:
         return frame_count_;
     }
     [[nodiscard]] constexpr std::size_t numChannels() const noexcept {
-        return active_channels_;
+        return channel_count_;
     }
 
     [[nodiscard]] bool isValid() const noexcept {
-        if (active_channels_ == 0 || frame_count_ == 0) return true;
-        for (std::size_t ch = 0; ch < active_channels_; ++ch) {
-            if (channel_ptrs_[ch] == nullptr) return false;
+        if (channel_count_ == 0 || frame_count_ == 0) return true;
+        if (channel_ptrs_ == nullptr) return false;
+        for (std::size_t ch = 0; ch < channel_count_; ++ch) {
+            const Scalar* ptr = channelScalars(ch);
+            if (ptr == nullptr ||
+                reinterpret_cast<std::uintptr_t>(ptr) %
+                        sampleAlignment<Value>() !=
+                    0) {
+                return false;
+            }
         }
         return true;
     }
 
     [[nodiscard]] bool isContiguous() const noexcept {
         if (!isValid()) return false;
-        if (active_channels_ <= 1 || frame_count_ == 0) return true;
-        Sample* base = channel_ptrs_[0];
-        for (std::size_t ch = 1; ch < active_channels_; ++ch) {
-            if (channel_ptrs_[ch] != base + ch * frame_count_) return false;
+        if (channel_count_ <= 1 || frame_count_ == 0) return true;
+
+        if (frame_count_ >
+            std::numeric_limits<std::size_t>::max() / sample_width) {
+            return false;
+        }
+        const std::size_t scalar_count = frame_count_ * sample_width;
+        if (scalar_count >
+            std::numeric_limits<std::uintptr_t>::max() / sizeof(Scalar)) {
+            return false;
+        }
+        const auto channel_bytes =
+            static_cast<std::uintptr_t>(scalar_count * sizeof(Scalar));
+
+        const auto base = reinterpret_cast<std::uintptr_t>(channelScalars(0));
+        for (std::size_t ch = 1; ch < channel_count_; ++ch) {
+            if (ch >
+                (std::numeric_limits<std::uintptr_t>::max() - base) /
+                    channel_bytes) {
+                return false;
+            }
+            const auto offset = ch * channel_bytes;
+            if (reinterpret_cast<std::uintptr_t>(channelScalars(ch)) !=
+                    base + offset) {
+                return false;
+            }
         }
         return true;
     }
 
-    [[nodiscard]] Sample* channelSamples(std::size_t channel) noexcept {
-        ASSERT(channel < active_channels_,
-               "BufferView: channel index out of range");
-        return channel_ptrs_[channel];
-    }
-
-    [[nodiscard]] Sample* channelSamples(std::size_t channel) const noexcept {
-        ASSERT(channel < active_channels_,
-               "BufferView: channel index out of range");
-        return channel_ptrs_[channel];
-    }
-
-    [[nodiscard]] std::span<Sample> channelSampleSpan(
+    /**
+     * Returns the scalar storage for a channel at the first visible frame.
+     * SIMD frames occupy sample_width consecutive scalar elements.
+     */
+    [[nodiscard]] ScalarElement* channelScalars(
         std::size_t channel) noexcept {
-        Sample* ptr = channelSamples(channel);
+        ASSERT(channel < channel_count_,
+               "BufferView: channel index out of range");
+        ScalarElement* ptr = channel_ptrs_[channel];
+        return ptr ? ptr + frame_offset_ * sample_width : nullptr;
+    }
+
+    [[nodiscard]] ScalarElement* channelScalars(
+        std::size_t channel) const noexcept {
+        ASSERT(channel < channel_count_,
+               "BufferView: channel index out of range");
+        ScalarElement* ptr = channel_ptrs_[channel];
+        return ptr ? ptr + frame_offset_ * sample_width : nullptr;
+    }
+
+    [[nodiscard]] std::span<ScalarElement> channelScalarSpan(
+        std::size_t channel) noexcept {
+        ScalarElement* ptr = channelScalars(channel);
         if (frame_count_ == 0 || ptr == nullptr) {
             return {};
         }
-        return {ptr, frame_count_};
+        return {ptr, scalarsPerChannel()};
+    }
+
+    [[nodiscard]] std::span<ScalarElement> channelScalarSpan(
+        std::size_t channel) const noexcept {
+        ScalarElement* ptr = channelScalars(channel);
+        if (frame_count_ == 0 || ptr == nullptr) {
+            return {};
+        }
+        return {ptr, scalarsPerChannel()};
+    }
+
+    [[nodiscard]] Sample* channelSamples(std::size_t channel) noexcept
+        requires(!is_simd) {
+        return channelScalars(channel);
+    }
+
+    [[nodiscard]] Sample* channelSamples(std::size_t channel) const noexcept
+        requires(!is_simd) {
+        return channelScalars(channel);
     }
 
     [[nodiscard]] std::span<Sample> channelSampleSpan(
-        std::size_t channel) const noexcept {
-        Sample* ptr = channelSamples(channel);
-        if (frame_count_ == 0 || ptr == nullptr) {
-            return {};
-        }
-        return {ptr, frame_count_};
+        std::size_t channel) noexcept
+        requires(!is_simd) {
+        return channelScalarSpan(channel);
+    }
+
+    [[nodiscard]] std::span<Sample> channelSampleSpan(
+        std::size_t channel) const noexcept
+        requires(!is_simd) {
+        return channelScalarSpan(channel);
     }
 
     /**
@@ -279,10 +307,9 @@ public:
      * at `start_frame` and ending at `end_frame` (exclusive).
      *
      * The subview will still have the same sample type and channel count as its
-     * parent; this function only slices across the frame (time) axis. Note that
-     * the resulting view is only contiguous when either the original view was
-     * contiguous and the slice spans the full frame range, or the view contains
-     * a single channel.
+     * parent; this function only slices across the frame (time) axis.
+     * isContiguous() evaluates the selected channel ranges, so a partial slice
+     * of an ordinarily contiguous multi-channel buffer is not contiguous.
      *
      * @param start_frame The index of the first frame in the subview. Must be
      * less than or equal to `end_frame`.
@@ -298,18 +325,9 @@ public:
         ASSERT(end_frame <= frame_count_,
                "BufferView::getSubView: end frame out of range");
 
-        BufferView sub{};
-        const std::size_t sub_frames = end_frame - start_frame;
-        sub.frame_count_ = sub_frames;
-        sub.active_channels_ = active_channels_;
-
-        for (std::size_t ch = 0; ch < active_channels_; ++ch) {
-            Sample* src = channel_ptrs_[ch];
-            sub.channel_ptrs_[ch] = src ? (src + start_frame) : nullptr;
-        }
-        for (std::size_t ch = active_channels_; ch < MaxChannels; ++ch) {
-            sub.channel_ptrs_[ch] = nullptr;
-        }
+        BufferView sub = *this;
+        sub.frame_count_ = end_frame - start_frame;
+        sub.frame_offset_ += start_frame;
 
         return sub;
     }
@@ -317,18 +335,20 @@ public:
     [[nodiscard]] Value load(std::size_t channel,
                              std::size_t frame) const noexcept {
         ASSERT(frame < frame_count_, "BufferView::load: frame out of range");
-        Sample* ptr = channelSamples(channel);
+        ScalarElement* ptr = channelScalars(channel);
         ASSERT(ptr != nullptr, "BufferView::load: null channel pointer");
-        return ptr[frame];
+        return applause::load_aligned<Value>(
+            ptr + frame * sample_width);
     }
 
     void store(std::size_t channel, std::size_t frame,
                const Value& value) const noexcept
         requires(!std::is_const_v<Sample>) {
         ASSERT(frame < frame_count_, "BufferView::store: frame out of range");
-        Sample* ptr = channelSamples(channel);
+        ScalarElement* ptr = channelScalars(channel);
         ASSERT(ptr != nullptr, "BufferView::store: null channel pointer");
-        ptr[frame] = value;
+        applause::store_aligned<Value>(
+            value, ptr + frame * sample_width);
     }
 
     /**
@@ -336,17 +356,23 @@ public:
      * Equivalent to: store(ch, frame, load(ch, frame) + value), but more efficient.
      */
     void add(std::size_t channel, std::size_t frame,
-             Scalar value) const noexcept
+             const Value& value) const noexcept
         requires(!std::is_const_v<Sample>) {
         ASSERT(frame < frame_count_, "BufferView::add: frame out of range");
-        Sample* ptr = channelSamples(channel);
+        ScalarElement* ptr = channelScalars(channel);
         if (!ptr) return;
 
-        if constexpr (is_simd) {
-            ptr[frame] += applause::set1<Value>(value);
-        } else {
-            ptr[frame] += value;
-        }
+        auto* frame_ptr = ptr + frame * sample_width;
+        applause::store_aligned<Value>(
+            applause::load_aligned<Value>(frame_ptr) + value,
+            frame_ptr);
+    }
+
+    /** Broadcasts and adds a scalar value to every lane of a SIMD sample. */
+    void add(std::size_t channel, std::size_t frame,
+             Scalar value) const noexcept
+        requires(!std::is_const_v<Sample> && is_simd) {
+        add(channel, frame, applause::set1<Value>(value));
     }
 
     /**
@@ -356,10 +382,10 @@ public:
         requires(!std::is_const_v<Sample>) {
         if (frame_count_ == 0) return;
         const std::size_t bytes = scalarsPerChannel() * sizeof(Scalar);
-        for (std::size_t ch = 0; ch < active_channels_; ++ch) {
-            Sample* ptr = channel_ptrs_[ch];
+        for (std::size_t ch = 0; ch < channel_count_; ++ch) {
+            ScalarElement* ptr = channelScalars(ch);
             if (ptr != nullptr) {
-                std::memset(reinterpret_cast<Scalar*>(ptr), 0, bytes);
+                std::memset(ptr, 0, bytes);
             }
         }
     }
@@ -369,33 +395,27 @@ public:
      */
     void clearChannel(std::size_t channel) const noexcept
         requires(!std::is_const_v<Sample>) {
-        ASSERT(channel < active_channels_,
+        ASSERT(channel < channel_count_,
                "BufferView: channel index out of range");
-        Sample* channel_ptr = channelSamples(channel);
+        ScalarElement* channel_ptr = channelScalars(channel);
         if (channel_ptr == nullptr) return;
 
-        std::memset(reinterpret_cast<Scalar*>(channel_ptr), 0,
-                    scalarsPerChannel() * sizeof(Scalar));
+        std::memset(channel_ptr, 0, scalarsPerChannel() * sizeof(Scalar));
     }
 
     [[nodiscard]] ChannelView channel(std::size_t ch) noexcept {
-        return ChannelView(channelSamples(ch), frame_count_);
+        return ChannelView(channelScalars(ch), frame_count_);
     }
 
     [[nodiscard]] ChannelView channel(std::size_t ch) const noexcept {
-        return ChannelView(channelSamples(ch), frame_count_);
+        return ChannelView(channelScalars(ch), frame_count_);
     }
 
 private:
+    ScalarElement* const* channel_ptrs_ = nullptr;
+    std::size_t channel_count_ = 0;
     std::size_t frame_count_ = 0;
-    std::size_t active_channels_ = 0;
-    std::array<Sample*, MaxChannels> channel_ptrs_{};
+    std::size_t frame_offset_ = 0;
 };
-
-// Common buffer type aliases for convenience
-using MonoBuffer = BufferView<float, 1>;
-using StereoBuffer = BufferView<float, 2>;
-using SurroundBuffer = BufferView<float, 8>;
-using FlexBuffer = BufferView<float, 8>;  // Flexible up to 7.1 surround
 
 }  // namespace applause
