@@ -11,7 +11,7 @@
 constexpr float kPi = 3.14159265358979323846f;
 constexpr float kTwoPi = 2.0f * kPi;
 
-class SineWaveVoice : public applause::SynthesizerVoice<float, 2> {
+class SineWaveVoice final : public applause::SynthesizerVoice<float> {
 public:
     void noteOn() override {
         const float frequency = static_cast<float>(note_.getFrequency());
@@ -29,7 +29,8 @@ public:
         }
     }
 
-    void onExpressionChange(applause::Note::Expression expression_id, double value) override {
+    void onExpressionChange(applause::Note::Expression expression_id,
+                            double value) override {
         // React to expression changes by recalculating cached values
         if (expression_id == applause::Note::Expression::Tuning) {
             const float frequency = static_cast<float>(note_.getFrequency());
@@ -42,7 +43,8 @@ public:
         // Note::Expression::Pressure: modulate amplitude or vibrato (MPE Z-axis)
     }
 
-    void process(applause::BufferView<float, 2> buffer, int start_sample, int num_samples) override {
+    void process(BufferType buffer, int start_sample,
+                 int num_samples) override {
         const float velocity_scale = static_cast<float>(note_.note_on_velocity);
         const float attack_samples = static_cast<float>(sample_rate_ * 0.01);
 
@@ -104,6 +106,6 @@ private:
     applause::AudioPortsExtension audio_ports_;
     applause::StateExtension state_;
 
-    applause::Synthesizer<float, 2, 16, SineWaveVoice> synth_;
+    applause::Synthesizer<SineWaveVoice, 16> synth_;
     double sample_rate_ = 44100.0;
 };

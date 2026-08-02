@@ -41,7 +41,7 @@ applause::ProcessStatus ExampleSineWaveSynthPlugin::process(
         return applause::ProcessStatus::Sleep;
     }
 
-    synth_.process(context.output<float, 2>(), context.inputEvents());
+    synth_.process(context.output<float>(), context.inputEvents());
 
     return applause::ProcessStatus::Continue;
 }

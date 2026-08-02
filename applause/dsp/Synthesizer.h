@@ -25,18 +25,15 @@ namespace applause {
 template <Scalar T>
 class SynthesizerVoice {
 public:
+    using SampleType = T;
+    using BufferType = BufferView<T>;
+
     virtual ~SynthesizerVoice() = default;
 
-    virtual void process(BufferView<T> buffer, int start_sample, int num_samples) = 0;
-    /**
-     * Terminates the voice immediately, releasing it back into the pool
-     * for reuse. The voice should call its own terminateVoice() function
-     * once its corresponding key has been released and it is no longer
-     * producing any audio.
-     *
-     * Make sure to fade out your voice's audio before terminating the voice!
-     */
+    virtual void process(BufferType buffer, int start_sample,
+                         int num_samples) = 0;
 
+    /** Called after the synthesizer initializes this voice's note state. */
     virtual void noteOn() {}
 
     /**
@@ -63,7 +60,7 @@ public:
      *
      * Voices that cache computed values (like phase increment from frequency)
      * should override this to recalculate when relevant expressions change.
-     *      * @param expression_id The expression that changed (Note::Expression::Tuning, etc.)
+     * @param expression_id The expression that changed (Note::Expression::Tuning, etc.)
      * @param value The new value for this expression
      *
      * Example:
@@ -76,9 +73,7 @@ public:
      * }
      * @endcode
      */
-    virtual void onExpressionChange(Note::Expression expression_id, double value) {
-        // Default: do nothing (voice implementation may recalculate per-sample instead)
-    }
+    virtual void onExpressionChange(Note::Expression, double) {}
 
     /**
      * Mark this voice as finished with the current note, releasing it back into
@@ -126,16 +121,27 @@ standard MIDI and MPE.
 This class is designed for performance and does not do heap allocations.
 The maximum number of voices is fixed at compile time.
 
-@tparam T The sample type (float or double)
+@tparam Voice The concrete voice class
 @tparam NumVoices Maximum number of polyphonic voices
-@tparam VoiceType The concrete voice class (must derive from SynthesizerVoice)
 */
-template <Scalar T, std::size_t NumVoices = 16, typename VoiceType = SynthesizerVoice<T>>
+template <typename Voice, std::size_t NumVoices = 16>
 class Synthesizer {
-    static_assert(std::is_base_of_v<SynthesizerVoice<T>, VoiceType>,
-                  "VoiceType must derive from SynthesizerVoice<T>");
-
 public:
+    using VoiceType = Voice;
+    using SampleType = typename VoiceType::SampleType;
+    using BufferType = typename VoiceType::BufferType;
+    using VoiceBase = SynthesizerVoice<SampleType>;
+
+    static_assert(Scalar<SampleType>,
+                  "Synthesizer voice sample type must be float or double");
+    static_assert(std::is_convertible_v<VoiceType*, VoiceBase*>,
+                  "Voice must publicly derive from SynthesizerVoice<SampleType>");
+    static_assert(std::is_same_v<BufferType, BufferView<SampleType>>,
+                  "Voice BufferType must be BufferView<SampleType>");
+    static_assert(std::is_default_constructible_v<VoiceType>,
+                  "Voice must be concrete and default-constructible");
+    static_assert(NumVoices > 0, "Synthesizer requires at least one voice");
+
     Synthesizer() = default;
     Synthesizer(const Synthesizer&) = default;
     Synthesizer(Synthesizer&&) = default;
@@ -143,7 +149,9 @@ public:
     Synthesizer& operator=(Synthesizer&&) = default;
     virtual ~Synthesizer() = default;
 
-    [[nodiscard]] int getNumVoices() const noexcept { return NumVoices; }
+    [[nodiscard]] std::size_t getNumVoices() const noexcept {
+        return NumVoices;
+    }
 
     void activate(ProcessInfo info);
     void noteOn(const clap_event_note_t* event);
@@ -151,7 +159,7 @@ public:
     void noteChoke(const clap_event_note_t* event);
     VoiceType& findFreeVoice();
     VoiceType& stealVoice();
-    void process(BufferView<T> buffer, const clap_input_events_t* events);
+    void process(BufferType buffer, const clap_input_events_t* events);
     [[nodiscard]] std::span<VoiceType> getVoices() noexcept { return voices_; }
 
 protected:
@@ -165,7 +173,8 @@ protected:
      * been applied. Implementations should render only the range
      * [start_sample, start_sample + num_samples).
      */
-    virtual void renderSubBlock(BufferView<T> buffer, int start_sample, int num_samples);
+    virtual void renderSubBlock(BufferType buffer, int start_sample,
+                                int num_samples);
 
 private:
     std::array<VoiceType, NumVoices> voices_;
@@ -173,17 +182,18 @@ private:
     // oldest voice during voice stealing
 };
 
-template <Scalar T, std::size_t NumVoices, typename VoiceType>
-void Synthesizer<T, NumVoices, VoiceType>::activate(ProcessInfo info) {
+template <typename Voice, std::size_t NumVoices>
+void Synthesizer<Voice, NumVoices>::activate(ProcessInfo info) {
     for (auto& voice : voices_) {
-        voice.setSampleRate(info.sample_rate);
+        static_cast<VoiceBase&>(voice).setSampleRate(info.sample_rate);
     }
 }
 
-template <Scalar T, std::size_t NumVoices, typename VoiceType>
-VoiceType& Synthesizer<T, NumVoices, VoiceType>::findFreeVoice() {
+template <typename Voice, std::size_t NumVoices>
+Voice& Synthesizer<Voice, NumVoices>::findFreeVoice() {
     for (auto& voice : voices_) {
-        if (!voice.active_ || voice.state_ == SynthesizerVoice<T>::State::Idle) {
+        const auto& state = static_cast<const VoiceBase&>(voice);
+        if (!state.active_ || state.state_ == VoiceBase::State::Idle) {
             return voice;
         }
     }
@@ -191,42 +201,47 @@ VoiceType& Synthesizer<T, NumVoices, VoiceType>::findFreeVoice() {
     return stealVoice();
 }
 
-template <Scalar T, std::size_t NumVoices, typename VoiceType>
-VoiceType& Synthesizer<T, NumVoices, VoiceType>::stealVoice() {
-    VoiceType* oldest = &voices_[0];
+template <typename Voice, std::size_t NumVoices>
+Voice& Synthesizer<Voice, NumVoices>::stealVoice() {
+    Voice* oldest = &voices_[0];
     for (auto& voice : voices_) {
-        if (voice.play_order_ < oldest->play_order_) {
+        const auto& state = static_cast<const VoiceBase&>(voice);
+        const auto& oldest_state = static_cast<const VoiceBase&>(*oldest);
+        if (state.play_order_ < oldest_state.play_order_) {
             oldest = &voice;
         }
     }
 
-    oldest->noteOff(true);
+    static_cast<VoiceBase&>(*oldest).noteOff(true);
     return *oldest;
 }
 
-template <Scalar T, std::size_t NumVoices, typename VoiceType>
-void Synthesizer<T, NumVoices, VoiceType>::noteOn(const clap_event_note_t* event) {
-    VoiceType& voice = findFreeVoice();
+template <typename Voice, std::size_t NumVoices>
+void Synthesizer<Voice, NumVoices>::noteOn(const clap_event_note_t* event) {
+    Voice& voice = findFreeVoice();
+    auto& state = static_cast<VoiceBase&>(voice);
 
     // Use Note struct to store all note data with full precision
-    voice.note_ = Note::fromNoteOn(event);
-    voice.play_order_ = notes_played_++;
-    voice.state_ = SynthesizerVoice<T>::State::KeyDown;
-    voice.active_ = true;
+    state.note_ = Note::fromNoteOn(event);
+    state.play_order_ = notes_played_++;
+    state.state_ = VoiceBase::State::KeyDown;
+    state.active_ = true;
 
-    voice.noteOn();
+    state.noteOn();
 }
 
-template <Scalar T, std::size_t NumVoices, typename VoiceType>
-void Synthesizer<T, NumVoices, VoiceType>::noteOff(const clap_event_note_t* event) {
+template <typename Voice, std::size_t NumVoices>
+void Synthesizer<Voice, NumVoices>::noteOff(const clap_event_note_t* event) {
     for (auto& voice : voices_) {
-        if (voice.active_ && voice.state_ == SynthesizerVoice<T>::State::KeyDown) {
+        auto& state = static_cast<VoiceBase&>(voice);
+        if (state.active_ && state.state_ == VoiceBase::State::KeyDown) {
             // Use CLAP wildcard matching: (port, channel, key, note_id)
-            if (voice.note_.matches(event->key, event->note_id, event->port_index, event->channel)) {
-                voice.note_.setNoteOff(event);
-                voice.noteOff(false);
-                if (voice.active_)
-                    voice.state_ = SynthesizerVoice<T>::State::Released;
+            if (state.note_.matches(event->key, event->note_id,
+                                    event->port_index, event->channel)) {
+                state.note_.setNoteOff(event);
+                state.noteOff(false);
+                if (state.active_)
+                    state.state_ = VoiceBase::State::Released;
                 // If specific note_id provided, only release that one voice
                 if (event->note_id != -1) break;
             }
@@ -234,13 +249,15 @@ void Synthesizer<T, NumVoices, VoiceType>::noteOff(const clap_event_note_t* even
     }
 }
 
-template <Scalar T, std::size_t NumVoices, typename VoiceType>
-void Synthesizer<T, NumVoices, VoiceType>::noteChoke(const clap_event_note_t* event) {
+template <typename Voice, std::size_t NumVoices>
+void Synthesizer<Voice, NumVoices>::noteChoke(const clap_event_note_t* event) {
     for (auto& voice : voices_) {
-        if (voice.active_) {
+        auto& state = static_cast<VoiceBase&>(voice);
+        if (state.active_) {
             // Use CLAP wildcard matching: (port, channel, key, note_id)
-            if (voice.note_.matches(event->key, event->note_id, event->port_index, event->channel)) {
-                voice.noteOff(true);  // Terminate immediately
+            if (state.note_.matches(event->key, event->note_id,
+                                    event->port_index, event->channel)) {
+                state.noteOff(true);  // Terminate immediately
                 // If specific note_id provided, only choke that one voice
                 if (event->note_id != -1) break;
             }
@@ -248,20 +265,20 @@ void Synthesizer<T, NumVoices, VoiceType>::noteChoke(const clap_event_note_t* ev
     }
 }
 
-template <Scalar T, std::size_t NumVoices, typename VoiceType>
-void Synthesizer<T, NumVoices, VoiceType>::renderSubBlock(BufferView<T> buffer,
-                                                          int start_sample,
-                                                          int num_samples) {
+template <typename Voice, std::size_t NumVoices>
+void Synthesizer<Voice, NumVoices>::renderSubBlock(
+    typename Voice::BufferType buffer, int start_sample, int num_samples) {
     for (auto& voice : voices_) {
-        if (voice.active_) {
-            voice.process(buffer, start_sample, num_samples);
+        auto& state = static_cast<VoiceBase&>(voice);
+        if (state.active_) {
+            state.process(buffer, start_sample, num_samples);
         }
     }
 }
 
-template <Scalar T, std::size_t NumVoices, typename VoiceType>
-void Synthesizer<T, NumVoices, VoiceType>::process(BufferView<T> buffer,
-                                                   const clap_input_events_t* events) {
+template <typename Voice, std::size_t NumVoices>
+void Synthesizer<Voice, NumVoices>::process(
+    typename Voice::BufferType buffer, const clap_input_events_t* events) {
     buffer.clear();
 
     const uint32_t total_frames = buffer.numFrames();
@@ -273,6 +290,15 @@ void Synthesizer<T, NumVoices, VoiceType>::process(BufferView<T> buffer,
         for (uint32_t i = 0; i < event_count; ++i) {
             const clap_event_header_t* header = events->get(events, i);
             if (!header || header->space_id != CLAP_CORE_EVENT_SPACE_ID) {
+                continue;
+            }
+
+            const bool supported_event =
+                header->type == CLAP_EVENT_NOTE_ON ||
+                header->type == CLAP_EVENT_NOTE_OFF ||
+                header->type == CLAP_EVENT_NOTE_CHOKE ||
+                header->type == CLAP_EVENT_NOTE_EXPRESSION;
+            if (!supported_event) {
                 continue;
             }
 
@@ -298,15 +324,19 @@ void Synthesizer<T, NumVoices, VoiceType>::process(BufferView<T> buffer,
                 const auto* expr_event = reinterpret_cast<const clap_event_note_expression_t*>(header);
                 // Apply expression to all matching voices (supports wildcards)
                 for (auto& voice : voices_) {
-                    if (voice.active_ &&
-                        voice.note_.matches(expr_event->key, expr_event->note_id, expr_event->port_index,
-                                            expr_event->channel)) {
+                    auto& state = static_cast<VoiceBase&>(voice);
+                    if (state.active_ &&
+                        state.note_.matches(
+                            expr_event->key, expr_event->note_id,
+                            expr_event->port_index, expr_event->channel)) {
                         // Cast from CLAP expression ID to our enum (values match by design)
                         auto expression_id = static_cast<Note::Expression>(expr_event->expression_id);
                         // Update note data
-                        voice.note_.applyExpression(expression_id, expr_event->value);
+                        state.note_.applyExpression(expression_id,
+                                                    expr_event->value);
                         // Notify voice so it can update cached values (e.g. phase increment)
-                        voice.onExpressionChange(expression_id, expr_event->value);
+                        state.onExpressionChange(expression_id,
+                                                 expr_event->value);
                     }
                 }
             }
