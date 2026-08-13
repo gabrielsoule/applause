@@ -29,18 +29,14 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo, const ModDestination* dst) :
 
     // Push the parameter's default position into the knob (normalized to 0-1).
     // The knob uses this for both the rim-arc origin and double-click reset.
-    const float range = param_info_.maxValue - param_info_.minValue;
-    knob_.setDefaultValue((param_info_.defaultValue - param_info_.minValue) / range);
+    knob_.setDefaultValue(param_info_.toNormalized(param_info_.defaultValue));
 
     // Set initial value (normalized to 0-1 range)
-    const float normalizedValue = (param_info_.getValue() - param_info_.minValue) / range;
-    knob_.setValue(normalizedValue);
+    knob_.setValue(param_info_.getNormalized());
 
     // Connect knob value changes to parameter
     knob_.onValueChanged.add([this](float value) {
-        const float paramValue =
-            this->param_info_.minValue + value * (this->param_info_.maxValue - this->param_info_.minValue);
-        this->param_info_.setValueNotifyingHost(paramValue);
+        this->param_info_.setValueNotifyingHost(this->param_info_.fromNormalized(value));
     });
 
     // Connect gesture events
@@ -51,9 +47,7 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo, const ModDestination* dst) :
     // Connect to parameter changes from the host
     param_connection_ = param_info_.on_value_changed.connect([this](float value) {
         // Update knob when parameter changes externally
-        const float normalizedValue =
-            (value - this->param_info_.minValue) / (this->param_info_.maxValue - this->param_info_.minValue);
-        this->knob_.setValue(normalizedValue);
+        this->knob_.setValue(this->param_info_.toNormalized(value));
     });
 
     if (dst) {
