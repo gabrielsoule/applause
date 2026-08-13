@@ -1,6 +1,5 @@
 #pragma once
 
-#include <applause/core/ModMatrix.h>
 #include <applause/core/ProcessContext.h>
 #include <applause/core/ProcessInfo.h>
 #include <applause/util/MemoryArena.h>

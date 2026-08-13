@@ -1,15 +1,19 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <applause/extensions/ParamsExtension.h>
 #include <applause/util/DebugHelpers.h>
+#include <applause/util/SampleType.h>
 #include <applause/util/ValueScaling.h>
 #include <applause/util/thirdparty/rocket.hpp>
-#include <array>
+#include <cmath>
+#include <cstdint>
 #include <optional>
 #include <span>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace applause {
@@ -20,7 +24,13 @@ enum class ModSrcMode : uint8_t { Mono, Poly };
 
 enum class ModDstMode : uint8_t { Mono, Poly };
 
-class ModMatrix;  // Forward decl so ModSource/ModDestination can hold a back-pointer.
+template <typename T>
+concept ModSignal = Sample<T> && std::same_as<scalar_t<T>, float>;
+
+class ModMatrixControl;
+
+template <ModSignal Signal>
+class ModMatrix;
 
 /**
  * Represents a logical modulation source. A modulation source can be monophonic, polyphonic, or it can support both
@@ -44,14 +54,14 @@ struct ModSource {
     ModSrcType type;
     ModSrcMode mode;
     bool bipolar;  ///< True if source naturally outputs [-1,+1], false for [0,1]
-    ModMatrix* matrix = nullptr;  ///< Set by registerSource(); identifies the owning matrix.
+    ModMatrixControl* matrix = nullptr;  ///< Set by registerSource(); identifies the owning matrix.
 };
 
 struct ModDestination {
     std::string name;
     uint16_t index;
     ModDstMode mode;
-    ModMatrix* matrix = nullptr;  ///< Set by registerDestination(); identifies the owning matrix.
+    ModMatrixControl* matrix = nullptr;  ///< Set by registerDestination(); identifies the owning matrix.
 };
 
 /**
@@ -61,9 +71,9 @@ struct ModDestination {
  */
 struct ModConnection {
     static constexpr uint8_t kFlagDepthMod = 1u << 0;  ///< Connection modulates another connection's depth
-    static constexpr uint8_t kFlagBipolar = 1u << 1;   ///< Output is centered at 0 (bidirectional mapping)
+    static constexpr uint8_t kFlagBipolar = 1u << 1;  ///< Output is centered at 0 (bidirectional mapping)
 
-    ModMatrix* matrix_ = nullptr;  ///< Parent matrix (required for depth/recompile access)
+    ModMatrixControl* matrix_ = nullptr;  ///< Parent matrix (required for depth/recompile access)
     uint16_t src_idx = 0;  ///< Source index
     uint16_t dst_idx = 0;  ///< Destination index (param conn) OR target depth slot (depth mod)
     uint16_t depth_slot = 0;  ///< Slot index where this connection's depth is stored
@@ -86,9 +96,9 @@ struct ModConnection {
  * Compiled connection handle for efficient real-time processing.
  */
 struct ModConnectionHandle {
-    static constexpr uint8_t kFlagDepthMod = 1u << 0;    ///< Connection modulates another connection's depth
+    static constexpr uint8_t kFlagDepthMod = 1u << 0;  ///< Connection modulates another connection's depth
     static constexpr uint8_t kFlagSrcBipolar = 1u << 1;  ///< Source's native output range is [-1, +1]
-    static constexpr uint8_t kFlagBipolar = 1u << 2;     ///< Output is centered at 0 (bidirectional mapping)
+    static constexpr uint8_t kFlagBipolar = 1u << 2;  ///< Output is centered at 0 (bidirectional mapping)
 
     uint16_t src;  ///< Source index
     uint16_t target;  ///< Destination index (param conn) OR target depth slot (depth mod)
@@ -105,9 +115,10 @@ struct ModConnectionHandle {
  * Use getModHandle() to obtain. The pointer is pre-computed, so getValue()
  * is a simple dereference with no arithmetic.
  */
+template <ModSignal Value>
 struct ModParamHandle {
-    float* value_ = nullptr;
-    [[nodiscard]] float getValue() const noexcept { return *value_; }
+    Value* value_ = nullptr;
+    [[nodiscard]] Value getValue() const noexcept { return *value_; }
 };
 
 /**
@@ -120,8 +131,6 @@ struct ModParamHandle {
  * (the actual atomic swapping shenanigans are NYI, but it's a TODO)
  */
 class ModProgram {
-    [[maybe_unused]] ModMatrix& matrix;
-
     std::vector<ModConnectionHandle> mm_connections;  // mono src -> mono dst
     std::vector<ModConnectionHandle> mp_connections;  // mono src -> poly dst
     std::vector<ModConnectionHandle> pm_connections;  // poly src -> mono dst (NYI)
@@ -134,7 +143,7 @@ class ModProgram {
     std::vector<ModConnectionHandle> depth_connections_poly_;
 
 public:
-    explicit ModProgram(ModMatrix& matrix, uint16_t max_connections) : matrix(matrix) {
+    explicit ModProgram(uint16_t max_connections) {
         mm_connections.reserve(max_connections);
         mp_connections.reserve(max_connections);
         pm_connections.reserve(max_connections);
@@ -145,6 +154,9 @@ public:
         depth_connections_poly_.reserve(max_connections);
     }
 
+    friend class ModMatrixControl;
+
+    template <ModSignal>
     friend class ModMatrix;
 };
 
@@ -173,40 +185,40 @@ public:
  * This might be nice in the future, and a "ModMatrix 2.0" is on the distant roadmap.
  *
  */
-class ModMatrix {
+class ModMatrixControl {
 public:
     struct Config {
-        uint16_t num_voices;
+        uint16_t num_voices;  // A SIMD batch is one matrix voice.
         uint16_t max_sources;
         uint16_t max_destinations;
         uint16_t max_connections;
     };
 
-    explicit ModMatrix(Config config) :
+protected:
+    explicit ModMatrixControl(Config config) :
         config_(config),
-        poly_src_stride_(config.max_sources),
-        poly_dst_stride_(config.max_destinations),
-        poly_depth_stride_(config.max_connections),
-        program_(*this, config.max_connections),
+        program_(config.max_connections),
         src_registry_(config.max_sources),
         dst_registry_(config.max_destinations),
         dst_scale_info_(config.max_destinations),
         mono_src_buf_(config.max_sources, 0.0f),
-        poly_src_buf_(static_cast<size_t>(config.num_voices) * config.max_sources, 0.0f),
-        base_mono_dst_(config.max_destinations, 0.0f),
-        base_poly_dst_(config.max_destinations, 0.0f),
+        base_dst_(config.max_destinations, 0.0f),
         mono_depth_buf_(config.max_connections, 0.0f),
-        poly_depth_buf_(static_cast<size_t>(config.num_voices) * config.max_connections, 0.0f),
-        mono_dst_(config.max_destinations, 0.0f),
-        poly_dst_buf_(static_cast<size_t>(config.num_voices) * config.max_destinations, 0.0f) {
+        mono_dst_(config.max_destinations, 0.0f) {
         active_voices_.reserve(config.num_voices);
     }
 
-    ModMatrix() = delete;
+    virtual ~ModMatrixControl() = default;
+
+    ModMatrixControl() = delete;
+    ModMatrixControl(const ModMatrixControl&) = delete;
+    ModMatrixControl& operator=(const ModMatrixControl&) = delete;
+    ModMatrixControl(ModMatrixControl&&) = delete;
+    ModMatrixControl& operator=(ModMatrixControl&&) = delete;
+
+public:
     /**
-     * Registers a new modulation source symbol uniquely identifiable via string_id. This function only registers the
-     * source symbolically within the matrix; to link modulation channels to your signal generators (LFOs, envelopes,
-     * etc) you must invoke registerMonoSourceChannel/registerPolySourceChannel.
+     * Registers a modulation source. Write its values with setMonoSourceValue() or setPolySourceValue().
      * @param string_id the unique identifier of the source
      * @param type whether the source is mono, poly, or supports both modes
      * @param bipolar true if source outputs [-1,+1] (e.g., LFO), false for [0,1] (e.g., envelope)
@@ -263,8 +275,6 @@ public:
      * used by loadParamBaseValues() for efficient lookups. Therefore, this function should only be
      * called on an empty ModMatrix with no previously registered destinations.
      * Calling it after manually registering destinations will cause an index offset mismatch.
-     *
-     * This fragility can/should be patched in the future, but it hasn't been done yet! (TODO)
      *
      * If you wish to add destinations that do not correspond to plugin parameters alongside plugin parameters,
      * please add them after calling this function.
@@ -414,15 +424,12 @@ public:
     void notifyVoiceOff(uint16_t voice_index) { std::erase(active_voices_, voice_index); }
 
     /**
-     * Returns a view over the currently active voice indices. The underlying storage
-     * is reserved to num_voices at construction, so the data pointer is stable across
-     * voice on/off notifications. Intended for UI read-only access at frame rate;
-     * a torn size read may cause at most one frame of visual glitch (e.g. a voice
-     * displayed one frame late after voice-off), which is benign for visualization.
+     * Copies as many active destination values as fit in output, in plain units.
+     * Returns the total available count. Pass an empty span to query the count.
+     * Poly values are ordered by active matrix voice, then SIMD lane.
      */
-    [[nodiscard]] std::span<const uint16_t> getActiveVoices() const {
-        return {active_voices_.data(), active_voices_.size()};
-    }
+    [[nodiscard]] virtual size_t copyActiveDestinationValues(uint16_t dstIdx,
+                                                             std::span<float> output) const noexcept = 0;
 
     /**
      * Sets the base (unmodulated) value for a destination in plain units.
@@ -439,33 +446,6 @@ public:
     void setMonoSourceValue(uint16_t srcIdx, float value) {
         ASSERT(srcIdx < src_count_, "Source index out of bounds");
         mono_src_buf_[srcIdx] = value;
-    }
-
-    /**
-     * Sets the value for a poly modulation source for a specific voice.
-     * Call this before process() to update source values from your modulators.
-     * @param srcIdx The source index
-     * @param voice The voice index
-     * @param value The source value ([-1,+1] for bipolar, [0,1] for unipolar)
-     */
-    void setPolySourceValue(uint16_t srcIdx, uint16_t voice, float value) {
-        ASSERT(srcIdx < src_count_, "Source index out of bounds");
-        ASSERT(voice < config_.num_voices, "Voice index out of bounds");
-        poly_src_buf_[static_cast<size_t>(voice) * poly_src_stride_ + srcIdx] = value;
-    }
-
-    /**
-     * Sets both mono and poly values for a source simultaneously.
-     * Useful for sources with ModSrcType::Both where both buffers should be updated.
-     * @param srcIdx The source index
-     * @param voice The voice index for the poly value
-     * @param value The source value
-     */
-    void setSourceValue(uint16_t srcIdx, uint16_t voice, float value) {
-        ASSERT(srcIdx < src_count_, "Source index out of bounds");
-        ASSERT(voice < config_.num_voices, "Voice index out of bounds");
-        mono_src_buf_[srcIdx] = value;
-        poly_src_buf_[static_cast<size_t>(voice) * poly_src_stride_ + srcIdx] = value;
     }
 
     /**
@@ -486,35 +466,13 @@ public:
     [[nodiscard]] std::pair<float, float> getModOffsetRange(uint16_t dstIdx) const;
 
     /**
-     * Returns the final modulated value for a poly destination for a specific voice, in plain units.
-     * Call this after process() to retrieve the modulated parameter value.
-     */
-    [[nodiscard]] float getPolyModValue(uint16_t dstIdx, uint16_t voice) const {
-        ASSERT(dstIdx < dst_count_, "Destination index out of bounds");
-        ASSERT(voice < config_.num_voices, "Voice index out of bounds");
-        return poly_dst_buf_[static_cast<size_t>(voice) * poly_dst_stride_ + dstIdx];
-    }
-
-    /**
      * Get a handle for direct access to a mono destination's modulated value.
      * @param dstIdx The destination index
      * @return Handle pointing directly to the value in mono_dst_
      */
-    [[nodiscard]] ModParamHandle getModHandle(uint16_t dstIdx) {
+    [[nodiscard]] ModParamHandle<float> getModHandle(uint16_t dstIdx) {
         ASSERT(dstIdx < dst_count_, "Destination index out of bounds");
-        return ModParamHandle{&mono_dst_[dstIdx]};
-    }
-
-    /**
-     * Get a handle for direct access to a poly destination's modulated value for a specific voice.
-     * @param dstIdx The destination index
-     * @param voice The voice index
-     * @return Handle pointing directly to the value for this (destination, voice) pair
-     */
-    [[nodiscard]] ModParamHandle getModHandle(uint16_t dstIdx, uint16_t voice) {
-        ASSERT(dstIdx < dst_count_, "Destination index out of bounds");
-        ASSERT(voice < config_.num_voices, "Voice index out of bounds");
-        return ModParamHandle{&poly_dst_buf_[static_cast<size_t>(voice) * poly_dst_stride_ + dstIdx]};
+        return {&mono_dst_[dstIdx]};
     }
 
     /**
@@ -523,11 +481,6 @@ public:
      * Call once per block before process().
      */
     void loadParamBaseValues(const applause::ParamsExtension& params);
-
-    /**
-     * Processes modulation. Should be called once per block, before parameters are read and used by DSP components.
-     */
-    void process();
 
 private:
     // Depth accessors for ModConnection (avoids dangling pointer issues)
@@ -545,14 +498,12 @@ private:
     void recompileProgram();
 
     const Config config_;
-    const uint32_t poly_src_stride_;  // = max_sources
-    const uint32_t poly_dst_stride_;  // = max_destinations
-    const uint32_t poly_depth_stride_;  // = max_connections
 
     ModProgram program_;
 
     int src_count_ = 0;
     int dst_count_ = 0;
+    uint16_t param_dst_count_ = 0;
 
     std::vector<uint16_t> active_voices_;
 
@@ -562,26 +513,621 @@ private:
     std::vector<ModSource> src_registry_;
     std::vector<ModDestination> dst_registry_;
     std::vector<applause::ValueScaleInfo> dst_scale_info_;
-    std::vector<uint16_t> poly_dst_indices_;  // indices of poly destinations only; small optimization
+    std::vector<uint16_t> mono_dst_indices_;
+    std::vector<uint16_t> poly_dst_indices_;
 
     // Source values (written by modulators before processBlock)
     std::vector<float> mono_src_buf_;
-    std::vector<float> poly_src_buf_;
 
     // Base destination values (unmodulated knob values, optional)
-    std::vector<float> base_mono_dst_;
-    std::vector<float> base_poly_dst_;
+    std::vector<float> base_dst_;
 
     std::vector<float> mono_depth_buf_;
-    std::vector<float> poly_depth_buf_;
 
     std::vector<float> mono_dst_;
-    std::vector<float> poly_dst_buf_;
 
     std::vector<ModConnection> connections_;
 
-    friend class ModProgram;
     friend struct ModConnection;
+
+    template <ModSignal>
+    friend class ModMatrix;
 };
+
+template <ModSignal Signal>
+class ModMatrix final : public ModMatrixControl {
+public:
+    using Config = ModMatrixControl::Config;
+
+    explicit ModMatrix(Config config) :
+        ModMatrixControl(config),
+        poly_src_stride_(config.max_sources),
+        poly_dst_stride_(config.max_destinations),
+        poly_depth_stride_(config.max_connections),
+        poly_src_buf_(static_cast<size_t>(config.num_voices) * config.max_sources, set1<Signal>(0.0f)),
+        poly_depth_buf_(static_cast<size_t>(config.num_voices) * config.max_connections, set1<Signal>(0.0f)),
+        poly_dst_buf_(static_cast<size_t>(config.num_voices) * config.max_destinations, set1<Signal>(0.0f)) {}
+
+    ModMatrix() = delete;
+    ModMatrix(const ModMatrix&) = delete;
+    ModMatrix& operator=(const ModMatrix&) = delete;
+    ModMatrix(ModMatrix&&) = delete;
+    ModMatrix& operator=(ModMatrix&&) = delete;
+
+    void setPolySourceValue(uint16_t srcIdx, uint16_t voice, Signal value) {
+        ASSERT(srcIdx < src_count_, "Source index out of bounds");
+        ASSERT(voice < config_.num_voices, "Voice index out of bounds");
+        poly_src_buf_[static_cast<size_t>(voice) * poly_src_stride_ + srcIdx] = value;
+    }
+
+    [[nodiscard]] Signal getPolyModValue(uint16_t dstIdx, uint16_t voice) const {
+        ASSERT(dstIdx < dst_count_, "Destination index out of bounds");
+        ASSERT(voice < config_.num_voices, "Voice index out of bounds");
+        return poly_dst_buf_[static_cast<size_t>(voice) * poly_dst_stride_ + dstIdx];
+    }
+
+    using ModMatrixControl::getModHandle;
+
+    [[nodiscard]] ModParamHandle<Signal> getModHandle(uint16_t dstIdx, uint16_t voice) {
+        ASSERT(dstIdx < dst_count_, "Destination index out of bounds");
+        ASSERT(voice < config_.num_voices, "Voice index out of bounds");
+        return {&poly_dst_buf_[static_cast<size_t>(voice) * poly_dst_stride_ + dstIdx]};
+    }
+
+    [[nodiscard]] size_t copyActiveDestinationValues(uint16_t dstIdx,
+                                                     std::span<float> output) const noexcept override;
+
+    /**
+     * Processes modulation. Should be called once per block, before parameters are read and used by DSP components.
+     */
+    void process();
+
+private:
+    const uint32_t poly_src_stride_;
+    const uint32_t poly_dst_stride_;
+    const uint32_t poly_depth_stride_;
+
+    std::vector<Signal> poly_src_buf_;
+    std::vector<Signal> poly_depth_buf_;
+    std::vector<Signal> poly_dst_buf_;
+};
+
+template <ModSignal Value>
+static inline Value applyConnectionPolarity(Value value, bool source_bipolar, bool bipolar_mapping) {
+    if (source_bipolar) value = (value + set1<Value>(1.0f)) * set1<Value>(0.5f);
+    if (bipolar_mapping) value -= set1<Value>(0.5f);
+    return value;
+}
+
+inline ModSource& ModMatrixControl::registerSource(const std::string& string_id, ModSrcType type, bool bipolar,
+                                                   ModSrcMode defaultMode) {
+    ASSERT(src_count_ < config_.max_sources, "max_sources exceeded");
+    ASSERT(!src_lookup_.contains(string_id), "Source name already registered");
+
+    const auto idx = static_cast<uint16_t>(src_count_++);
+    src_lookup_.emplace(string_id, idx);
+
+    auto& source = src_registry_[idx];
+    source.name = string_id;
+    source.index = idx;
+    source.type = type;
+    source.mode = type == ModSrcType::Both ? defaultMode
+        : type == ModSrcType::Poly         ? ModSrcMode::Poly
+                                           : ModSrcMode::Mono;
+    source.bipolar = bipolar;
+    source.matrix = this;
+    return source;
+}
+
+inline void ModMatrixControl::setSourceMode(uint16_t srcIdx, ModSrcMode mode) {
+    ASSERT(srcIdx < src_count_, "Source index out of bounds");
+    ASSERT(src_registry_[srcIdx].type == ModSrcType::Both,
+           "setSourceMode only valid for sources with ModSrcType::Both");
+    src_registry_[srcIdx].mode = mode;
+    recompileProgram();
+}
+
+inline ModDestination& ModMatrixControl::registerDestination(const std::string& string_id, ModDstMode mode,
+                                                             ValueScaleInfo scale_info) {
+    ASSERT(dst_count_ < config_.max_destinations, "max_destinations exceeded");
+    ASSERT(!dst_lookup_.contains(string_id), "Destination name already registered");
+
+    const auto idx = static_cast<uint16_t>(dst_count_++);
+    dst_lookup_.emplace(string_id, idx);
+
+    auto& destination = dst_registry_[idx];
+    destination.name = string_id;
+    destination.index = idx;
+    destination.mode = mode;
+    destination.matrix = this;
+    dst_scale_info_[idx] = scale_info;
+    (mode == ModDstMode::Mono ? mono_dst_indices_ : poly_dst_indices_).push_back(idx);
+    return destination;
+}
+
+inline void ModMatrixControl::registerFromParamsExtension(const ParamsExtension& params_extension) {
+    ASSERT(dst_count_ == 0, "Register parameters before other destinations");
+    const auto* scales = params_extension.getScaleInfoArray();
+    const auto& params = params_extension.getAllParameters();
+
+    for (uint32_t i = 0; i < params.size(); ++i) {
+        const auto& param = params[i];
+        registerDestination(param.stringId, param.polyphonic ? ModDstMode::Poly : ModDstMode::Mono, scales[i]);
+    }
+    param_dst_count_ = static_cast<uint16_t>(params.size());
+    loadParamBaseValues(params_extension);
+}
+
+inline ModConnection ModMatrixControl::addConnection(ModSource src, ModDestination dst, float depth,
+                                                     std::optional<bool> bipolar_mapping) {
+    ASSERT(src.matrix == this && dst.matrix == this, "Source and destination must belong to this matrix");
+    ASSERT(src.index < src_count_, "Source index out of bounds");
+    ASSERT(dst.index < dst_count_, "Destination index out of bounds");
+
+    bool mapping;
+    if (bipolar_mapping.has_value()) {
+        mapping = *bipolar_mapping;
+    } else if (src_registry_[src.index].bipolar) {
+        mapping = true;
+    } else {
+        constexpr float center_lo = 1.0f / 3.0f;
+        constexpr float center_hi = 2.0f / 3.0f;
+        const float base = base_dst_[dst.index];
+        if (base < center_lo) {
+            mapping = false;
+            depth = std::fabs(depth);
+        } else if (base > center_hi) {
+            mapping = false;
+            depth = -std::fabs(depth);
+        } else {
+            mapping = true;
+        }
+    }
+
+    for (auto& existing : connections_) {
+        if (!existing.isDepthMod() && existing.src_idx == src.index && existing.dst_idx == dst.index) {
+            program_.depth_base_[existing.depth_slot] = depth;
+            existing.flags =
+                mapping ? existing.flags | ModConnection::kFlagBipolar : existing.flags & ~ModConnection::kFlagBipolar;
+            recompileProgram();
+            return existing;
+        }
+    }
+
+    ModConnection connection{};
+    connection.matrix_ = this;
+    connection.src_idx = src.index;
+    connection.dst_idx = dst.index;
+    connection.flags = mapping ? ModConnection::kFlagBipolar : 0;
+    connection.depth_slot = allocateDepthSlot(depth);
+    connections_.push_back(connection);
+    recompileProgram();
+    return connections_.back();
+}
+
+inline bool ModMatrixControl::removeConnection(uint16_t srcIdx, uint16_t dstIdx) {
+    if (auto connection = findConnection(srcIdx, dstIdx)) return removeConnection(*connection);
+    return false;
+}
+
+inline bool ModMatrixControl::removeConnection(const ModConnection& connection) {
+    ASSERT(connection.matrix_ == this, "Connection must belong to this matrix");
+    const auto it = std::ranges::find_if(
+        connections_, [&](const auto& candidate) { return candidate.depth_slot == connection.depth_slot; });
+    if (it == connections_.end()) return false;
+
+    const uint16_t freed_slot = it->depth_slot;
+    const bool was_parameter_connection = !it->isDepthMod();
+    program_.depth_active_[freed_slot] = 0;
+    connections_.erase(it);
+
+    if (was_parameter_connection) {
+        std::erase_if(connections_, [this, freed_slot](const auto& candidate) {
+            if (!candidate.isDepthMod() || candidate.dst_idx != freed_slot) return false;
+            program_.depth_active_[candidate.depth_slot] = 0;
+            return true;
+        });
+    }
+    recompileProgram();
+    return true;
+}
+
+inline std::optional<ModConnection> ModMatrixControl::findConnection(uint16_t srcIdx, uint16_t dstIdx) {
+    for (const auto& connection : connections_) {
+        if (!connection.isDepthMod() && connection.src_idx == srcIdx && connection.dst_idx == dstIdx) return connection;
+    }
+    return std::nullopt;
+}
+
+inline std::optional<ModConnection> ModMatrixControl::findConnection(uint16_t depthSlot) {
+    for (const auto& connection : connections_) {
+        if (!connection.isDepthMod() && connection.depth_slot == depthSlot) return connection;
+    }
+    return std::nullopt;
+}
+
+inline std::optional<ModConnection> ModMatrixControl::findDepthMod(uint16_t srcIdx, uint16_t targetDepthSlot) {
+    for (const auto& connection : connections_) {
+        if (connection.isDepthMod() && connection.src_idx == srcIdx && connection.dst_idx == targetDepthSlot)
+            return connection;
+    }
+    return std::nullopt;
+}
+
+inline ModSource* ModMatrixControl::findSource(const std::string& name) {
+    const auto it = src_lookup_.find(name);
+    return it == src_lookup_.end() ? nullptr : &src_registry_[it->second];
+}
+
+inline const ModSource* ModMatrixControl::findSource(const std::string& name) const {
+    const auto it = src_lookup_.find(name);
+    return it == src_lookup_.end() ? nullptr : &src_registry_[it->second];
+}
+
+inline ModDestination* ModMatrixControl::findDestination(const std::string& name) {
+    const auto it = dst_lookup_.find(name);
+    return it == dst_lookup_.end() ? nullptr : &dst_registry_[it->second];
+}
+
+inline const ModDestination* ModMatrixControl::findDestination(const std::string& name) const {
+    const auto it = dst_lookup_.find(name);
+    return it == dst_lookup_.end() ? nullptr : &dst_registry_[it->second];
+}
+
+inline std::pair<float, float> ModMatrixControl::getModOffsetRange(uint16_t dstIdx) const {
+    ASSERT(dstIdx < dst_count_, "Destination index out of bounds");
+
+    float minimum = 0.0f;
+    float maximum = 0.0f;
+    for (const auto& connection : connections_) {
+        if (connection.isDepthMod() || connection.dst_idx != dstIdx) continue;
+        const float depth = program_.depth_base_[connection.depth_slot];
+        const float magnitude = std::fabs(depth);
+        if (connection.isBipolar()) {
+            minimum -= magnitude * 0.5f;
+            maximum += magnitude * 0.5f;
+        } else if (depth >= 0.0f) {
+            maximum += depth;
+        } else {
+            minimum += depth;
+        }
+    }
+    return {minimum, maximum};
+}
+
+inline ModConnection ModMatrixControl::addDepthModulation(ModSource src, const ModConnection& target_conn, float depth,
+                                                          std::optional<bool> bipolar_mapping) {
+    ASSERT(src.matrix == this && target_conn.matrix_ == this, "Connections must belong to this matrix");
+    ASSERT(src.index < src_count_, "Source index out of bounds");
+    ASSERT(target_conn.depth_slot < program_.depth_base_.size(), "Invalid target connection");
+    ASSERT(!target_conn.isDepthMod(), "Depth modulation is limited to one level");
+
+    const bool mapping = bipolar_mapping.value_or(src_registry_[src.index].bipolar);
+    const uint16_t target_slot = target_conn.depth_slot;
+    for (auto& existing : connections_) {
+        if (existing.isDepthMod() && existing.src_idx == src.index && existing.dst_idx == target_slot) {
+            program_.depth_base_[existing.depth_slot] = depth;
+            existing.flags =
+                mapping ? existing.flags | ModConnection::kFlagBipolar : existing.flags & ~ModConnection::kFlagBipolar;
+            recompileProgram();
+            return existing;
+        }
+    }
+
+    ModConnection connection{};
+    connection.matrix_ = this;
+    connection.src_idx = src.index;
+    connection.dst_idx = target_slot;
+    connection.flags = ModConnection::kFlagDepthMod | (mapping ? ModConnection::kFlagBipolar : 0);
+    connection.depth_slot = allocateDepthSlot(depth);
+    connections_.push_back(connection);
+    recompileProgram();
+    return connections_.back();
+}
+
+inline ModConnection ModMatrixControl::reassignSource(const ModConnection& connection, ModSource newSource) {
+    ASSERT(connection.matrix_ == this && newSource.matrix == this, "Objects must belong to this matrix");
+    ASSERT(newSource.index < src_count_, "Source index out of bounds");
+    auto it = std::ranges::find_if(
+        connections_, [&](const auto& candidate) { return candidate.depth_slot == connection.depth_slot; });
+    ASSERT(it != connections_.end(), "Connection not found");
+    if (it->src_idx == newSource.index) return *it;
+
+    for (auto& existing : connections_) {
+        if (existing.depth_slot == it->depth_slot) continue;
+        if (existing.isDepthMod() != it->isDepthMod() || existing.src_idx != newSource.index ||
+            existing.dst_idx != it->dst_idx)
+            continue;
+
+        program_.depth_base_[existing.depth_slot] = program_.depth_base_[it->depth_slot];
+        existing.flags = it->flags;
+        const uint16_t old_slot = it->depth_slot;
+        const uint16_t new_slot = existing.depth_slot;
+        for (auto& depth_connection : connections_) {
+            if (!depth_connection.isDepthMod() || depth_connection.dst_idx != old_slot) continue;
+            const bool conflict = std::ranges::any_of(connections_, [&](const auto& candidate) {
+                return candidate.isDepthMod() && candidate.src_idx == depth_connection.src_idx &&
+                    candidate.dst_idx == new_slot;
+            });
+            if (!conflict) depth_connection.dst_idx = new_slot;
+        }
+        const auto result = existing;
+        removeConnection(*it);
+        return result;
+    }
+
+    it->src_idx = newSource.index;
+    recompileProgram();
+    return *it;
+}
+
+inline ModConnection ModMatrixControl::reassignDestination(const ModConnection& connection,
+                                                           ModDestination newDestination) {
+    ASSERT(connection.matrix_ == this && newDestination.matrix == this, "Objects must belong to this matrix");
+    ASSERT(!connection.isDepthMod(), "Cannot reassign a depth modulation destination");
+    ASSERT(newDestination.index < dst_count_, "Destination index out of bounds");
+    auto it = std::ranges::find_if(
+        connections_, [&](const auto& candidate) { return candidate.depth_slot == connection.depth_slot; });
+    ASSERT(it != connections_.end(), "Connection not found");
+    if (it->dst_idx == newDestination.index) return *it;
+
+    for (auto& existing : connections_) {
+        if (existing.depth_slot == it->depth_slot) continue;
+        if (existing.isDepthMod() || existing.src_idx != it->src_idx || existing.dst_idx != newDestination.index)
+            continue;
+
+        program_.depth_base_[existing.depth_slot] = program_.depth_base_[it->depth_slot];
+        existing.flags = it->flags;
+        const uint16_t old_slot = it->depth_slot;
+        const uint16_t new_slot = existing.depth_slot;
+        for (auto& depth_connection : connections_) {
+            if (!depth_connection.isDepthMod() || depth_connection.dst_idx != old_slot) continue;
+            const bool conflict = std::ranges::any_of(connections_, [&](const auto& candidate) {
+                return candidate.isDepthMod() && candidate.src_idx == depth_connection.src_idx &&
+                    candidate.dst_idx == new_slot;
+            });
+            if (!conflict) depth_connection.dst_idx = new_slot;
+        }
+        const auto result = existing;
+        removeConnection(*it);
+        return result;
+    }
+
+    it->dst_idx = newDestination.index;
+    recompileProgram();
+    return *it;
+}
+
+inline void ModMatrixControl::notifyVoiceOn(uint16_t voice_index) {
+    ASSERT(voice_index < config_.num_voices, "Voice index out of bounds");
+    if (std::ranges::find(active_voices_, voice_index) == active_voices_.end()) active_voices_.push_back(voice_index);
+}
+
+inline void ModMatrixControl::setBaseValue(uint16_t dstIdx, float plain_value) {
+    ASSERT(dstIdx < dst_count_, "Destination index out of bounds");
+    const auto& scale = dst_scale_info_[dstIdx];
+    base_dst_[dstIdx] = scale.scaling.toNormalized(plain_value, scale.min, scale.max);
+}
+
+inline void ModMatrixControl::loadParamBaseValues(const ParamsExtension& params) {
+    const auto* values = params.getValuesArray();
+    for (uint16_t i = 0; i < param_dst_count_; ++i) {
+        const auto& scale = dst_scale_info_[i];
+        const float plain = values[i].load(std::memory_order_relaxed);
+        base_dst_[i] = scale.scaling.toNormalized(plain, scale.min, scale.max);
+    }
+}
+
+template <ModSignal Signal>
+void ModMatrix<Signal>::process() {
+    for (uint16_t destination : mono_dst_indices_) mono_dst_[destination] = base_dst_[destination];
+
+    for (uint16_t voice : active_voices_) {
+        const size_t destination_offset = static_cast<size_t>(voice) * poly_dst_stride_;
+        for (uint16_t destination : poly_dst_indices_)
+            poly_dst_buf_[destination_offset + destination] = set1<Signal>(base_dst_[destination]);
+    }
+
+    for (size_t slot = 0; slot < program_.depth_base_.size(); ++slot)
+        mono_depth_buf_[slot] = program_.depth_active_[slot] ? program_.depth_base_[slot] : 0.0f;
+
+    for (const auto& connection : program_.depth_connections_mono_) {
+        const float source = applyConnectionPolarity(mono_src_buf_[connection.src], connection.isSourceBipolar(),
+                                                     connection.isBipolar());
+        mono_depth_buf_[connection.target] += source * program_.depth_base_[connection.depth_slot];
+    }
+
+    for (uint16_t voice : active_voices_) {
+        const size_t depth_offset = static_cast<size_t>(voice) * poly_depth_stride_;
+        for (size_t slot = 0; slot < program_.depth_base_.size(); ++slot)
+            poly_depth_buf_[depth_offset + slot] = set1<Signal>(mono_depth_buf_[slot]);
+    }
+
+    for (uint16_t voice : active_voices_) {
+        const size_t source_offset = static_cast<size_t>(voice) * poly_src_stride_;
+        const size_t depth_offset = static_cast<size_t>(voice) * poly_depth_stride_;
+        for (const auto& connection : program_.depth_connections_poly_) {
+            const Signal source = applyConnectionPolarity(poly_src_buf_[source_offset + connection.src],
+                                                          connection.isSourceBipolar(), connection.isBipolar());
+            const Signal depth = set1<Signal>(program_.depth_base_[connection.depth_slot]);
+            poly_depth_buf_[depth_offset + connection.target] += source * depth;
+        }
+    }
+
+    for (const auto& connection : program_.mm_connections) {
+        const float source = applyConnectionPolarity(mono_src_buf_[connection.src], connection.isSourceBipolar(),
+                                                     connection.isBipolar());
+        mono_dst_[connection.target] += source * mono_depth_buf_[connection.depth_slot];
+    }
+
+    for (uint16_t voice : active_voices_) {
+        const size_t depth_offset = static_cast<size_t>(voice) * poly_depth_stride_;
+        const size_t destination_offset = static_cast<size_t>(voice) * poly_dst_stride_;
+        for (const auto& connection : program_.mp_connections) {
+            const float source = applyConnectionPolarity(mono_src_buf_[connection.src], connection.isSourceBipolar(),
+                                                         connection.isBipolar());
+            poly_dst_buf_[destination_offset + connection.target] +=
+                set1<Signal>(source) * poly_depth_buf_[depth_offset + connection.depth_slot];
+        }
+    }
+
+    for (uint16_t voice : active_voices_) {
+        const size_t source_offset = static_cast<size_t>(voice) * poly_src_stride_;
+        const size_t depth_offset = static_cast<size_t>(voice) * poly_depth_stride_;
+        const size_t destination_offset = static_cast<size_t>(voice) * poly_dst_stride_;
+        for (const auto& connection : program_.pp_connections) {
+            const Signal source = applyConnectionPolarity(poly_src_buf_[source_offset + connection.src],
+                                                          connection.isSourceBipolar(), connection.isBipolar());
+            poly_dst_buf_[destination_offset + connection.target] +=
+                source * poly_depth_buf_[depth_offset + connection.depth_slot];
+        }
+    }
+
+    // Poly-to-mono routes still need a lane reduction algorithm...
+
+    for (uint16_t destination : mono_dst_indices_) {
+        const auto& scale = dst_scale_info_[destination];
+        const float normalized = std::clamp(mono_dst_[destination], 0.0f, 1.0f);
+        mono_dst_[destination] = scale.scaling.fromNormalized(normalized, scale.min, scale.max);
+    }
+
+    const Signal zero = set1<Signal>(0.0f);
+    const Signal one = set1<Signal>(1.0f);
+    for (uint16_t voice : active_voices_) {
+        const size_t destination_offset = static_cast<size_t>(voice) * poly_dst_stride_;
+        for (uint16_t destination : poly_dst_indices_) {
+            const auto& scale = dst_scale_info_[destination];
+            const Signal normalized =
+                applause::min(applause::max(poly_dst_buf_[destination_offset + destination], zero), one);
+            poly_dst_buf_[destination_offset + destination] =
+                scale.scaling.fromNormalized(normalized, scale.min, scale.max);
+        }
+    }
+}
+
+template <ModSignal Signal>
+size_t ModMatrix<Signal>::copyActiveDestinationValues(uint16_t dstIdx, std::span<float> output) const noexcept {
+    ASSERT(dstIdx < dst_count_, "Destination index out of bounds");
+    if (dst_registry_[dstIdx].mode == ModDstMode::Mono) {
+        if (!output.empty()) output.front() = mono_dst_[dstIdx];
+        return 1;
+    }
+
+    // TODO: Remove the UI/audio data race on active_voices_.
+    const size_t voice_count = active_voices_.size();
+    const size_t required = voice_count * sample_width_v<Signal>;
+    if (output.empty()) return required;
+
+    std::array<float, sample_width_v<Signal>> lanes{};
+    size_t written = 0;
+
+    // TODO: Filter unused SIMD lanes.
+    for (size_t i = 0; i < voice_count && written < output.size(); ++i) {
+        const uint16_t voice = active_voices_[i];
+        store_unaligned(poly_dst_buf_[static_cast<size_t>(voice) * poly_dst_stride_ + dstIdx], lanes.data());
+        const size_t count = std::min(lanes.size(), output.size() - written);
+        std::copy_n(lanes.data(), count, output.data() + written);
+        written += count;
+    }
+
+    return required;
+}
+
+inline uint16_t ModMatrixControl::allocateDepthSlot(float initial_depth) {
+    for (size_t i = 0; i < program_.depth_active_.size(); ++i) {
+        if (program_.depth_active_[i] != 0) continue;
+        program_.depth_base_[i] = initial_depth;
+        program_.depth_active_[i] = 1;
+        return static_cast<uint16_t>(i);
+    }
+
+    ASSERT(program_.depth_base_.size() < config_.max_connections, "max_connections exceeded");
+    program_.depth_base_.push_back(initial_depth);
+    program_.depth_active_.push_back(1);
+    return static_cast<uint16_t>(program_.depth_base_.size() - 1);
+}
+
+inline bool ModMatrixControl::dstIsConnected(uint16_t dstIdx) const {
+    return std::ranges::any_of(connections_, [dstIdx](const auto& connection) {
+        return !connection.isDepthMod() && connection.dst_idx == dstIdx;
+    });
+}
+
+inline bool ModMatrixControl::srcIsConnected(uint16_t srcIdx) const {
+    return std::ranges::any_of(connections_, [srcIdx](const auto& connection) { return connection.src_idx == srcIdx; });
+}
+
+inline void ModMatrixControl::recompileProgram() {
+    program_.mm_connections.clear();
+    program_.mp_connections.clear();
+    program_.pm_connections.clear();
+    program_.pp_connections.clear();
+    program_.depth_connections_mono_.clear();
+    program_.depth_connections_poly_.clear();
+
+    for (const auto& connection : connections_) {
+        const auto& source = src_registry_[connection.src_idx];
+        const ModSrcMode source_mode = source.type == ModSrcType::Mono ? ModSrcMode::Mono
+            : source.type == ModSrcType::Poly                          ? ModSrcMode::Poly
+                                                                       : source.mode;
+
+        uint8_t flags = 0;
+        if (connection.isDepthMod()) flags |= ModConnectionHandle::kFlagDepthMod;
+        if (source.bipolar) flags |= ModConnectionHandle::kFlagSrcBipolar;
+        if (connection.isBipolar()) flags |= ModConnectionHandle::kFlagBipolar;
+        const ModConnectionHandle handle{connection.src_idx, connection.dst_idx, connection.depth_slot, flags};
+
+        if (connection.isDepthMod()) {
+            auto& bucket =
+                source_mode == ModSrcMode::Mono ? program_.depth_connections_mono_ : program_.depth_connections_poly_;
+            bucket.push_back(handle);
+            continue;
+        }
+
+        const ModDstMode destination_mode = dst_registry_[connection.dst_idx].mode;
+        if (source_mode == ModSrcMode::Mono && destination_mode == ModDstMode::Mono)
+            program_.mm_connections.push_back(handle);
+        else if (source_mode == ModSrcMode::Mono && destination_mode == ModDstMode::Poly)
+            program_.mp_connections.push_back(handle);
+        else if (source_mode == ModSrcMode::Poly && destination_mode == ModDstMode::Poly)
+            program_.pp_connections.push_back(handle);
+        else
+            program_.pm_connections.push_back(handle);
+    }
+
+    on_connections_changed();
+}
+
+inline float ModConnection::getDepth() const {
+    ASSERT(matrix_, "Connection is not bound");
+    return matrix_->getDepthBase(depth_slot);
+}
+
+inline void ModConnection::setDepth(float depth) {
+    ASSERT(matrix_, "Connection is not bound");
+    matrix_->setDepthBase(depth_slot, depth);
+}
+
+inline void ModConnection::setBipolar(bool bipolar) {
+    ASSERT(matrix_, "Connection is not bound");
+    if (isBipolar() == bipolar) return;
+    flags = bipolar ? flags | kFlagBipolar : flags & ~kFlagBipolar;
+    for (auto& connection : matrix_->connections_) {
+        if (connection.depth_slot != depth_slot) continue;
+        connection.flags = flags;
+        break;
+    }
+    matrix_->recompileProgram();
+}
+
+inline const ModSource& ModConnection::source() const {
+    ASSERT(matrix_, "Connection is not bound");
+    return matrix_->getSource(src_idx);
+}
+
+inline const ModDestination* ModConnection::destination() const {
+    ASSERT(matrix_, "Connection is not bound");
+    return isDepthMod() ? nullptr : &matrix_->getDestination(dst_idx);
+}
 
 }  // namespace applause

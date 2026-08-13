@@ -1,5 +1,6 @@
 #pragma once
 
+#include <applause/dsp/modulation/MSEGCurve.h>
 #include <applause/extensions/ParamsExtension.h>
 #include <applause/ui/ApplauseEditor.h>
 #include <applause/ui/components/Button.h>
@@ -7,14 +8,13 @@
 #include <applause/ui/components/Panel.h>
 #include <applause/ui/components/ParamKnob.h>
 #include <applause/ui/components/Slider.h>
-#include <applause/dsp/modulation/MSEGCurve.h>
-#include <applause/ui/components/modulation/ModMatrixComponent.h>
 #include <applause/ui/components/modulation/MSEGDisplay.h>
+#include <applause/ui/components/modulation/ModMatrixComponent.h>
 #include <memory>
 
 class ExampleShowcaseEditor : public applause::ApplauseEditor {
 public:
-    ExampleShowcaseEditor(applause::ParamsExtension* params, applause::ModMatrix* mod_matrix);
+    ExampleShowcaseEditor(applause::ParamsExtension* params, applause::ModMatrixControl* mod_matrix);
     ~ExampleShowcaseEditor() override = default;
 
     void resized() override;

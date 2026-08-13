@@ -49,7 +49,7 @@ public:
         applause::UiButton delete_button_{"X"};
     };
 
-    explicit ModMatrixComponent(applause::ModMatrix& matrix);
+    explicit ModMatrixComponent(applause::ModMatrixControl& matrix);
 
     void rebuildRows();
     void resized() override;
@@ -60,7 +60,7 @@ private:
     void deleteRow(Row* row);
     void buildHeader();
 
-    applause::ModMatrix& matrix_;
+    applause::ModMatrixControl& matrix_;
     applause::Frame header_;
     applause::Frame header_source_;
     applause::Frame header_dest_;

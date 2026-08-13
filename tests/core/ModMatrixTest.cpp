@@ -1,18 +1,30 @@
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/catch_approx.hpp>
 #include <applause/core/ModMatrix.h>
 #include <applause/extensions/ParamsExtension.h>
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <random>
+#include <span>
+#include <type_traits>
 #include <vector>
+
+#include <xsimd/xsimd.hpp>
 
 using namespace applause;
 
-constexpr ModMatrix::Config SmallConfig{4, 8, 16, 32};
-constexpr ModMatrix::Config StandardConfig{16, 32, 64, 128};
-constexpr ModMatrix::Config MinimalConfig{1, 1, 1, 1};
+constexpr ModMatrix<float>::Config SmallConfig{4, 8, 16, 32};
+constexpr ModMatrix<float>::Config StandardConfig{16, 32, 64, 128};
+constexpr ModMatrix<float>::Config MinimalConfig{1, 1, 1, 1};
+
+using ModBatch = xsimd::batch<float>;
+constexpr ModMatrix<ModBatch>::Config BatchConfig{1, 4, 4, 8};
+
+static_assert(!std::is_copy_constructible_v<ModMatrix<float>>);
+static_assert(!std::is_move_constructible_v<ModMatrix<float>>);
+static_assert(std::is_base_of_v<ModMatrixControl, ModMatrix<ModBatch>>);
 
 // Naive reference implementation of the modulation matrix, used by the K-series
 // oracle tests to cross-check ModMatrix output.
@@ -35,7 +47,7 @@ public:
 
     struct Connection {
         uint16_t src_idx;
-        uint16_t target;       // dst_idx for param connections, target_slot for depth mods
+        uint16_t target;  // dst_idx for param connections, target_slot for depth mods
         uint16_t depth_slot;
         bool is_depth_mod;
         bool bipolar_mapping;
@@ -52,9 +64,8 @@ public:
     uint16_t num_voices;
     uint16_t max_sources;
 
-    ModMatrixOracle(uint16_t num_voices_, uint16_t max_sources_, uint16_t max_destinations_)
-        : num_voices(num_voices_), max_sources(max_sources_)
-    {
+    ModMatrixOracle(uint16_t num_voices_, uint16_t max_sources_, uint16_t max_destinations_) :
+        num_voices(num_voices_), max_sources(max_sources_) {
         mono_src_values.resize(max_sources_, 0.0f);
         poly_src_values.resize(num_voices_);
         for (auto& v : poly_src_values) {
@@ -68,7 +79,8 @@ public:
         return idx;
     }
 
-    uint16_t addDestination(bool is_mono, applause::ValueScaleInfo scale = {0.0f, 1.0f, applause::ValueScaling::linear()}) {
+    uint16_t addDestination(bool is_mono,
+                            applause::ValueScaleInfo scale = {0.0f, 1.0f, applause::ValueScaling::linear()}) {
         uint16_t idx = static_cast<uint16_t>(destinations.size());
         destinations.push_back({idx, is_mono, 0.0f, scale});
         return idx;
@@ -88,21 +100,13 @@ public:
         return slot;
     }
 
-    void setMonoSource(uint16_t src, float value) {
-        mono_src_values[src] = value;
-    }
+    void setMonoSource(uint16_t src, float value) { mono_src_values[src] = value; }
 
-    void setPolySource(uint16_t src, uint16_t voice, float value) {
-        poly_src_values[voice][src] = value;
-    }
+    void setPolySource(uint16_t src, uint16_t voice, float value) { poly_src_values[voice][src] = value; }
 
-    void setBaseValue(uint16_t dst, float norm_value) {
-        destinations[dst].base_value = norm_value;
-    }
+    void setBaseValue(uint16_t dst, float norm_value) { destinations[dst].base_value = norm_value; }
 
-    void setSourceMode(uint16_t src, bool is_mono) {
-        sources[src].current_mode_is_mono = is_mono;
-    }
+    void setSourceMode(uint16_t src, bool is_mono) { sources[src].current_mode_is_mono = is_mono; }
 
     bool effectivelyMono(uint16_t src) const {
         const auto& s = sources[src];
@@ -113,10 +117,8 @@ public:
     // Serum-style peak-to-peak normalization: a bipolar-mapped connection
     // contributes offsets in [-0.5, +0.5] so `depth` equals peak-to-peak swing.
     static float applyBipolarNormalization(float src_val, bool src_bipolar, bool bipolar_mapping) {
-        if (src_bipolar)
-            src_val = (src_val + 1.0f) * 0.5f;
-        if (bipolar_mapping)
-            src_val -= 0.5f;
+        if (src_bipolar) src_val = (src_val + 1.0f) * 0.5f;
+        if (bipolar_mapping) src_val -= 0.5f;
         return src_val;
     }
 
@@ -137,8 +139,7 @@ public:
 
         std::vector<float> mono_depth = depth_base;
         std::vector<std::vector<float>> poly_depth(num_voices);
-        for (auto& pd : poly_depth)
-            pd = depth_base;
+        for (auto& pd : poly_depth) pd = depth_base;
 
         for (const auto& conn : connections) {
             if (!conn.is_depth_mod) continue;
@@ -174,15 +175,13 @@ public:
                 float src_val = mono_src_values[conn.src_idx];
                 src_val = applyBipolarNormalization(src_val, src_bipolar, conn.bipolar_mapping);
                 mono_out[conn.target] += src_val * mono_depth[conn.depth_slot];
-            }
-            else if (src_mono && !dst_mono) {
+            } else if (src_mono && !dst_mono) {
                 for (uint16_t v : active_voices) {
                     float src_val = mono_src_values[conn.src_idx];
                     src_val = applyBipolarNormalization(src_val, src_bipolar, conn.bipolar_mapping);
                     poly_out[v][conn.target] += src_val * poly_depth[v][conn.depth_slot];
                 }
-            }
-            else if (!src_mono && !dst_mono) {
+            } else if (!src_mono && !dst_mono) {
                 for (uint16_t v : active_voices) {
                     float src_val = poly_src_values[v][conn.src_idx];
                     src_val = applyBipolarNormalization(src_val, src_bipolar, conn.bipolar_mapping);
@@ -209,9 +208,8 @@ public:
     }
 };
 
-TEST_CASE("A1: Registering sources assigns stable indices and stores flags", "[modmatrix][registration]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("A1: Registering sources assigns stable indices and stores flags", "[modmatrix][registration]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& lfo1 = matrix.registerSource("LFO1", ModSrcType::Both, true, ModSrcMode::Mono);
     auto& env1 = matrix.registerSource("ENV1", ModSrcType::Poly, false);
@@ -242,9 +240,8 @@ TEST_CASE("A1: Registering sources assigns stable indices and stores flags", "[m
     }
 }
 
-TEST_CASE("A3: Registering destinations stores mode and poly index list", "[modmatrix][registration]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("A3: Registering destinations stores mode and poly index list", "[modmatrix][registration]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     applause::ValueScaleInfo cutoff_scale{20.0f, 20000.0f, applause::ValueScaling::linear()};
     auto& cutoff = matrix.registerDestination("Cutoff", ModDstMode::Poly, cutoff_scale);
@@ -272,9 +269,8 @@ TEST_CASE("A3: Registering destinations stores mode and poly index list", "[modm
     }
 }
 
-TEST_CASE("B1: Voice on adds voice once (no duplicates)", "[modmatrix][voice]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("B1: Voice on adds voice once (no duplicates)", "[modmatrix][voice]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src = matrix.registerSource("src", ModSrcType::Poly);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Poly);
@@ -292,9 +288,8 @@ TEST_CASE("B1: Voice on adds voice once (no duplicates)", "[modmatrix][voice]")
     REQUIRE(matrix.getPolyModValue(dst.index, 2) == Catch::Approx(0.5f));
 }
 
-TEST_CASE("B2: Voice off removes voice from processing", "[modmatrix][voice]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("B2: Voice off removes voice from processing", "[modmatrix][voice]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src = matrix.registerSource("src", ModSrcType::Poly);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Poly);
@@ -316,18 +311,16 @@ TEST_CASE("B2: Voice off removes voice from processing", "[modmatrix][voice]")
     REQUIRE(matrix.getPolyModValue(dst.index, 1) == Catch::Approx(before_off));
 }
 
-TEST_CASE("B3: notifyVoiceOff on inactive voice is safe", "[modmatrix][voice]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("B3: notifyVoiceOff on inactive voice is safe", "[modmatrix][voice]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     matrix.notifyVoiceOff(0);
     matrix.notifyVoiceOff(1);
     matrix.notifyVoiceOff(3);
 }
 
-TEST_CASE("C1: With no connections, output equals base plain value after scaling", "[modmatrix][scaling]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("C1: With no connections, output equals base plain value after scaling", "[modmatrix][scaling]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     SECTION("Mono destination") {
         applause::ValueScaleInfo scale{0.0f, 100.0f, applause::ValueScaling::linear()};
@@ -357,11 +350,25 @@ TEST_CASE("C1: With no connections, output equals base plain value after scaling
 
         REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.5f));
     }
+
+    SECTION("Mixed destination modes keep their scaling") {
+        const applause::ValueScaleInfo frequency{20.0f, 20000.0f, applause::ValueScaling::frequency(20.0f, 20000.0f)};
+        const applause::ValueScaleInfo time{0.001f, 10.0f, applause::ValueScaling::time(0.001f, 10.0f)};
+        auto& poly = matrix.registerDestination("poly", ModDstMode::Poly, frequency);
+        auto& mono = matrix.registerDestination("mono", ModDstMode::Mono, time);
+
+        matrix.setBaseValue(poly.index, 440.0f);
+        matrix.setBaseValue(mono.index, 0.25f);
+        matrix.notifyVoiceOn(1);
+        matrix.process();
+
+        REQUIRE(matrix.getPolyModValue(poly.index, 1) == Catch::Approx(440.0f));
+        REQUIRE(matrix.getModValue(mono.index) == Catch::Approx(0.25f));
+    }
 }
 
-TEST_CASE("C2: Clamping behavior - normalized outside [0,1] clamps to min/max", "[modmatrix][scaling]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("C2: Clamping behavior - normalized outside [0,1] clamps to min/max", "[modmatrix][scaling]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     applause::ValueScaleInfo scale{0.0f, 100.0f, applause::ValueScaling::linear()};
     auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
@@ -388,13 +395,8 @@ TEST_CASE("C2: Clamping behavior - normalized outside [0,1] clamps to min/max", 
     }
 }
 
-TEST_CASE("C4: loadParamBaseValues with extra destinations", "[modmatrix][scaling]")
-{
-    // TODO: loadParamBaseValues() loops to dst_count_, which exceeds the param count when
-    // extra destinations are registered after registerFromParamsExtension(). Should track
-    // num_param_dests_ separately. This test pins the current safe-with-N-params behavior.
-
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("C4: loadParamBaseValues with extra destinations", "[modmatrix][scaling]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     applause::ParamsExtension params(8);
 
@@ -426,11 +428,11 @@ TEST_CASE("C4: loadParamBaseValues with extra destinations", "[modmatrix][scalin
 
     REQUIRE(matrix.getModValue(0) == Catch::Approx(0.5f));
     REQUIRE(matrix.getModValue(1) == Catch::Approx(50.0f));
+    REQUIRE(matrix.getModValue(2) == Catch::Approx(0.0f));
 }
 
-TEST_CASE("D1: Mono source values propagate through MM connections", "[modmatrix][sources]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("D1: Mono source values propagate through MM connections", "[modmatrix][sources]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src = matrix.registerSource("MACRO1", ModSrcType::Mono, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
@@ -457,9 +459,8 @@ TEST_CASE("D1: Mono source values propagate through MM connections", "[modmatrix
     }
 }
 
-TEST_CASE("D2: Poly source values are per-voice and only active voices processed", "[modmatrix][sources]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("D2: Poly source values are per-voice and only active voices processed", "[modmatrix][sources]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src = matrix.registerSource("ENV1", ModSrcType::Poly, false);
     auto& dst = matrix.registerDestination("Cutoff", ModDstMode::Poly);
@@ -486,12 +487,11 @@ TEST_CASE("D2: Poly source values are per-voice and only active voices processed
     }
 }
 
-TEST_CASE("E1: Four mapping combinations for main connections", "[modmatrix][mapping]")
-{
+TEST_CASE("E1: Four mapping combinations for main connections", "[modmatrix][mapping]") {
     applause::ValueScaleInfo identity_scale{0.0f, 1.0f, applause::ValueScaling::linear()};
 
     SECTION("bipolar src, bipolar mapping (peak-to-peak = d, centered)") {
-        ModMatrix matrix(SmallConfig);
+        ModMatrix<float> matrix(SmallConfig);
         auto& src = matrix.registerSource("src", ModSrcType::Mono, true);
         auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity_scale);
         matrix.addConnection(src, dst, 1.0f, true);
@@ -511,7 +511,7 @@ TEST_CASE("E1: Four mapping combinations for main connections", "[modmatrix][map
     }
 
     SECTION("bipolar src, unipolar mapping (half-wave rectify)") {
-        ModMatrix matrix(SmallConfig);
+        ModMatrix<float> matrix(SmallConfig);
         auto& src = matrix.registerSource("src", ModSrcType::Mono, true);
         auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity_scale);
         matrix.addConnection(src, dst, 1.0f, false);
@@ -531,7 +531,7 @@ TEST_CASE("E1: Four mapping combinations for main connections", "[modmatrix][map
     }
 
     SECTION("unipolar src, bipolar mapping (center on midpoint)") {
-        ModMatrix matrix(SmallConfig);
+        ModMatrix<float> matrix(SmallConfig);
         auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
         auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity_scale);
         matrix.addConnection(src, dst, 1.0f, true);
@@ -551,7 +551,7 @@ TEST_CASE("E1: Four mapping combinations for main connections", "[modmatrix][map
     }
 
     SECTION("unipolar src, unipolar mapping (identity)") {
-        ModMatrix matrix(SmallConfig);
+        ModMatrix<float> matrix(SmallConfig);
         auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
         auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity_scale);
         matrix.addConnection(src, dst, 1.0f, false);
@@ -571,12 +571,11 @@ TEST_CASE("E1: Four mapping combinations for main connections", "[modmatrix][map
     }
 }
 
-TEST_CASE("E2: Four mapping combinations for depth modulation", "[modmatrix][mapping]")
-{
+TEST_CASE("E2: Four mapping combinations for depth modulation", "[modmatrix][mapping]") {
     applause::ValueScaleInfo identity_scale{0.0f, 1.0f, applause::ValueScaling::linear()};
 
     SECTION("bipolar depth src, bipolar mapping") {
-        ModMatrix matrix(SmallConfig);
+        ModMatrix<float> matrix(SmallConfig);
         auto& main_src = matrix.registerSource("main", ModSrcType::Mono, false);
         auto& depth_src = matrix.registerSource("depth", ModSrcType::Mono, true);
         auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity_scale);
@@ -600,7 +599,7 @@ TEST_CASE("E2: Four mapping combinations for depth modulation", "[modmatrix][map
     }
 
     SECTION("unipolar depth src, unipolar mapping (identity)") {
-        ModMatrix matrix(SmallConfig);
+        ModMatrix<float> matrix(SmallConfig);
         auto& main_src = matrix.registerSource("main", ModSrcType::Mono, false);
         auto& depth_src = matrix.registerSource("depth", ModSrcType::Mono, false);
         auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity_scale);
@@ -624,18 +623,15 @@ TEST_CASE("E2: Four mapping combinations for depth modulation", "[modmatrix][map
     }
 }
 
-TEST_CASE("F1: addConnection creates depth slot and stores base depth", "[modmatrix][connections]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("F1: addConnection creates depth slot and stores base depth", "[modmatrix][connections]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
 
     auto conn = matrix.addConnection(src, dst, 0.25f, false);
 
-    SECTION("Connection depth slot is valid") {
-        REQUIRE(conn.depth_slot == 0);
-    }
+    SECTION("Connection depth slot is valid") { REQUIRE(conn.depth_slot == 0); }
 
     SECTION("Processing with source=1 and base=0 gives expected output") {
         matrix.setBaseValue(dst.index, 0.0f);
@@ -646,9 +642,8 @@ TEST_CASE("F1: addConnection creates depth slot and stores base depth", "[modmat
     }
 }
 
-TEST_CASE("F2: Adding same S->D again updates existing connection", "[modmatrix][connections]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("F2: Adding same S->D again updates existing connection", "[modmatrix][connections]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
@@ -656,9 +651,7 @@ TEST_CASE("F2: Adding same S->D again updates existing connection", "[modmatrix]
     auto conn1 = matrix.addConnection(src, dst, 0.25f, false);
     auto conn2 = matrix.addConnection(src, dst, 0.75f, false);
 
-    SECTION("Same slot is reused") {
-        REQUIRE(conn1.depth_slot == conn2.depth_slot);
-    }
+    SECTION("Same slot is reused") { REQUIRE(conn1.depth_slot == conn2.depth_slot); }
 
     SECTION("Depth is updated to new value") {
         matrix.setBaseValue(dst.index, 0.0f);
@@ -669,9 +662,8 @@ TEST_CASE("F2: Adding same S->D again updates existing connection", "[modmatrix]
     }
 }
 
-TEST_CASE("F2b: Adding same depth mod again updates existing depth mod connection", "[modmatrix][connections]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("F2b: Adding same depth mod again updates existing depth mod connection", "[modmatrix][connections]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& main_src = matrix.registerSource("main", ModSrcType::Mono, false);
     auto& depth_src = matrix.registerSource("depth", ModSrcType::Mono, false);
@@ -682,13 +674,9 @@ TEST_CASE("F2b: Adding same depth mod again updates existing depth mod connectio
     auto depth_conn1 = matrix.addDepthModulation(depth_src, conn, 0.25f, false);
     auto depth_conn2 = matrix.addDepthModulation(depth_src, conn, 0.75f, false);
 
-    SECTION("Connection count remains 2 (no duplicate added)") {
-        REQUIRE(matrix.getConnections().size() == 2);
-    }
+    SECTION("Connection count remains 2 (no duplicate added)") { REQUIRE(matrix.getConnections().size() == 2); }
 
-    SECTION("Same depth slot is reused") {
-        REQUIRE(depth_conn1.depth_slot == depth_conn2.depth_slot);
-    }
+    SECTION("Same depth slot is reused") { REQUIRE(depth_conn1.depth_slot == depth_conn2.depth_slot); }
 
     SECTION("Depth is updated to new value") {
         matrix.setBaseValue(dst.index, 0.0f);
@@ -708,9 +696,8 @@ TEST_CASE("F2b: Adding same depth mod again updates existing depth mod connectio
     }
 }
 
-TEST_CASE("F3: Multiple depth mod routes to same depth slot sum", "[modmatrix][connections]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("F3: Multiple depth mod routes to same depth slot sum", "[modmatrix][connections]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& main_src = matrix.registerSource("main", ModSrcType::Mono, false);
     auto& mod1 = matrix.registerSource("mod1", ModSrcType::Mono, false);
@@ -732,9 +719,8 @@ TEST_CASE("F3: Multiple depth mod routes to same depth slot sum", "[modmatrix][c
     REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.2f));
 }
 
-TEST_CASE("F4: Depth modulation affects all connection types using that slot", "[modmatrix][connections]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("F4: Depth modulation affects all connection types using that slot", "[modmatrix][connections]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& mono_src = matrix.registerSource("mono_src", ModSrcType::Mono, false);
     auto& poly_src = matrix.registerSource("poly_src", ModSrcType::Poly, false);
@@ -770,9 +756,8 @@ TEST_CASE("F4: Depth modulation affects all connection types using that slot", "
     }
 }
 
-TEST_CASE("G1: Both-source toggling moves routes between buckets", "[modmatrix][toggle]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("G1: Both-source toggling moves routes between buckets", "[modmatrix][toggle]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& lfo = matrix.registerSource("LFO1", ModSrcType::Both, true, ModSrcMode::Mono);
     auto& cutoff = matrix.registerDestination("Cutoff", ModDstMode::Poly);
@@ -805,9 +790,8 @@ TEST_CASE("G1: Both-source toggling moves routes between buckets", "[modmatrix][
     }
 }
 
-TEST_CASE("G2: Toggling source mode reclassifies depth-mod routes", "[modmatrix][toggle]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("G2: Toggling source mode reclassifies depth-mod routes", "[modmatrix][toggle]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& main_src = matrix.registerSource("main", ModSrcType::Mono, false);
     auto& depth_src = matrix.registerSource("depth", ModSrcType::Both, false, ModSrcMode::Mono);
@@ -842,9 +826,8 @@ TEST_CASE("G2: Toggling source mode reclassifies depth-mod routes", "[modmatrix]
     }
 }
 
-TEST_CASE("G3: Dynamic mode toggle during execution", "[modmatrix][toggle]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("G3: Dynamic mode toggle during execution", "[modmatrix][toggle]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& lfo = matrix.registerSource("LFO1", ModSrcType::Both, true, ModSrcMode::Mono);
     auto& cutoff = matrix.registerDestination("Cutoff", ModDstMode::Poly);
@@ -879,9 +862,8 @@ TEST_CASE("G3: Dynamic mode toggle during execution", "[modmatrix][toggle]")
     REQUIRE(v0_back == Catch::Approx(v0_mono));
 }
 
-TEST_CASE("H1: Outputs do not accumulate across blocks", "[modmatrix][determinism]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("H1: Outputs do not accumulate across blocks", "[modmatrix][determinism]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
@@ -900,9 +882,8 @@ TEST_CASE("H1: Outputs do not accumulate across blocks", "[modmatrix][determinis
     REQUIRE(second == Catch::Approx(first));
 }
 
-TEST_CASE("H2: Order independence within a bucket (commutativity)", "[modmatrix][determinism]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("H2: Order independence within a bucket (commutativity)", "[modmatrix][determinism]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src1 = matrix.registerSource("src1", ModSrcType::Mono, false);
     auto& src2 = matrix.registerSource("src2", ModSrcType::Mono, false);
@@ -919,7 +900,7 @@ TEST_CASE("H2: Order independence within a bucket (commutativity)", "[modmatrix]
     float result = matrix.getModValue(dst.index);
     REQUIRE(result == Catch::Approx(0.5f));
 
-    ModMatrix matrix2(SmallConfig);
+    ModMatrix<float> matrix2(SmallConfig);
     auto& src2b = matrix2.registerSource("src2", ModSrcType::Mono, false);
     auto& src1b = matrix2.registerSource("src1", ModSrcType::Mono, false);
     auto& dstb = matrix2.registerDestination("dst", ModDstMode::Mono);
@@ -935,9 +916,8 @@ TEST_CASE("H2: Order independence within a bucket (commutativity)", "[modmatrix]
     REQUIRE(matrix2.getModValue(dstb.index) == Catch::Approx(result));
 }
 
-TEST_CASE("I1: Handle points to correct value for mono dest", "[modmatrix][handle]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("I1: Handle points to correct value for mono dest", "[modmatrix][handle]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
@@ -953,9 +933,8 @@ TEST_CASE("I1: Handle points to correct value for mono dest", "[modmatrix][handl
     REQUIRE(handle.getValue() == Catch::Approx(0.5f));
 }
 
-TEST_CASE("I2: Handle points to correct per-voice value for poly dest", "[modmatrix][handle]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("I2: Handle points to correct per-voice value for poly dest", "[modmatrix][handle]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src = matrix.registerSource("src", ModSrcType::Poly, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Poly);
@@ -980,9 +959,8 @@ TEST_CASE("I2: Handle points to correct per-voice value for poly dest", "[modmat
     REQUIRE(handle2.getValue() == Catch::Approx(0.7f));
 }
 
-TEST_CASE("J1: Poly->Mono connections are compiled but have no effect (NYI)", "[modmatrix][nyi]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("J1: Poly->Mono connections are compiled but have no effect (NYI)", "[modmatrix][nyi]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& poly_src = matrix.registerSource("poly_src", ModSrcType::Poly, false);
     auto& mono_dst = matrix.registerDestination("mono_dst", ModDstMode::Mono);
@@ -999,9 +977,8 @@ TEST_CASE("J1: Poly->Mono connections are compiled but have no effect (NYI)", "[
     REQUIRE(matrix.getModValue(mono_dst.index) == Catch::Approx(0.5f));
 }
 
-TEST_CASE("J2: Poly depth mod on MM slot is silently ignored", "[modmatrix][nyi]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("J2: Poly depth mod on MM slot is silently ignored", "[modmatrix][nyi]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& main_src = matrix.registerSource("main", ModSrcType::Mono, false);
     auto& depth_src = matrix.registerSource("depth", ModSrcType::Poly, false);
@@ -1023,13 +1000,10 @@ TEST_CASE("J2: Poly depth mod on MM slot is silently ignored", "[modmatrix][nyi]
     REQUIRE(matrix.getModValue(mono_dst.index) == Catch::Approx(0.0f));
 }
 
-TEST_CASE("Edge: Empty matrix operations", "[modmatrix][edge]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("Edge: Empty matrix operations", "[modmatrix][edge]") {
+    ModMatrix<float> matrix(SmallConfig);
 
-    SECTION("process() with no sources/destinations doesn't crash") {
-        matrix.process();
-    }
+    SECTION("process() with no sources/destinations doesn't crash") { matrix.process(); }
 
     SECTION("process() with sources but no destinations") {
         matrix.registerSource("src", ModSrcType::Mono);
@@ -1053,9 +1027,8 @@ TEST_CASE("Edge: Empty matrix operations", "[modmatrix][edge]")
     }
 }
 
-TEST_CASE("Edge: Connections with no active voices", "[modmatrix][edge]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("Edge: Connections with no active voices", "[modmatrix][edge]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src = matrix.registerSource("poly_src", ModSrcType::Poly, false);
     auto& dst = matrix.registerDestination("poly_dst", ModDstMode::Poly);
@@ -1067,9 +1040,8 @@ TEST_CASE("Edge: Connections with no active voices", "[modmatrix][edge]")
     matrix.process();
 }
 
-TEST_CASE("Edge: Negative depth values invert modulation", "[modmatrix][edge]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("Edge: Negative depth values invert modulation", "[modmatrix][edge]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
@@ -1083,9 +1055,8 @@ TEST_CASE("Edge: Negative depth values invert modulation", "[modmatrix][edge]")
     REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.0f));
 }
 
-TEST_CASE("Edge: Zero base depth with depth modulation", "[modmatrix][edge]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("Edge: Zero base depth with depth modulation", "[modmatrix][edge]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& main_src = matrix.registerSource("main", ModSrcType::Mono, false);
     auto& depth_src = matrix.registerSource("depth", ModSrcType::Mono, false);
@@ -1103,9 +1074,8 @@ TEST_CASE("Edge: Zero base depth with depth modulation", "[modmatrix][edge]")
     REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.75f));
 }
 
-TEST_CASE("K1: Oracle verification for simple mono patch", "[modmatrix][oracle]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("K1: Oracle verification for simple mono patch", "[modmatrix][oracle]") {
+    ModMatrix<float> matrix(SmallConfig);
     ModMatrixOracle oracle(4, 8, 16);
 
     auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
@@ -1130,9 +1100,8 @@ TEST_CASE("K1: Oracle verification for simple mono patch", "[modmatrix][oracle]"
     REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(oracle_mono[0]));
 }
 
-TEST_CASE("K1: Oracle verification for poly patch", "[modmatrix][oracle]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("K1: Oracle verification for poly patch", "[modmatrix][oracle]") {
+    ModMatrix<float> matrix(SmallConfig);
     ModMatrixOracle oracle(4, 8, 16);
 
     auto& src = matrix.registerSource("src", ModSrcType::Poly, false);
@@ -1164,9 +1133,8 @@ TEST_CASE("K1: Oracle verification for poly patch", "[modmatrix][oracle]")
     REQUIRE(oracle_poly[2][0] == Catch::Approx(0.7f));
 }
 
-TEST_CASE("K1: Oracle verification for bipolar mapping", "[modmatrix][oracle]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("K1: Oracle verification for bipolar mapping", "[modmatrix][oracle]") {
+    ModMatrix<float> matrix(SmallConfig);
     ModMatrixOracle oracle(4, 8, 16);
 
     auto& src = matrix.registerSource("src", ModSrcType::Mono, true);
@@ -1190,9 +1158,8 @@ TEST_CASE("K1: Oracle verification for bipolar mapping", "[modmatrix][oracle]")
     REQUIRE(oracle_mono[0] == Catch::Approx(0.5f));
 }
 
-TEST_CASE("K1: Oracle verification for MP connection", "[modmatrix][oracle]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("K1: Oracle verification for MP connection", "[modmatrix][oracle]") {
+    ModMatrix<float> matrix(SmallConfig);
     ModMatrixOracle oracle(4, 8, 16);
 
     auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
@@ -1223,9 +1190,8 @@ TEST_CASE("K1: Oracle verification for MP connection", "[modmatrix][oracle]")
     REQUIRE(oracle_poly[1][0] == Catch::Approx(expected));
 }
 
-TEST_CASE("A4: Source enumeration and name population", "[modmatrix][registration]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("A4: Source enumeration and name population", "[modmatrix][registration]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src1 = matrix.registerSource("LFO1", ModSrcType::Mono, true);
     auto& src2 = matrix.registerSource("ENV1", ModSrcType::Poly, false);
@@ -1236,9 +1202,8 @@ TEST_CASE("A4: Source enumeration and name population", "[modmatrix][registratio
     REQUIRE(matrix.getSource(0).index == src1.index);
 }
 
-TEST_CASE("A5: Destination enumeration and name population", "[modmatrix][registration]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("A5: Destination enumeration and name population", "[modmatrix][registration]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& dst1 = matrix.registerDestination("Cutoff", ModDstMode::Poly);
     auto& dst2 = matrix.registerDestination("Gain", ModDstMode::Mono);
@@ -1249,9 +1214,8 @@ TEST_CASE("A5: Destination enumeration and name population", "[modmatrix][regist
     REQUIRE(matrix.getDestination(0).index == dst1.index);
 }
 
-TEST_CASE("A6: Find source/destination by name", "[modmatrix][registration]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("A6: Find source/destination by name", "[modmatrix][registration]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     matrix.registerSource("LFO1", ModSrcType::Mono);
     matrix.registerDestination("Cutoff", ModDstMode::Poly);
@@ -1262,9 +1226,7 @@ TEST_CASE("A6: Find source/destination by name", "[modmatrix][registration]")
         REQUIRE(src->name == "LFO1");
     }
 
-    SECTION("Find non-existent source returns nullptr") {
-        REQUIRE(matrix.findSource("NOPE") == nullptr);
-    }
+    SECTION("Find non-existent source returns nullptr") { REQUIRE(matrix.findSource("NOPE") == nullptr); }
 
     SECTION("Find existing destination") {
         auto* dst = matrix.findDestination("Cutoff");
@@ -1272,14 +1234,11 @@ TEST_CASE("A6: Find source/destination by name", "[modmatrix][registration]")
         REQUIRE(dst->name == "Cutoff");
     }
 
-    SECTION("Find non-existent destination returns nullptr") {
-        REQUIRE(matrix.findDestination("NOPE") == nullptr);
-    }
+    SECTION("Find non-existent destination returns nullptr") { REQUIRE(matrix.findDestination("NOPE") == nullptr); }
 }
 
-TEST_CASE("F5: Connection enumeration", "[modmatrix][connections]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("F5: Connection enumeration", "[modmatrix][connections]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src = matrix.registerSource("src", ModSrcType::Mono);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
@@ -1292,9 +1251,8 @@ TEST_CASE("F5: Connection enumeration", "[modmatrix][connections]")
     REQUIRE(matrix.getConnections()[0].dst_idx == dst.index);
 }
 
-TEST_CASE("F6: Remove depth mod connection", "[modmatrix][connections]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("F6: Remove depth mod connection", "[modmatrix][connections]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& main_src = matrix.registerSource("main", ModSrcType::Mono);
     auto& depth_src = matrix.registerSource("depth", ModSrcType::Mono);
@@ -1310,9 +1268,8 @@ TEST_CASE("F6: Remove depth mod connection", "[modmatrix][connections]")
     REQUIRE(!matrix.getConnections()[0].isDepthMod());
 }
 
-TEST_CASE("F7: Removing a param connection cascade-deletes its depth mods", "[modmatrix][connections]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("F7: Removing a param connection cascade-deletes its depth mods", "[modmatrix][connections]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& main_src = matrix.registerSource("main", ModSrcType::Mono);
     auto& depth_src = matrix.registerSource("depth", ModSrcType::Mono);
@@ -1326,10 +1283,8 @@ TEST_CASE("F7: Removing a param connection cascade-deletes its depth mods", "[mo
     REQUIRE(matrix.getConnections().empty());
 }
 
-TEST_CASE("F8: Slot freed by cascade is cleanly reusable (no stale depth mod attaches)",
-          "[modmatrix][connections]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("F8: Slot freed by cascade is cleanly reusable (no stale depth mod attaches)", "[modmatrix][connections]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& s1 = matrix.registerSource("s1", ModSrcType::Mono);
     auto& s2 = matrix.registerSource("s2", ModSrcType::Mono);
@@ -1355,10 +1310,8 @@ TEST_CASE("F8: Slot freed by cascade is cleanly reusable (no stale depth mod att
     REQUIRE(matrix.getModValue(d2.index) == Catch::Approx(0.5f));
 }
 
-TEST_CASE("F9: reassignSource preserves depth_slot and attached depth mods",
-          "[modmatrix][connections][reassign]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("F9: reassignSource preserves depth_slot and attached depth mods", "[modmatrix][connections][reassign]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& s1 = matrix.registerSource("s1", ModSrcType::Mono);
     auto& s2 = matrix.registerSource("s2", ModSrcType::Mono);
@@ -1390,9 +1343,8 @@ TEST_CASE("F9: reassignSource preserves depth_slot and attached depth mods",
     REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.5f));
 }
 
-TEST_CASE("F10: reassignSource merges into existing peer", "[modmatrix][connections][reassign]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("F10: reassignSource merges into existing peer", "[modmatrix][connections][reassign]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& s1 = matrix.registerSource("s1", ModSrcType::Mono);
     auto& s2 = matrix.registerSource("s2", ModSrcType::Mono);
@@ -1413,9 +1365,8 @@ TEST_CASE("F10: reassignSource merges into existing peer", "[modmatrix][connecti
 }
 
 TEST_CASE("F11: reassignSource merge transfers the moving conn's depth mods onto the peer",
-          "[modmatrix][connections][reassign]")
-{
-    ModMatrix matrix(SmallConfig);
+          "[modmatrix][connections][reassign]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& s1 = matrix.registerSource("s1", ModSrcType::Mono);
     auto& s2 = matrix.registerSource("s2", ModSrcType::Mono);
@@ -1436,9 +1387,8 @@ TEST_CASE("F11: reassignSource merge transfers the moving conn's depth mods onto
 }
 
 TEST_CASE("F11b: reassignSource merge keeps peer's existing depth mod on conflict (peer wins)",
-          "[modmatrix][connections][reassign]")
-{
-    ModMatrix matrix(SmallConfig);
+          "[modmatrix][connections][reassign]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& s1 = matrix.registerSource("s1", ModSrcType::Mono);
     auto& s2 = matrix.registerSource("s2", ModSrcType::Mono);
@@ -1460,10 +1410,8 @@ TEST_CASE("F11b: reassignSource merge keeps peer's existing depth mod on conflic
     REQUIRE(kept->getDepth() == Catch::Approx(0.8f));  // B's value wins
 }
 
-TEST_CASE("F12: reassignSource is a no-op when newSrc equals current src",
-          "[modmatrix][connections][reassign]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("F12: reassignSource is a no-op when newSrc equals current src", "[modmatrix][connections][reassign]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& s1 = matrix.registerSource("s1", ModSrcType::Mono);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
@@ -1476,9 +1424,8 @@ TEST_CASE("F12: reassignSource is a no-op when newSrc equals current src",
 }
 
 TEST_CASE("F13: reassignSource on a depth mod keeps it attached to the same target slot",
-          "[modmatrix][connections][reassign]")
-{
-    ModMatrix matrix(SmallConfig);
+          "[modmatrix][connections][reassign]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& main_src = matrix.registerSource("main", ModSrcType::Mono);
     auto& d1 = matrix.registerSource("d1", ModSrcType::Mono);
@@ -1499,9 +1446,8 @@ TEST_CASE("F13: reassignSource on a depth mod keeps it attached to the same targ
 }
 
 TEST_CASE("F13b: reassignSource merge on a depth mod overwrites peer depth and flags",
-          "[modmatrix][connections][reassign]")
-{
-    ModMatrix matrix(SmallConfig);
+          "[modmatrix][connections][reassign]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& main_src = matrix.registerSource("main", ModSrcType::Mono);
     auto& d1 = matrix.registerSource("d1", ModSrcType::Mono);
@@ -1539,9 +1485,8 @@ TEST_CASE("F13b: reassignSource merge on a depth mod overwrites peer depth and f
 }
 
 TEST_CASE("F14: reassignDestination preserves depth_slot and attached depth mods",
-          "[modmatrix][connections][reassign]")
-{
-    ModMatrix matrix(SmallConfig);
+          "[modmatrix][connections][reassign]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src = matrix.registerSource("src", ModSrcType::Mono);
     auto& depth_src = matrix.registerSource("depth", ModSrcType::Mono);
@@ -1569,9 +1514,8 @@ TEST_CASE("F14: reassignDestination preserves depth_slot and attached depth mods
 }
 
 TEST_CASE("F15: reassignDestination across mono/poly re-partitions into correct program bucket",
-          "[modmatrix][connections][reassign]")
-{
-    ModMatrix matrix(SmallConfig);
+          "[modmatrix][connections][reassign]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src = matrix.registerSource("src", ModSrcType::Mono);
     auto& mono_dst = matrix.registerDestination("mono_dst", ModDstMode::Mono);
@@ -1590,9 +1534,8 @@ TEST_CASE("F15: reassignDestination across mono/poly re-partitions into correct 
 }
 
 TEST_CASE("F15b: reassignSource across mono/poly-effective sources re-partitions into correct program bucket",
-          "[modmatrix][connections][reassign]")
-{
-    ModMatrix matrix(SmallConfig);
+          "[modmatrix][connections][reassign]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& mono_src = matrix.registerSource("mono_src", ModSrcType::Both, false, ModSrcMode::Mono);
     auto& poly_src = matrix.registerSource("poly_src", ModSrcType::Both, false, ModSrcMode::Poly);
@@ -1627,9 +1570,8 @@ TEST_CASE("F15b: reassignSource across mono/poly-effective sources re-partitions
     REQUIRE(matrix.getPolyModValue(dst.index, 1) == Catch::Approx(0.6f));
 }
 
-TEST_CASE("F16: reassignDestination merges into existing peer", "[modmatrix][connections][reassign]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("F16: reassignDestination merges into existing peer", "[modmatrix][connections][reassign]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& src = matrix.registerSource("src", ModSrcType::Mono);
     auto& d1 = matrix.registerDestination("d1", ModDstMode::Mono);
@@ -1648,9 +1590,8 @@ TEST_CASE("F16: reassignDestination merges into existing peer", "[modmatrix][con
 }
 
 TEST_CASE("F16b: reassignDestination merge transfers only non-conflicting depth mods onto the peer",
-          "[modmatrix][connections][reassign]")
-{
-    ModMatrix matrix(SmallConfig);
+          "[modmatrix][connections][reassign]") {
+    ModMatrix<float> matrix(SmallConfig);
 
     auto& main_src = matrix.registerSource("main", ModSrcType::Mono);
     auto& dm1 = matrix.registerSource("dm1", ModSrcType::Mono);
@@ -1696,9 +1637,8 @@ TEST_CASE("F16b: reassignDestination merge transfers only non-conflicting depth 
     REQUIRE(matrix.getModValue(d2.index) == Catch::Approx(0.6f));
 }
 
-TEST_CASE("M1: Empty destination has zero offset range", "[modmatrix][offset_range]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("M1: Empty destination has zero offset range", "[modmatrix][offset_range]") {
+    ModMatrix<float> matrix(SmallConfig);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
 
     auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
@@ -1706,9 +1646,8 @@ TEST_CASE("M1: Empty destination has zero offset range", "[modmatrix][offset_ran
     REQUIRE(max_off == Catch::Approx(0.0f));
 }
 
-TEST_CASE("M2: Unipolar mapping contributes [min(0,d), max(0,d)]", "[modmatrix][offset_range]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("M2: Unipolar mapping contributes [min(0,d), max(0,d)]", "[modmatrix][offset_range]") {
+    ModMatrix<float> matrix(SmallConfig);
     auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
 
@@ -1734,11 +1673,9 @@ TEST_CASE("M2: Unipolar mapping contributes [min(0,d), max(0,d)]", "[modmatrix][
     }
 }
 
-TEST_CASE("M3: Bipolar mapping contributes [-|d|/2, +|d|/2] regardless of sign",
-          "[modmatrix][offset_range]")
-{
+TEST_CASE("M3: Bipolar mapping contributes [-|d|/2, +|d|/2] regardless of sign", "[modmatrix][offset_range]") {
     // Peak-to-peak of a bipolar-mapped connection equals |depth|, so the range splits into ±|d|/2.
-    ModMatrix matrix(SmallConfig);
+    ModMatrix<float> matrix(SmallConfig);
     auto& src = matrix.registerSource("src", ModSrcType::Mono, true);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
 
@@ -1757,27 +1694,24 @@ TEST_CASE("M3: Bipolar mapping contributes [-|d|/2, +|d|/2] regardless of sign",
     }
 }
 
-TEST_CASE("M4: Multiple connections sum independently", "[modmatrix][offset_range]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("M4: Multiple connections sum independently", "[modmatrix][offset_range]") {
+    ModMatrix<float> matrix(SmallConfig);
     auto& s_bi = matrix.registerSource("s_bi", ModSrcType::Mono, true);
     auto& s_up_pos = matrix.registerSource("s_up_pos", ModSrcType::Mono, false);
     auto& s_up_neg = matrix.registerSource("s_up_neg", ModSrcType::Mono, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
 
-    matrix.addConnection(s_bi, dst, 0.2f, true);       // -> [-0.1, +0.1]
+    matrix.addConnection(s_bi, dst, 0.2f, true);  // -> [-0.1, +0.1]
     matrix.addConnection(s_up_pos, dst, 0.3f, false);  // -> [ 0.0, +0.3]
-    matrix.addConnection(s_up_neg, dst, -0.1f, false); // -> [-0.1,  0.0]
+    matrix.addConnection(s_up_neg, dst, -0.1f, false);  // -> [-0.1,  0.0]
 
     auto [min_off, max_off] = matrix.getModOffsetRange(dst.index);
     REQUIRE(min_off == Catch::Approx(-0.2f));
     REQUIRE(max_off == Catch::Approx(+0.4f));
 }
 
-TEST_CASE("M5: Source bipolar flag does not affect range; only connection mapping does",
-          "[modmatrix][offset_range]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("M5: Source bipolar flag does not affect range; only connection mapping does", "[modmatrix][offset_range]") {
+    ModMatrix<float> matrix(SmallConfig);
     auto& bipolar_src = matrix.registerSource("bi", ModSrcType::Mono, true);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
 
@@ -1789,9 +1723,8 @@ TEST_CASE("M5: Source bipolar flag does not affect range; only connection mappin
     REQUIRE(max_off == Catch::Approx(0.5f));
 }
 
-TEST_CASE("M6: Depth-mod connections are excluded", "[modmatrix][offset_range]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("M6: Depth-mod connections are excluded", "[modmatrix][offset_range]") {
+    ModMatrix<float> matrix(SmallConfig);
     auto& main_src = matrix.registerSource("main", ModSrcType::Mono, false);
     auto& depth_src = matrix.registerSource("depth", ModSrcType::Mono, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
@@ -1809,10 +1742,8 @@ TEST_CASE("M6: Depth-mod connections are excluded", "[modmatrix][offset_range]")
     REQUIRE(after.second == Catch::Approx(0.4f));
 }
 
-TEST_CASE("M7: Only connections targeting the queried destination are counted",
-          "[modmatrix][offset_range]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("M7: Only connections targeting the queried destination are counted", "[modmatrix][offset_range]") {
+    ModMatrix<float> matrix(SmallConfig);
     auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
     auto& dst_a = matrix.registerDestination("dst_a", ModDstMode::Mono);
     auto& dst_b = matrix.registerDestination("dst_b", ModDstMode::Mono);
@@ -1827,12 +1758,10 @@ TEST_CASE("M7: Only connections targeting the queried destination are counted",
     REQUIRE(range_b.second == Catch::Approx(0.2f));
 }
 
-TEST_CASE("M8: Reported range bounds process() output at source extremes",
-          "[modmatrix][offset_range]")
-{
+TEST_CASE("M8: Reported range bounds process() output at source extremes", "[modmatrix][offset_range]") {
     // Pin sources to their extremes and confirm process() output - base stays within the
     // reported [min, max]. Guards against drift in process()'s per-connection math.
-    ModMatrix matrix(SmallConfig);
+    ModMatrix<float> matrix(SmallConfig);
     auto& s_bi = matrix.registerSource("s_bi", ModSrcType::Mono, true);
     auto& s_up = matrix.registerSource("s_up", ModSrcType::Mono, false);
 
@@ -1869,10 +1798,9 @@ TEST_CASE("M8: Reported range bounds process() output at source extremes",
 // An explicit bipolar_mapping argument always wins.
 
 TEST_CASE("N1: Bipolar source defaults to bipolar-mapped regardless of base",
-          "[modmatrix][connections][default_mapping]")
-{
+          "[modmatrix][connections][default_mapping]") {
     auto check = [](float base) {
-        ModMatrix matrix(SmallConfig);
+        ModMatrix<float> matrix(SmallConfig);
         auto& src = matrix.registerSource("src", ModSrcType::Mono, true);
         auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
         matrix.setBaseValue(dst.index, base);
@@ -1887,10 +1815,9 @@ TEST_CASE("N1: Bipolar source defaults to bipolar-mapped regardless of base",
 }
 
 TEST_CASE("N2: Unipolar source, base near min → unipolar-mapped, depth forced positive",
-          "[modmatrix][connections][default_mapping]")
-{
+          "[modmatrix][connections][default_mapping]") {
     applause::ValueScaleInfo identity{0.0f, 1.0f, applause::ValueScaling::linear()};
-    ModMatrix matrix(SmallConfig);
+    ModMatrix<float> matrix(SmallConfig);
     auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity);
     matrix.setBaseValue(dst.index, 0.1f);
@@ -1900,11 +1827,9 @@ TEST_CASE("N2: Unipolar source, base near min → unipolar-mapped, depth forced 
     REQUIRE(conn.getDepth() == Catch::Approx(+0.8f));
 }
 
-TEST_CASE("N3: Unipolar source, base near center → bipolar-mapped",
-          "[modmatrix][connections][default_mapping]")
-{
+TEST_CASE("N3: Unipolar source, base near center → bipolar-mapped", "[modmatrix][connections][default_mapping]") {
     applause::ValueScaleInfo identity{0.0f, 1.0f, applause::ValueScaling::linear()};
-    ModMatrix matrix(SmallConfig);
+    ModMatrix<float> matrix(SmallConfig);
     auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity);
     matrix.setBaseValue(dst.index, 0.5f);
@@ -1915,10 +1840,9 @@ TEST_CASE("N3: Unipolar source, base near center → bipolar-mapped",
 }
 
 TEST_CASE("N4: Unipolar source, base near max → unipolar-mapped, depth forced negative",
-          "[modmatrix][connections][default_mapping]")
-{
+          "[modmatrix][connections][default_mapping]") {
     applause::ValueScaleInfo identity{0.0f, 1.0f, applause::ValueScaling::linear()};
-    ModMatrix matrix(SmallConfig);
+    ModMatrix<float> matrix(SmallConfig);
     auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity);
     matrix.setBaseValue(dst.index, 0.9f);
@@ -1928,10 +1852,8 @@ TEST_CASE("N4: Unipolar source, base near max → unipolar-mapped, depth forced 
     REQUIRE(conn.getDepth() == Catch::Approx(-0.8f));
 }
 
-TEST_CASE("N5: Explicit bipolar_mapping overrides the smart default",
-          "[modmatrix][connections][default_mapping]")
-{
-    ModMatrix matrix(SmallConfig);
+TEST_CASE("N5: Explicit bipolar_mapping overrides the smart default", "[modmatrix][connections][default_mapping]") {
+    ModMatrix<float> matrix(SmallConfig);
     auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
     matrix.setBaseValue(dst.index, 0.0f);
@@ -1942,12 +1864,11 @@ TEST_CASE("N5: Explicit bipolar_mapping overrides the smart default",
 }
 
 TEST_CASE("N6: Smart default integrates with getModOffsetRange",
-          "[modmatrix][connections][default_mapping][offset_range]")
-{
+          "[modmatrix][connections][default_mapping][offset_range]") {
     applause::ValueScaleInfo identity{0.0f, 1.0f, applause::ValueScaling::linear()};
 
     SECTION("Bipolar source centered on 0.5 → reported range [-d/2, +d/2]") {
-        ModMatrix matrix(SmallConfig);
+        ModMatrix<float> matrix(SmallConfig);
         auto& src = matrix.registerSource("src", ModSrcType::Mono, true);
         auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity);
         matrix.setBaseValue(dst.index, 0.5f);
@@ -1959,7 +1880,7 @@ TEST_CASE("N6: Smart default integrates with getModOffsetRange",
     }
 
     SECTION("Unipolar source at base 0.0 → reported range [0, +d]") {
-        ModMatrix matrix(SmallConfig);
+        ModMatrix<float> matrix(SmallConfig);
         auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
         auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity);
         matrix.setBaseValue(dst.index, 0.0f);
@@ -1971,7 +1892,7 @@ TEST_CASE("N6: Smart default integrates with getModOffsetRange",
     }
 
     SECTION("Unipolar source at base 1.0 → reported range [-d, 0]") {
-        ModMatrix matrix(SmallConfig);
+        ModMatrix<float> matrix(SmallConfig);
         auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
         auto& dst = matrix.registerDestination("dst", ModDstMode::Mono, identity);
         matrix.setBaseValue(dst.index, 1.0f);
@@ -1981,4 +1902,255 @@ TEST_CASE("N6: Smart default integrates with getModOffsetRange",
         REQUIRE(min_off == Catch::Approx(-1.0f));
         REQUIRE(max_off == Catch::Approx(0.0f));
     }
+}
+
+TEST_CASE("O1: SIMD poly routing matches one scalar voice per lane", "[modmatrix][simd]") {
+    constexpr std::array<float, 4> pattern{0.0f, 0.25f, 0.5f, 1.0f};
+    std::array<float, ModBatch::size> input{};
+    for (std::size_t lane = 0; lane < input.size(); ++lane) input[lane] = pattern[lane % pattern.size()];
+
+    ModMatrix<ModBatch> batch_matrix(BatchConfig);
+    auto& batch_src = batch_matrix.registerSource("env", ModSrcType::Poly, false);
+    auto& batch_dst = batch_matrix.registerDestination("amplitude", ModDstMode::Poly);
+    batch_matrix.addConnection(batch_src, batch_dst, 0.5f, false);
+    batch_matrix.setBaseValue(batch_dst.index, 0.1f);
+    batch_matrix.setPolySourceValue(batch_src.index, 0, ModBatch::load_unaligned(input.data()));
+    batch_matrix.notifyVoiceOn(0);
+    const auto batch_handle = batch_matrix.getModHandle(batch_dst.index, 0);
+    batch_matrix.process();
+
+    std::array<float, ModBatch::size> batch_output{};
+    batch_handle.getValue().store_unaligned(batch_output.data());
+
+    const ModMatrix<float>::Config scalar_config{static_cast<uint16_t>(ModBatch::size), 4, 4, 8};
+    ModMatrix<float> scalar_matrix(scalar_config);
+    auto& scalar_src = scalar_matrix.registerSource("env", ModSrcType::Poly, false);
+    auto& scalar_dst = scalar_matrix.registerDestination("amplitude", ModDstMode::Poly);
+    scalar_matrix.addConnection(scalar_src, scalar_dst, 0.5f, false);
+    scalar_matrix.setBaseValue(scalar_dst.index, 0.1f);
+
+    for (std::size_t lane = 0; lane < input.size(); ++lane) {
+        scalar_matrix.setPolySourceValue(scalar_src.index, static_cast<uint16_t>(lane), input[lane]);
+        scalar_matrix.notifyVoiceOn(static_cast<uint16_t>(lane));
+    }
+    scalar_matrix.process();
+
+    for (std::size_t lane = 0; lane < input.size(); ++lane) {
+        REQUIRE(batch_output[lane] == Catch::Approx(0.1f + 0.5f * input[lane]));
+        REQUIRE(batch_output[lane] ==
+                Catch::Approx(scalar_matrix.getPolyModValue(scalar_dst.index, static_cast<uint16_t>(lane))));
+    }
+}
+
+TEST_CASE("O2: SIMD mono source broadcasts to all aggregate lanes", "[modmatrix][simd]") {
+    ModMatrix<ModBatch> matrix(BatchConfig);
+    auto& src = matrix.registerSource("macro", ModSrcType::Mono, false);
+    auto& dst = matrix.registerDestination("amplitude", ModDstMode::Poly);
+    matrix.addConnection(src, dst, 0.4f, false);
+    matrix.setBaseValue(dst.index, 0.1f);
+    matrix.setMonoSourceValue(src.index, 0.5f);
+    matrix.notifyVoiceOn(0);
+    matrix.process();
+
+    std::array<float, ModBatch::size> output{};
+    matrix.getPolyModValue(dst.index, 0).store_unaligned(output.data());
+    for (float value : output) REQUIRE(value == Catch::Approx(0.3f));
+}
+
+TEST_CASE("O3: SIMD poly depth modulation matches scalar lanes", "[modmatrix][simd]") {
+    constexpr std::array<float, 4> pattern{0.0f, 0.25f, 0.5f, 1.0f};
+    std::array<float, ModBatch::size> main_values{};
+    std::array<float, ModBatch::size> depth_values{};
+    main_values.fill(1.0f);
+    for (std::size_t lane = 0; lane < depth_values.size(); ++lane) depth_values[lane] = pattern[lane % pattern.size()];
+
+    ModMatrix<ModBatch> batch_matrix(BatchConfig);
+    auto& batch_main = batch_matrix.registerSource("main", ModSrcType::Poly, false);
+    auto& batch_depth = batch_matrix.registerSource("depth", ModSrcType::Poly, false);
+    auto& batch_dst = batch_matrix.registerDestination("dst", ModDstMode::Poly);
+    auto batch_connection = batch_matrix.addConnection(batch_main, batch_dst, 0.0f, false);
+    batch_matrix.addDepthModulation(batch_depth, batch_connection, 0.8f, false);
+    batch_matrix.setBaseValue(batch_dst.index, 0.1f);
+    batch_matrix.setPolySourceValue(batch_main.index, 0, ModBatch::load_unaligned(main_values.data()));
+    batch_matrix.setPolySourceValue(batch_depth.index, 0, ModBatch::load_unaligned(depth_values.data()));
+    batch_matrix.notifyVoiceOn(0);
+    batch_matrix.process();
+
+    std::array<float, ModBatch::size> batch_output{};
+    batch_matrix.getPolyModValue(batch_dst.index, 0).store_unaligned(batch_output.data());
+
+    const ModMatrix<float>::Config scalar_config{static_cast<uint16_t>(ModBatch::size), 4, 4, 8};
+    ModMatrix<float> scalar_matrix(scalar_config);
+    auto& scalar_main = scalar_matrix.registerSource("main", ModSrcType::Poly, false);
+    auto& scalar_depth = scalar_matrix.registerSource("depth", ModSrcType::Poly, false);
+    auto& scalar_dst = scalar_matrix.registerDestination("dst", ModDstMode::Poly);
+    auto scalar_connection = scalar_matrix.addConnection(scalar_main, scalar_dst, 0.0f, false);
+    scalar_matrix.addDepthModulation(scalar_depth, scalar_connection, 0.8f, false);
+    scalar_matrix.setBaseValue(scalar_dst.index, 0.1f);
+
+    for (std::size_t lane = 0; lane < depth_values.size(); ++lane) {
+        const auto voice = static_cast<uint16_t>(lane);
+        scalar_matrix.setPolySourceValue(scalar_main.index, voice, main_values[lane]);
+        scalar_matrix.setPolySourceValue(scalar_depth.index, voice, depth_values[lane]);
+        scalar_matrix.notifyVoiceOn(voice);
+    }
+    scalar_matrix.process();
+
+    for (std::size_t lane = 0; lane < depth_values.size(); ++lane) {
+        REQUIRE(batch_output[lane] == Catch::Approx(0.1f + 0.8f * depth_values[lane]));
+        REQUIRE(batch_output[lane] ==
+                Catch::Approx(scalar_matrix.getPolyModValue(scalar_dst.index, static_cast<uint16_t>(lane))));
+    }
+}
+
+TEST_CASE("O4: SIMD polarity, clamping, and scaling apply per lane", "[modmatrix][simd]") {
+    constexpr std::array<float, 4> pattern{-1.0f, 0.0f, 0.5f, 1.0f};
+    constexpr std::array<float, 4> expected{10.0f, 15.0f, 20.0f, 20.0f};
+    std::array<float, ModBatch::size> input{};
+    for (std::size_t lane = 0; lane < input.size(); ++lane) input[lane] = pattern[lane % pattern.size()];
+
+    ModMatrix<ModBatch> matrix(BatchConfig);
+    auto& src = matrix.registerSource("lfo", ModSrcType::Poly, true);
+    auto& dst = matrix.registerDestination("scaled", ModDstMode::Poly,
+                                           applause::ValueScaleInfo{10.0f, 20.0f, applause::ValueScaling::linear()});
+    matrix.addConnection(src, dst, 2.0f, true);
+    matrix.setBaseValue(dst.index, 15.0f);
+    matrix.setPolySourceValue(src.index, 0, ModBatch::load_unaligned(input.data()));
+    matrix.notifyVoiceOn(0);
+    matrix.process();
+
+    std::array<float, ModBatch::size> output{};
+    matrix.getPolyModValue(dst.index, 0).store_unaligned(output.data());
+    for (std::size_t lane = 0; lane < output.size(); ++lane)
+        REQUIRE(output[lane] == Catch::Approx(expected[lane % expected.size()]));
+}
+
+TEST_CASE("O5: SIMD supports every destination scale", "[modmatrix][simd][scaling]") {
+    constexpr std::array<float, 4> pattern{0.0f, 0.25f, 0.5f, 1.0f};
+    std::array<float, ModBatch::size> input{};
+    for (std::size_t lane = 0; lane < input.size(); ++lane) input[lane] = pattern[lane % pattern.size()];
+
+    const std::array<ValueScaleInfo, 4> scales{
+        ValueScaleInfo{10.0f, 20.0f, ValueScaling::linear()},
+        ValueScaleInfo{20.0f, 20000.0f, ValueScaling::frequency(20.0f, 20000.0f)},
+        ValueScaleInfo{0.001f, 10.0f, ValueScaling::time(0.001f, 10.0f)},
+        ValueScaleInfo{0.0f, 100.0f, ValueScaling::quadratic()},
+    };
+
+    for (const auto& scale : scales) {
+        ModMatrix<ModBatch> matrix(BatchConfig);
+        auto& src = matrix.registerSource("src", ModSrcType::Poly, false);
+        auto& dst = matrix.registerDestination("dst", ModDstMode::Poly, scale);
+        matrix.addConnection(src, dst, 1.0f, false);
+        matrix.setBaseValue(dst.index, scale.min);
+        matrix.setPolySourceValue(src.index, 0, ModBatch::load_unaligned(input.data()));
+        matrix.notifyVoiceOn(0);
+        matrix.process();
+
+        std::array<float, ModBatch::size> output{};
+        matrix.getPolyModValue(dst.index, 0).store_unaligned(output.data());
+        for (std::size_t lane = 0; lane < output.size(); ++lane) {
+            const float expected = scale.scaling.fromNormalized(input[lane], scale.min, scale.max);
+            REQUIRE(output[lane] == Catch::Approx(expected).epsilon(1e-4f).margin(1e-5f));
+        }
+    }
+}
+
+TEST_CASE("O6: A SIMD matrix voice is one independent aggregate", "[modmatrix][simd]") {
+    constexpr ModMatrix<ModBatch>::Config config{2, 1, 1, 1};
+    ModMatrix<ModBatch> matrix(config);
+    auto& src = matrix.registerSource("src", ModSrcType::Poly, false);
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Poly);
+    matrix.addConnection(src, dst, 1.0f, false);
+    matrix.setBaseValue(dst.index, 0.1f);
+    matrix.setPolySourceValue(src.index, 0, ModBatch(0.2f));
+    matrix.setPolySourceValue(src.index, 1, ModBatch(0.8f));
+    matrix.notifyVoiceOn(0);
+    matrix.process();
+
+    std::array<float, ModBatch::size> active{};
+    std::array<float, ModBatch::size> inactive{};
+    matrix.getPolyModValue(dst.index, 0).store_unaligned(active.data());
+    matrix.getPolyModValue(dst.index, 1).store_unaligned(inactive.data());
+    for (std::size_t lane = 0; lane < active.size(); ++lane) {
+        REQUIRE(active[lane] == Catch::Approx(0.3f));
+        REQUIRE(inactive[lane] == Catch::Approx(0.0f));
+    }
+
+    matrix.setPolySourceValue(src.index, 0, ModBatch(0.4f));
+    matrix.process();
+    matrix.getPolyModValue(dst.index, 0).store_unaligned(active.data());
+    for (float value : active) REQUIRE(value == Catch::Approx(0.5f));
+}
+
+TEST_CASE("O7: The non-template graph controls a SIMD matrix", "[modmatrix][simd]") {
+    constexpr ModMatrix<ModBatch>::Config config{2, 4, 4, 8};
+    ModMatrix<ModBatch> matrix(config);
+    ModMatrixControl& graph = matrix;
+    auto& src = graph.registerSource("src", ModSrcType::Poly, false);
+    auto& dst = graph.registerDestination("dst", ModDstMode::Poly);
+    auto connection = graph.addConnection(src, dst, 0.5f, false);
+
+    REQUIRE(src.matrix == &graph);
+    REQUIRE(dst.matrix == &graph);
+    REQUIRE(connection.destination() == &dst);
+
+    std::array<float, ModBatch::size> input{};
+    for (std::size_t lane = 0; lane < input.size(); ++lane) input[lane] = static_cast<float>(lane) / input.size();
+    matrix.setPolySourceValue(src.index, 0, ModBatch::load_unaligned(input.data()));
+    matrix.setPolySourceValue(src.index, 1, ModBatch(0.8f));
+    graph.notifyVoiceOn(0);
+    graph.notifyVoiceOn(1);
+    matrix.process();
+
+    REQUIRE(graph.copyActiveDestinationValues(dst.index, {}) == ModBatch::size * 2);
+
+    std::vector<float> values(ModBatch::size * 2);
+    REQUIRE(graph.copyActiveDestinationValues(dst.index, values) == values.size());
+    for (std::size_t lane = 0; lane < input.size(); ++lane)
+        REQUIRE(values[lane] == Catch::Approx(input[lane] * 0.5f));
+    for (std::size_t lane = 0; lane < input.size(); ++lane)
+        REQUIRE(values[ModBatch::size + lane] == Catch::Approx(0.4f));
+
+    std::array<float, 3> partial{-1.0f, -1.0f, -1.0f};
+    REQUIRE(graph.copyActiveDestinationValues(dst.index, std::span{partial}.first(2)) == values.size());
+    REQUIRE(partial[0] == Catch::Approx(input[0] * 0.5f));
+    REQUIRE(partial[1] == Catch::Approx(input[1] * 0.5f));
+    REQUIRE(partial[2] == -1.0f);
+}
+
+TEST_CASE("O8: The non-template graph copies scalar destination values", "[modmatrix][values]") {
+    ModMatrix<float> matrix(SmallConfig);
+    ModMatrixControl& graph = matrix;
+    auto& src = graph.registerSource("src", ModSrcType::Poly, false);
+    auto& mono = graph.registerDestination("mono", ModDstMode::Mono);
+    auto& poly = graph.registerDestination("poly", ModDstMode::Poly);
+    graph.addConnection(src, poly, 1.0f, false);
+    graph.setBaseValue(mono.index, 0.4f);
+    graph.setBaseValue(poly.index, 0.1f);
+    matrix.setPolySourceValue(src.index, 3, 0.7f);
+    matrix.setPolySourceValue(src.index, 1, 0.2f);
+    graph.notifyVoiceOn(3);
+    graph.notifyVoiceOn(1);
+    matrix.process();
+
+    REQUIRE(graph.copyActiveDestinationValues(mono.index, {}) == 1);
+    std::array<float, 2> values{-1.0f, -1.0f};
+    REQUIRE(graph.copyActiveDestinationValues(mono.index, values) == 1);
+    REQUIRE(values[0] == Catch::Approx(0.4f));
+    REQUIRE(values[1] == -1.0f);
+
+    REQUIRE(graph.copyActiveDestinationValues(poly.index, {}) == 2);
+    values = {-1.0f, -1.0f};
+    REQUIRE(graph.copyActiveDestinationValues(poly.index, std::span{values}.first(1)) == 2);
+    REQUIRE(values[0] == Catch::Approx(0.8f));
+    REQUIRE(values[1] == -1.0f);
+
+    REQUIRE(graph.copyActiveDestinationValues(poly.index, values) == 2);
+    REQUIRE(values[0] == Catch::Approx(0.8f));
+    REQUIRE(values[1] == Catch::Approx(0.3f));
+
+    graph.notifyVoiceOff(3);
+    graph.notifyVoiceOff(1);
+    REQUIRE(graph.copyActiveDestinationValues(poly.index, values) == 0);
 }

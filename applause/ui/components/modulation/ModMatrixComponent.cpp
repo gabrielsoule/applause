@@ -14,11 +14,12 @@ namespace applause {
 APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowHeight, 30.0f);  // height of each row
 APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowGap, 7.0f);  // vertical spacing between rows
 APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixPadding, 20.0f);  // outer padding of the matrix
-APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixColumnGap, 16.0f);  // horizontal gap between columns
+APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixColumnGap,
+                               16.0f);  // horizontal gap between columns
 APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixToggleWidth, 30.0f);  // bipolar toggle button width
 APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixDeleteWidth, 30.0f);  // delete button width
 
-static std::string connectionLabel(const ModMatrix& matrix, const ModConnection& conn) {
+static std::string connectionLabel(const ModMatrixControl& matrix, const ModConnection& conn) {
     return matrix.getSource(conn.src_idx).name + " -> " + conn.destination()->name;
 }
 
@@ -170,7 +171,7 @@ void ModMatrixComponent::Row::setControlsActive(bool active) {
     delete_button_.setActive(active);
 }
 
-ModMatrixComponent::ModMatrixComponent(applause::ModMatrix& matrix) : matrix_(matrix) {
+ModMatrixComponent::ModMatrixComponent(applause::ModMatrixControl& matrix) : matrix_(matrix) {
     scrollableLayout().setFlex(true);
     scrollableLayout().setFlexRows(true);
     scrollableLayout().setFlexGap(paletteValue(ApplauseModMatrixRowGap));

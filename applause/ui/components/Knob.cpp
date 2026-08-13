@@ -36,8 +36,7 @@ void Knob::setDefaultValue(float value) {
     redraw();
 }
 
-void Knob::setIndicatorProvider(
-    std::function<void(std::vector<float>&, float&, float&)> provider) {
+void Knob::setIndicatorProvider(IndicatorProvider provider) {
     indicator_provider_ = std::move(provider);
     redraw();
 }
@@ -131,8 +130,8 @@ void Knob::draw(applause::Canvas& canvas) {
         drawDot(value_);
     } else {
         for (float v : indicator_buf_) drawDot(v);
-        redraw();
     }
+    if (indicator_provider_) redraw();
 
     float angle = startAngle + value_ * sweep;
 

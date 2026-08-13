@@ -59,22 +59,20 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo, const ModDestination* dst) :
     if (dst) {
         ASSERT(dst->matrix);
         destination_ = dst;
-        mod_changed_conn_ = destination_->matrix->on_connections_changed.connect(
-            [this] { knob_.redraw(); });
+        mod_changed_conn_ = destination_->matrix->on_connections_changed.connect([this] { knob_.redraw(); });
         knob_.setIndicatorProvider([this](std::vector<float>& out, float& arc_min, float& arc_max) {
-            ModMatrix* m = destination_->matrix;
+            const ModMatrixControl* m = destination_->matrix;
             if (!m->dstIsConnected(destination_->index)) return;
-            const auto normalize = [&](float v) { return param_info_.toNormalized(v); };
-            if (destination_->mode == ModDstMode::Poly) {
-                for (uint16_t voice : m->getActiveVoices())
-                    out.push_back(normalize(m->getPolyModValue(destination_->index, voice)));
-            } else {
-                out.push_back(normalize(m->getModValue(destination_->index)));
-            }
+            out.resize(m->copyActiveDestinationValues(destination_->index, {}));
+            const size_t count = m->copyActiveDestinationValues(destination_->index, out);
+            if (count < out.size()) out.resize(count);
+            for (float& value : out) value = param_info_.toNormalized(value);
             const auto [off_min, off_max] = m->getModOffsetRange(destination_->index);
             const float v = param_info_.toNormalized(param_info_.getValue());
-            arc_min = v + off_min;
-            arc_max = v + off_max;
+            if (arc_min >= arc_max) {
+                arc_min = v + off_min;
+                arc_max = v + off_max;
+            }
         });
     }
 }

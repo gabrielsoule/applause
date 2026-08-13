@@ -17,7 +17,8 @@
 
 using namespace applause::dimension;
 
-ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params, applause::ModMatrix* mod_matrix) :
+ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
+                                             applause::ModMatrixControl* mod_matrix) :
     applause::ApplauseEditor(params) {
     ApplauseEditor::setFixedAspectRatio(true);
 
@@ -38,20 +39,18 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params, 
     addChild(&knobs_panel_);
 
     if (getParamsExtension()) {
-        const auto findDst = [&](const char* name) {
-            return mod_matrix ? mod_matrix->findDestination(name) : nullptr;
-        };
+        const auto findDst = [&](const char* name) { return mod_matrix ? mod_matrix->findDestination(name) : nullptr; };
 
-        param1_knob_ = std::make_unique<applause::ParamKnob>(
-            getParamsExtension()->getInfo("param1"), findDst("param1"));
+        param1_knob_ =
+            std::make_unique<applause::ParamKnob>(getParamsExtension()->getInfo("param1"), findDst("param1"));
         knobs_panel_.content().addChild(param1_knob_.get());
 
-        param2_knob_ = std::make_unique<applause::ParamKnob>(
-            getParamsExtension()->getInfo("param2"), findDst("param2"));
+        param2_knob_ =
+            std::make_unique<applause::ParamKnob>(getParamsExtension()->getInfo("param2"), findDst("param2"));
         knobs_panel_.content().addChild(param2_knob_.get());
 
-        filter_mode_knob_ = std::make_unique<applause::ParamKnob>(
-            getParamsExtension()->getInfo("filter_mode"), findDst("filter_mode"));
+        filter_mode_knob_ =
+            std::make_unique<applause::ParamKnob>(getParamsExtension()->getInfo("filter_mode"), findDst("filter_mode"));
         knobs_panel_.content().addChild(filter_mode_knob_.get());
     }
 
@@ -157,7 +156,7 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params, 
     demo_curve_.points[3] = {0.8f, 0.3f};
     demo_curve_.points[4] = {1.0f, 0.0f};
     demo_curve_.num_points = 5;
-    demo_curve_.curvature_power[0] = -2.0f; // concave rise
+    demo_curve_.curvature_power[0] = -2.0f;  // concave rise
     demo_curve_.curvature_power[3] = 3.0f;  // convex tail
     demo_curve_.loop = true;
 

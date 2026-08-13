@@ -15,6 +15,8 @@ namespace applause {
  */
 class Knob : public applause::Frame {
 public:
+    using IndicatorProvider = std::function<void(std::vector<float>&, float&, float&)>;
+
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseKnobBodyTop);
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseKnobBodyBottom);
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseKnobBodyBorder);
@@ -50,8 +52,7 @@ public:
     // however it sees fit.
     // We seperate the knob from the DSP/parameter/plugin side of things on purpose... knob is only visual; it doesn't
     // "know" anything about the plugin business.
-    void setIndicatorProvider(
-        std::function<void(std::vector<float>& dots, float& arc_min, float& arc_max)> provider);
+    void setIndicatorProvider(IndicatorProvider provider);
 
 protected:
     void draw(applause::Canvas& canvas) override;
@@ -74,7 +75,7 @@ private:
     float drag_sensitivity_ = 0.005f;
     float wheel_sensitivity_ = 0.015f;
     applause::Animation<float> glow_amount_;
-    std::function<void(std::vector<float>&, float&, float&)> indicator_provider_;
+    IndicatorProvider indicator_provider_;
     std::vector<float> indicator_buf_;
 };
 

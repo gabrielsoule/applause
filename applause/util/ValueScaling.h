@@ -1,5 +1,6 @@
 #pragma once
 
+#include <applause/util/SampleType.h>
 #include <cmath>
 #include <cstdint>
 
@@ -31,17 +32,25 @@ struct ValueScaling {
         }
     }
 
-    [[nodiscard]] float fromNormalized(float norm, float min, float max) const noexcept {
+    template <Sample Signal>
+    [[nodiscard]] Signal fromNormalized(Signal norm, float min, float max) const noexcept {
+        const auto value = [](float scalar) { return set1<Signal>(scalar); };
         switch (type) {
         case ValueScale::Frequency:
-            return a * std::exp2(norm * b / 12.0f);
+            if constexpr (SimdBatch<Signal>)
+                return value(a) * xsimd::exp2(norm * value(b / 12.0f));
+            else
+                return a * std::exp2(norm * b / 12.0f);
         case ValueScale::Time:
-            return a * std::pow(10.0f, norm * b);
+            if constexpr (SimdBatch<Signal>)
+                return value(a) * xsimd::pow(value(10.0f), norm * value(b));
+            else
+                return a * std::pow(10.0f, norm * b);
         case ValueScale::Quadratic:
-            return min + (norm * norm) * (max - min);
+            return value(min) + (norm * norm) * value(max - min);
         case ValueScale::Linear:
         default:
-            return min + norm * (max - min);
+            return value(min) + norm * value(max - min);
         }
     }
 

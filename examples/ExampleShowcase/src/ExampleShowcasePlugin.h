@@ -34,7 +34,7 @@ private:
     applause::AudioPortsExtension audio_ports_;
     applause::StateExtension state_;
     applause::ParamsExtension params_;
-    applause::ModMatrix mod_matrix_;
+    applause::ModMatrix<float> mod_matrix_;
     applause::GUIExtension gui_ext_;
 
     double sample_rate_ = 44100.0;
