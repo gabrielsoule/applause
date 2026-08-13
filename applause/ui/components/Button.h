@@ -31,6 +31,7 @@ public:
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonBorderPressed);
 
     // Shared values
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseButtonGlowAmount);
     APPLAUSE_THEME_DEFINE_VALUE(ApplauseButtonRounding);
     APPLAUSE_THEME_DEFINE_VALUE(ApplauseButtonHoverRoundingMult);
     APPLAUSE_THEME_DEFINE_VALUE(ApplauseButtonBorderWidth);
@@ -59,9 +60,7 @@ public:
 
     void notify(bool on) { on_toggle_.callback(this, on); }
 
-    void draw(applause::Canvas& canvas) final;
-
-    virtual void draw(applause::Canvas& canvas, float hover_amount) {}
+    void draw(applause::Canvas& canvas) override;
 
     void mouseEnter(const applause::MouseEvent& e) override;
     void mouseExit(const applause::MouseEvent& e) override;
@@ -84,9 +83,11 @@ public:
     std::function<void()> undoSetupFunction() { return undo_setup_function_; }
     bool wasAltClicked() const { return alt_clicked_; }
 
+protected:
+    applause::Animation<float> hover_amount_;
+
 private:
     applause::CallbackList<void(Button*, bool)> on_toggle_;
-    applause::Animation<float> hover_amount_;
     std::function<void()> undo_setup_function_ = nullptr;
 
     bool active_ = true;
@@ -116,7 +117,7 @@ public:
     explicit UiButton(const std::string& text, const applause::Font& font);
 
     virtual void drawBackground(applause::Canvas& canvas, float hover_amount);
-    void draw(applause::Canvas& canvas, float hover_amount) override;
+    void draw(applause::Canvas& canvas) override;
 
     void setFont(const applause::Font& font) {
         text_.setFont(font);
@@ -171,7 +172,7 @@ public:
         shadow_.load(icon);
     }
 
-    void draw(applause::Canvas& canvas, float hover_amount) override;
+    void draw(applause::Canvas& canvas) override;
 
     void resized() override {
         Button::resized();
@@ -293,7 +294,7 @@ public:
         icon_.load(icon);
     }
 
-    void draw(applause::Canvas& canvas, float hover_amount) override;
+    void draw(applause::Canvas& canvas) override;
 
     void resized() override {
         ToggleButton::resized();
@@ -339,6 +340,7 @@ public:
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOnHover);
 
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonGlow);
+    APPLAUSE_THEME_DEFINE_VALUE(ApplauseToggleTextButtonGlowCenterAmount);
 
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBorderOn);
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBorderOnHover);
@@ -347,7 +349,7 @@ public:
     explicit ToggleTextButton(const std::string& name, const applause::Font& font);
 
     virtual void drawBackground(applause::Canvas& canvas, float hover_amount);
-    void draw(applause::Canvas& canvas, float hover_amount) override;
+    void draw(applause::Canvas& canvas) override;
 
     void setFont(const applause::Font& font) {
         text_.setFont(font);

@@ -42,6 +42,7 @@ APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonTextPressed, 0xffffffff);
 APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonBorder, 0xff444444);
 APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonBorderHover, 0xff5a5a60);
 APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonBorderPressed, 0xff555555);
+APPLAUSE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonGlowAmount, 0.30f);
 APPLAUSE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonRounding, 7.0f);
 APPLAUSE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonHoverRoundingMult, 1.0f);
 APPLAUSE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonBorderWidth, 1.5f);
@@ -68,20 +69,27 @@ APPLAUSE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseActionButtonBorderPressed, 0xff
 APPLAUSE_THEME_IMPLEMENT_COLOR(ToggleTextButton, ApplauseToggleTextButtonTextOn, 0xdd9966ff);
 APPLAUSE_THEME_IMPLEMENT_COLOR(ToggleTextButton, ApplauseToggleTextButtonTextOnHover, 0xffaa77ff);
 APPLAUSE_THEME_IMPLEMENT_COLOR(ToggleTextButton, ApplauseToggleTextButtonGlow, 0x359966ff);
+// Fraction of the toggled glow's alpha kept at the center, so it doesn't fall off to nothing.
+APPLAUSE_THEME_IMPLEMENT_VALUE(ToggleTextButton, ApplauseToggleTextButtonGlowCenterAmount, 0.0f);
 APPLAUSE_THEME_IMPLEMENT_COLOR(ToggleTextButton, ApplauseToggleTextButtonBorderOn, 0xbb9966ff);
 APPLAUSE_THEME_IMPLEMENT_COLOR(ToggleTextButton, ApplauseToggleTextButtonBorderOnHover, 0xddaa77ff);
 
+namespace {
+void drawGlow(Button& button, applause::Canvas& canvas, float hover) {
+    float glow = hover * canvas.value(Button::ApplauseButtonGlowAmount);
+    if (glow > 0.0f) {
+        applause::Color accent = canvas.color(Button::ApplauseButtonGlow).gradient().sample(0.0f);
+        applause::Point center = {button.width() * 0.5f, button.height() * 0.5f};
+        canvas.setColor(applause::Brush::radial(accent.withAlpha(glow), applause::Color(0x00000000), center,
+                                              button.width() * 0.5f, button.height() * 0.5f));
+        canvas.rectangle(0, 0, button.width(), button.height());
+    }
+}
+}  // namespace
+
 void Button::draw(applause::Canvas& canvas) {
     float hover = active_ ? hover_amount_.update() : 0.0f;
-    draw(canvas, hover);
-
-    if (hover > 0.0f) {
-        applause::Color accent = canvas.color(ApplauseButtonGlow).gradient().sample(0.0f);
-        applause::Point center = {width() * 0.5f, height() * 0.5f};
-        canvas.setColor(applause::Brush::radial(accent.withAlpha(hover * 0.30f), applause::Color(0x00000000), center,
-                                              width() * 0.5f, height() * 0.5f));
-        canvas.rectangle(0, 0, width(), height());
-    }
+    drawGlow(*this, canvas, hover);
 
     if (hover_amount_.isAnimating()) redraw();
 }
@@ -192,7 +200,8 @@ void UiButton::drawBackground(applause::Canvas& canvas, float hover_amount) {
     }
 }
 
-void UiButton::draw(applause::Canvas& canvas, float hover_amount) {
+void UiButton::draw(applause::Canvas& canvas) {
+    float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
     drawBackground(canvas, hover_amount);
 
     if (!isActive()) {
@@ -204,9 +213,12 @@ void UiButton::draw(applause::Canvas& canvas, float hover_amount) {
         canvas.setBlendedColor(ApplauseButtonText, ApplauseButtonTextHover, hover_amount);
 
     canvas.text(&text_, 0, 0, width(), height());
+    drawGlow(*this, canvas, hover_amount);
+    if (hover_amount_.isAnimating()) redraw();
 }
 
-void IconButton::draw(applause::Canvas& canvas, float hover_amount) {
+void IconButton::draw(applause::Canvas& canvas) {
+    float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
     shadow_.setFillBrush(canvas.color(Button::ApplauseButtonShadow));
 
     if (isActive())
@@ -214,6 +226,9 @@ void IconButton::draw(applause::Canvas& canvas, float hover_amount) {
                                                ToggleButton::ApplauseToggleButtonOffHover, hover_amount));
     else
         icon_.setFillBrush(canvas.color(ToggleButton::ApplauseToggleButtonDisabled));
+
+    drawGlow(*this, canvas, hover_amount);
+    if (hover_amount_.isAnimating()) redraw();
 }
 
 bool ToggleButton::toggle() {
@@ -228,13 +243,17 @@ bool ToggleButton::toggle() {
     return toggled_;
 }
 
-void ToggleIconButton::draw(applause::Canvas& canvas, float hover_amount) {
+void ToggleIconButton::draw(applause::Canvas& canvas) {
+    float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
     shadow_.setFillBrush(canvas.color(Button::ApplauseButtonShadow));
 
     if (toggled())
         icon_.setFillBrush(canvas.blendedColor(ApplauseToggleButtonOn, ApplauseToggleButtonOnHover, hover_amount));
     else
         icon_.setFillBrush(canvas.blendedColor(ApplauseToggleButtonOff, ApplauseToggleButtonOffHover, hover_amount));
+
+    drawGlow(*this, canvas, hover_amount);
+    if (hover_amount_.isAnimating()) redraw();
 }
 
 ToggleTextButton::ToggleTextButton(const std::string& name) :
@@ -275,7 +294,9 @@ void ToggleTextButton::drawBackground(applause::Canvas& canvas, float hover_amou
     if (toggled()) {
         applause::Point center = {w * 0.5f, h * 0.5f};
         applause::Color glow_color = canvas.color(ApplauseToggleTextButtonGlow).gradient().sample(0.0f);
-        canvas.setColor(applause::Brush::radial(applause::Color(0x00000000), glow_color, center, w * 0.5f, h * 0.5f));
+        applause::Color center_color =
+            glow_color.withAlpha(glow_color.alpha() * canvas.value(ApplauseToggleTextButtonGlowCenterAmount));
+        canvas.setColor(applause::Brush::radial(center_color, glow_color, center, w * 0.5f, h * 0.5f));
         canvas.roundedRectangle(0, 0, w, h, r);
     }
 
@@ -289,7 +310,8 @@ void ToggleTextButton::drawBackground(applause::Canvas& canvas, float hover_amou
     canvas.roundedRectangleBorder(0, 0, w, h, r, border_width);
 }
 
-void ToggleTextButton::draw(applause::Canvas& canvas, float hover_amount) {
+void ToggleTextButton::draw(applause::Canvas& canvas) {
+    float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
     if (draw_background_) drawBackground(canvas, hover_amount);
 
     if (!isActive()) {
@@ -301,6 +323,8 @@ void ToggleTextButton::draw(applause::Canvas& canvas, float hover_amount) {
         canvas.setBlendedColor(ApplauseButtonText, ApplauseButtonTextHover, hover_amount);
 
     canvas.text(&text_, 0, 0, width(), height());
+    drawGlow(*this, canvas, hover_amount);
+    if (hover_amount_.isAnimating()) redraw();
 }
 PopupMenuButton::PopupMenuButton(const std::string& default_text) : UiButton(default_text) {
     onToggle() += [this](Button*, bool) { showPopup(); };
