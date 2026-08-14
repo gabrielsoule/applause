@@ -7,6 +7,7 @@
 #include <applause/util/SampleType.h>
 #include <applause/util/ValueScaling.h>
 #include <applause/util/thirdparty/rocket.hpp>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <optional>
@@ -187,6 +188,8 @@ public:
  */
 class ModMatrixControl {
 public:
+    using LaneBits = std::uint64_t;
+
     struct Config {
         uint16_t num_voices;  // A SIMD batch is one matrix voice.
         uint16_t max_sources;
@@ -195,9 +198,11 @@ public:
     };
 
 protected:
-    explicit ModMatrixControl(Config config) :
+    explicit ModMatrixControl(Config config, LaneBits active_lane_mask) :
         config_(config),
+        active_lane_mask_(active_lane_mask),
         program_(config.max_connections),
+        active_lane_bits_(config.num_voices, 0),
         src_registry_(config.max_sources),
         dst_registry_(config.max_destinations),
         dst_scale_info_(config.max_destinations),
@@ -408,20 +413,14 @@ public:
     ModConnection addDepthModulation(ModSource src, const ModConnection& target_conn, float depth = 1.0f,
                                      std::optional<bool> bipolar_mapping = std::nullopt);
 
-    /**
-     * Notifies the matrix that the voice corresponding to voice_index has just been activated.
-     * This function must be called whenever a voice is triggered by, e.g., a fresh incoming MIDI note
-     *
-     * The matrix uses this information to selectively
-     * process polyphonic modulation paths, as well as handle poly->mono source->destination routing policy.
-     */
-    void notifyVoiceOn(uint16_t voice_index);
+    /** Activates every lane of a matrix voice. SIMD callers with partial batches use setActiveLanes(). */
+    void notifyVoiceOn(uint16_t voice_index) noexcept;
 
-    /**
-     * Notifies the matrix that the voice corresponding to voice_index has been deactivated and is no longer
-     * being processed nor producing audio. This function must be called whenever a voice is disabled.
-     */
-    void notifyVoiceOff(uint16_t voice_index) { std::erase(active_voices_, voice_index); }
+    /** Deactivates every lane of a matrix voice. */
+    void notifyVoiceOff(uint16_t voice_index) noexcept;
+
+    /** Sets the occupied lanes for one matrix voice. Zero deactivates the voice. */
+    void setActiveLanes(uint16_t voice_index, LaneBits lane_bits) noexcept;
 
     /**
      * Copies as many active destination values as fit in output, in plain units.
@@ -498,6 +497,7 @@ private:
     void recompileProgram();
 
     const Config config_;
+    const LaneBits active_lane_mask_;
 
     ModProgram program_;
 
@@ -506,6 +506,7 @@ private:
     uint16_t param_dst_count_ = 0;
 
     std::vector<uint16_t> active_voices_;
+    std::vector<LaneBits> active_lane_bits_;
 
     std::unordered_map<std::string, uint16_t> src_lookup_;
     std::unordered_map<std::string, uint16_t> dst_lookup_;
@@ -536,11 +537,20 @@ private:
 
 template <ModSignal Signal>
 class ModMatrix final : public ModMatrixControl {
+    static_assert(sample_width_v<Signal> <= 64);
+
+    static constexpr LaneBits active_lane_mask = [] {
+        if constexpr (sample_width_v<Signal> == 64)
+            return ~LaneBits{0};
+        else
+            return (LaneBits{1} << sample_width_v<Signal>) - 1;
+    }();
+
 public:
     using Config = ModMatrixControl::Config;
 
     explicit ModMatrix(Config config) :
-        ModMatrixControl(config),
+        ModMatrixControl(config, active_lane_mask),
         poly_src_stride_(config.max_sources),
         poly_dst_stride_(config.max_destinations),
         poly_depth_stride_(config.max_connections),
@@ -577,9 +587,7 @@ public:
     [[nodiscard]] size_t copyActiveDestinationValues(uint16_t dstIdx,
                                                      std::span<float> output) const noexcept override;
 
-    /**
-     * Processes modulation. Should be called once per block, before parameters are read and used by DSP components.
-     */
+    /** Processes modulation at the cadence selected by the owning DSP. */
     void process();
 
 private:
@@ -898,9 +906,28 @@ inline ModConnection ModMatrixControl::reassignDestination(const ModConnection& 
     return *it;
 }
 
-inline void ModMatrixControl::notifyVoiceOn(uint16_t voice_index) {
+inline void ModMatrixControl::notifyVoiceOn(uint16_t voice_index) noexcept {
+    setActiveLanes(voice_index, active_lane_mask_);
+}
+
+inline void ModMatrixControl::notifyVoiceOff(uint16_t voice_index) noexcept {
+    setActiveLanes(voice_index, 0);
+}
+
+inline void ModMatrixControl::setActiveLanes(uint16_t voice_index, LaneBits lane_bits) noexcept {
     ASSERT(voice_index < config_.num_voices, "Voice index out of bounds");
-    if (std::ranges::find(active_voices_, voice_index) == active_voices_.end()) active_voices_.push_back(voice_index);
+    ASSERT((lane_bits & ~active_lane_mask_) == 0, "Lane mask contains invalid bits");
+    lane_bits &= active_lane_mask_;
+
+    auto& current = active_lane_bits_[voice_index];
+    if (current == lane_bits) return;
+
+    const bool was_active = current != 0;
+    current = lane_bits;
+    if (!was_active && lane_bits != 0)
+        active_voices_.push_back(voice_index);
+    else if (was_active && lane_bits == 0)
+        std::erase(active_voices_, voice_index);
 }
 
 inline void ModMatrixControl::setBaseValue(uint16_t dstIdx, float plain_value) {
@@ -1013,21 +1040,24 @@ size_t ModMatrix<Signal>::copyActiveDestinationValues(uint16_t dstIdx, std::span
         return 1;
     }
 
-    // TODO: Remove the UI/audio data race on active_voices_.
+    // TODO: Remove the UI/audio data race on voice activity.
     const size_t voice_count = active_voices_.size();
-    const size_t required = voice_count * sample_width_v<Signal>;
-    if (output.empty()) return required;
-
     std::array<float, sample_width_v<Signal>> lanes{};
+    size_t required = 0;
     size_t written = 0;
 
-    // TODO: Filter unused SIMD lanes.
-    for (size_t i = 0; i < voice_count && written < output.size(); ++i) {
+    for (size_t i = 0; i < voice_count; ++i) {
         const uint16_t voice = active_voices_[i];
+        LaneBits bits = active_lane_bits_[voice] & active_lane_mask_;
+        required += std::popcount(bits);
+        if (written == output.size()) continue;
+
         store_unaligned(poly_dst_buf_[static_cast<size_t>(voice) * poly_dst_stride_ + dstIdx], lanes.data());
-        const size_t count = std::min(lanes.size(), output.size() - written);
-        std::copy_n(lanes.data(), count, output.data() + written);
-        written += count;
+        while (bits != 0 && written < output.size()) {
+            const auto lane = std::countr_zero(bits);
+            output[written++] = lanes[lane];
+            bits &= bits - 1;
+        }
     }
 
     return required;

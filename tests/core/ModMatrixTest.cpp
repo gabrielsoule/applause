@@ -2099,24 +2099,51 @@ TEST_CASE("O7: The non-template graph controls a SIMD matrix", "[modmatrix][simd
     for (std::size_t lane = 0; lane < input.size(); ++lane) input[lane] = static_cast<float>(lane) / input.size();
     matrix.setPolySourceValue(src.index, 0, ModBatch::load_unaligned(input.data()));
     matrix.setPolySourceValue(src.index, 1, ModBatch(0.8f));
-    graph.notifyVoiceOn(0);
-    graph.notifyVoiceOn(1);
+    graph.setActiveLanes(0, 0b0101);
+    graph.setActiveLanes(1, 0b0010);
     matrix.process();
 
-    REQUIRE(graph.copyActiveDestinationValues(dst.index, {}) == ModBatch::size * 2);
+    REQUIRE(graph.copyActiveDestinationValues(dst.index, {}) == 3);
 
-    std::vector<float> values(ModBatch::size * 2);
+    std::vector<float> values(3);
     REQUIRE(graph.copyActiveDestinationValues(dst.index, values) == values.size());
-    for (std::size_t lane = 0; lane < input.size(); ++lane)
-        REQUIRE(values[lane] == Catch::Approx(input[lane] * 0.5f));
-    for (std::size_t lane = 0; lane < input.size(); ++lane)
-        REQUIRE(values[ModBatch::size + lane] == Catch::Approx(0.4f));
+    REQUIRE(values[0] == Catch::Approx(input[0] * 0.5f));
+    REQUIRE(values[1] == Catch::Approx(input[2] * 0.5f));
+    REQUIRE(values[2] == Catch::Approx(0.4f));
 
     std::array<float, 3> partial{-1.0f, -1.0f, -1.0f};
     REQUIRE(graph.copyActiveDestinationValues(dst.index, std::span{partial}.first(2)) == values.size());
     REQUIRE(partial[0] == Catch::Approx(input[0] * 0.5f));
-    REQUIRE(partial[1] == Catch::Approx(input[1] * 0.5f));
+    REQUIRE(partial[1] == Catch::Approx(input[2] * 0.5f));
     REQUIRE(partial[2] == -1.0f);
+
+    graph.setActiveLanes(0, 0b0100);
+    REQUIRE(graph.copyActiveDestinationValues(dst.index, values) == 2);
+    REQUIRE(values[0] == Catch::Approx(input[2] * 0.5f));
+    REQUIRE(values[1] == Catch::Approx(0.4f));
+
+    graph.setActiveLanes(0, 0);
+    REQUIRE(graph.copyActiveDestinationValues(dst.index, values) == 1);
+    REQUIRE(values[0] == Catch::Approx(0.4f));
+    graph.setActiveLanes(1, 0);
+    REQUIRE(graph.copyActiveDestinationValues(dst.index, {}) == 0);
+
+    graph.setActiveLanes(0, 0b1000);
+    matrix.process();
+    REQUIRE(graph.copyActiveDestinationValues(dst.index, values) == 1);
+    REQUIRE(values[0] == Catch::Approx(input[3] * 0.5f));
+
+    matrix.setPolySourceValue(src.index, 0, ModBatch(0.2f));
+    graph.setActiveLanes(0, 0b0001);
+    graph.setActiveLanes(0, 0b0001);
+    matrix.process();
+    REQUIRE(graph.copyActiveDestinationValues(dst.index, values) == 1);
+    REQUIRE(values[0] == Catch::Approx(0.1f));
+
+    graph.notifyVoiceOn(0);
+    REQUIRE(graph.copyActiveDestinationValues(dst.index, {}) == ModBatch::size);
+    graph.notifyVoiceOff(0);
+    REQUIRE(graph.copyActiveDestinationValues(dst.index, {}) == 0);
 }
 
 TEST_CASE("O8: The non-template graph copies scalar destination values", "[modmatrix][values]") {
@@ -2153,4 +2180,6 @@ TEST_CASE("O8: The non-template graph copies scalar destination values", "[modma
     graph.notifyVoiceOff(3);
     graph.notifyVoiceOff(1);
     REQUIRE(graph.copyActiveDestinationValues(poly.index, values) == 0);
+    REQUIRE(graph.copyActiveDestinationValues(mono.index, values) == 1);
+    REQUIRE(values[0] == Catch::Approx(0.4f));
 }
