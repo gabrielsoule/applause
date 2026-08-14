@@ -30,6 +30,8 @@ public:
     void showAt(const std::string& text, applause::Point window_pos);
     void hide();
 
+    void setFont(const applause::Font& font);
+
     void draw(applause::Canvas& canvas) override;
     void timerCallback() override;
 

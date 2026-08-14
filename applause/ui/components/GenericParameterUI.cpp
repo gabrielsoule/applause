@@ -11,7 +11,8 @@
 using namespace applause::dimension;
 
 namespace applause {
-GenericParameterEntry::GenericParameterEntry(ParamInfo& paramInfo) : paramInfo_(paramInfo), paramSlider_(paramInfo) {
+GenericParameterEntry::GenericParameterEntry(ParamInfo& paramInfo) :
+    paramInfo_(paramInfo), paramSlider_(paramInfo), font_(13, applause::fonts::Barlow_Medium_ttf) {
     addChild(&paramSlider_);
 }
 
@@ -24,9 +25,8 @@ void GenericParameterEntry::draw(applause::Canvas& canvas) {
     float textHeight = height();
 
     // Draw the parameter name (right-aligned)
-    const applause::Font font(13, applause::fonts::Barlow_Medium_ttf);
     canvas.setColor(0xFFCCCCCC);
-    canvas.text(paramInfo_.name, font, applause::Font::kRight, textX, textY, textWidth, textHeight);
+    canvas.text(paramInfo_.name, font_, applause::Font::kRight, textX, textY, textWidth, textHeight);
 }
 
 void GenericParameterEntry::resized() {
@@ -40,6 +40,12 @@ void GenericParameterEntry::resized() {
 void GenericParameterEntry::setLabelWidth(float labelWidth) {
     labelWidth_ = labelWidth;
     resized();
+    redraw();
+}
+
+void GenericParameterEntry::setFont(const applause::Font& font) {
+    font_ = font;
+    paramSlider_.setFont(font);
     redraw();
 }
 
@@ -80,6 +86,7 @@ void GenericParameterUI::addParameter(ParamInfo& paramInfo) {
     LOG_DBG("Adding parameter {}", paramInfo.name);
 
     auto entry = std::make_unique<GenericParameterEntry>(paramInfo);
+    if (font_override_) entry->setFont(*font_override_);
     entry->layout().setHeight(kEntryHeight);
     entry->layout().setFlexGrow(0.0f);
     entry->layout().setFlexShrink(0.0f);
@@ -89,5 +96,10 @@ void GenericParameterUI::addParameter(ParamInfo& paramInfo) {
 
     computeLayout();
     resized();
+}
+
+void GenericParameterUI::setFont(const applause::Font& font) {
+    font_override_ = font;
+    for (auto& entry : entries_) entry->setFont(font);
 }
 }  // namespace applause

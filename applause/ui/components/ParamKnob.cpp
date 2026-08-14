@@ -71,6 +71,12 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo, const ModDestination* dst) :
     }
 }
 
+void ParamKnob::setFont(const applause::Font& font) {
+    paramNameText_.setFont(font);
+    paramNameText_.redraw();
+    paramValueText_.setFont(font);
+}
+
 void ParamKnob::draw(applause::Canvas& canvas) {
     // No direct text drawing; label rendered via TextEditor child
 }

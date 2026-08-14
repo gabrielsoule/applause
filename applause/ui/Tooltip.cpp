@@ -30,7 +30,14 @@ TooltipDisplay::TooltipDisplay() : text_("", applause::Font(kFontSize, applause:
     opacity_.setTargetValue(1.0f);
 }
 
+void TooltipDisplay::setFont(const applause::Font& font) {
+    text_.setFont(font);
+    if (state_ == State::kFadingIn || state_ == State::kVisible) applyContent(text_.text().toUtf8(), pending_pos_);
+    redraw();
+}
+
 void TooltipDisplay::applyContent(const std::string& text, applause::Point window_pos) {
+    pending_pos_ = window_pos;
     text_.setText(text);
 
     applause::Font font = text_.font().withDpiScale(dpiScale());

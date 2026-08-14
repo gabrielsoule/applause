@@ -17,6 +17,8 @@ class ParamSlider : public applause::Frame {
 public:
     ParamSlider(ParamInfo& paramInfo);
 
+    void setFont(const applause::Font& font) { param_text_box_.setFont(font); }
+
     void resized() override;
     void draw(applause::Canvas& canvas) override;
 

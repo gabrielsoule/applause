@@ -81,5 +81,10 @@ void ParamValueTextBox::updateTextDisplay() {
     text_editor_.setText(formatted);
 }
 
+void ParamValueTextBox::setFont(const applause::Font& font) {
+    text_editor_.setFont(font);
+    text_editor_.redraw();
+}
+
 void ParamValueTextBox::resized() { text_editor_.setBounds(0, 0, width(), height()); }
 }  // namespace applause

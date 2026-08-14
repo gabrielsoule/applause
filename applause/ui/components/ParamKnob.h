@@ -20,6 +20,8 @@ public:
 
     ParamKnob(ParamInfo& paramInfo, const ModDestination* dst = nullptr);
 
+    void setFont(const applause::Font& font);
+
     void draw(applause::Canvas& canvas) override;
     void resized() override;
 

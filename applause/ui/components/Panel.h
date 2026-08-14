@@ -23,6 +23,11 @@ public:
     void draw(applause::Canvas& canvas) override;
     void resized() override;
 
+    void setFont(const applause::Font& font) {
+        title_.setFont(font);
+        redraw();
+    }
+
     applause::Frame& content() { return content_; }
 
 private:

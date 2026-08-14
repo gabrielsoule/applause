@@ -25,6 +25,8 @@ public:
     /** Force update the displayed text to match the current parameter value */
     void updateTextDisplay();
 
+    void setFont(const applause::Font& font);
+
 private:
     ParamInfo& param_info_;
     applause::TextEditor text_editor_{"param_value"};

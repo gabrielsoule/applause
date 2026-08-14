@@ -3,6 +3,7 @@
 #include <applause/ui/ApplauseUI.h>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include <applause/ui/components/ParamSlider.h>
@@ -24,12 +25,14 @@ public:
     void resized() override;
 
     void setLabelWidth(float labelWidth);
+    void setFont(const applause::Font& font);
 
 private:
     static constexpr int kLabelPadding = 10;
 
     ParamInfo& paramInfo_;
     ParamSlider paramSlider_;
+    applause::Font font_;
     float labelWidth_ = 100.0;
 };
 
@@ -42,6 +45,7 @@ public:
     void resized() override;
 
     void addParameter(ParamInfo& paramInfo);
+    void setFont(const applause::Font& font);
 
 private:
     static constexpr float kPadding = 16.0f;
@@ -49,5 +53,6 @@ private:
     static constexpr float kEntryHeight = 26.0f;
 
     std::vector<std::unique_ptr<GenericParameterEntry>> entries_;
+    std::optional<applause::Font> font_override_;
 };
 }  // namespace applause
