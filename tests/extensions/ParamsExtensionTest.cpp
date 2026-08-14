@@ -278,6 +278,23 @@ TEST_CASE("ParamsExtension value access and get_value callback", "[params][value
     SECTION("unknown id fails") { REQUIRE_FALSE(clap_params->get_value(plugin.clapPlugin(), 999999u, &value)); }
 }
 
+TEST_CASE("ParamsExtension coerces stepped defaults during registration", "[params][stepped][info]") {
+    TestPlugin plugin;
+    plugin.params.registerParam(rangedConfig("positive", -10.0f, 10.0f, 2.8f, true));
+    plugin.params.registerParam(rangedConfig("negative", -10.0f, 10.0f, -2.8f, true));
+
+    REQUIRE(plugin.params.getInfo("positive").defaultValue == 2.0f);
+    REQUIRE(plugin.params.getInfo("positive").getValue() == 2.0f);
+    REQUIRE(plugin.params.getInfo("negative").defaultValue == -2.0f);
+    REQUIRE(plugin.params.getInfo("negative").getValue() == -2.0f);
+
+    clap_param_info_t info{};
+    REQUIRE(clapParams(plugin)->get_info(plugin.clapPlugin(), 0, &info));
+    REQUIRE(info.default_value == 2.0);
+    REQUIRE(clapParams(plugin)->get_info(plugin.clapPlugin(), 1, &info));
+    REQUIRE(info.default_value == -2.0);
+}
+
 TEST_CASE("ParamsExtension default value_to_text formatting", "[params][text]") {
     TestPlugin plugin;
     plugin.params.registerParam(rangedConfig("f", -100000.0f, 100000.0f, 0.0f));
@@ -290,8 +307,10 @@ TEST_CASE("ParamsExtension default value_to_text formatting", "[params][text]") 
     const auto& s = plugin.params.getInfo("s");
 
     SECTION("stepped values render as integers") {
-        REQUIRE(s.valueToText(2.0f) == "2");
-        REQUIRE(s.valueToText(-1.0f) == "-1");
+        REQUIRE(s.valueToText(2.8f) == "2");
+        REQUIRE(s.valueToText(-2.8f) == "-2");
+        REQUIRE(s.valueToText(20.0f) == "10");
+        REQUIRE(s.valueToText(-20.0f) == "-10");
     }
 
     SECTION("decimal budget of five characters") {
@@ -311,7 +330,7 @@ TEST_CASE("ParamsExtension default text_to_value parsing", "[params][text]") {
     TestPlugin plugin;
     plugin.params.registerParam(rangedConfig("wide", -1000.0f, 1000.0f, 0.0f));
     plugin.params.registerParam(makeConfig("unit01", 0.5f));
-    plugin.params.registerParam(rangedConfig("st", 0.0f, 10.0f, 0.0f, true));
+    plugin.params.registerParam(rangedConfig("st", -3.5f, 3.5f, 0.0f, true));
 
     const auto& wide = plugin.params.getInfo("wide");
 
@@ -334,7 +353,13 @@ TEST_CASE("ParamsExtension default text_to_value parsing", "[params][text]") {
         REQUIRE_FALSE(wide.textToValue("Hz").has_value());
     }
 
-    SECTION("stepped values truncate") { REQUIRE(plugin.params.getInfo("st").textToValue("2.8").value() == Approx(2.0f)); }
+    SECTION("stepped values clamp before truncating toward zero") {
+        const auto& stepped = plugin.params.getInfo("st");
+        REQUIRE(stepped.textToValue("2.8").value() == Approx(2.0f));
+        REQUIRE(stepped.textToValue("-2.8").value() == Approx(-2.0f));
+        REQUIRE(stepped.textToValue("99").value() == Approx(3.0f));
+        REQUIRE(stepped.textToValue("-99").value() == Approx(-3.0f));
+    }
 }
 
 TEST_CASE("ParamsExtension clap text callbacks", "[params][text][clap]") {
@@ -398,16 +423,60 @@ TEST_CASE("ParamsExtension custom converters", "[params][text][custom]") {
     REQUIRE_FALSE(clap_params->text_to_value(plugin.clapPlugin(), info.clapId, "nope", &out));
 }
 
+TEST_CASE("ParamsExtension coerces stepped values around custom converters", "[params][stepped][text][custom]") {
+    TestPlugin plugin;
+    std::vector<float> formatted_values;
+    auto config = rangedConfig("stepped", -3.5f, 3.5f, 0.0f, true);
+    config.value_to_text = [&](float value, const ParamInfo&) {
+        formatted_values.push_back(value);
+        return std::to_string(static_cast<int>(value));
+    };
+    config.text_to_value = [](const std::string& text, const ParamInfo&) -> std::optional<float> {
+        if (text == "positive") return 2.8f;
+        if (text == "negative") return -2.8f;
+        if (text == "high") return 99.0f;
+        if (text == "low") return -99.0f;
+        return std::nullopt;
+    };
+    plugin.params.registerParam(config);
+
+    const auto& info = plugin.params.getInfo("stepped");
+    REQUIRE(info.valueToText(2.8f) == "2");
+    REQUIRE(info.valueToText(-2.8f) == "-2");
+    REQUIRE(formatted_values == std::vector<float>{2.0f, -2.0f});
+
+    REQUIRE(info.textToValue("positive") == 2.0f);
+    REQUIRE(info.textToValue("negative") == -2.0f);
+    REQUIRE(info.textToValue("high") == 3.0f);
+    REQUIRE(info.textToValue("low") == -3.0f);
+    REQUIRE_FALSE(info.textToValue("unknown").has_value());
+}
+
 TEST_CASE("ParamsExtension processEvents inbound", "[params][process]") {
     TestPlugin plugin;
-    plugin.params.registerParam(rangedConfig("s", 0.0f, 10.0f, 0.0f, true));
+    plugin.params.registerParam(rangedConfig("s", -3.5f, 3.5f, 0.0f, true));
     plugin.params.registerParam(makeConfig("p", 0.5f));
 
-    SECTION("stepped event values truncate") {
+    SECTION("stepped event values clamp before truncating and queue the coerced values") {
+        ParamMessageQueue queue;
+        plugin.params.setMessageQueue(&queue);
+        const clap_id id = plugin.params.getInfo("s").clapId;
         EventList list;
-        list.events.push_back(makeEvent(plugin.params.getInfo("s").clapId, nullptr, 2.8));
+        list.events.push_back(makeEvent(id, nullptr, 2.8));
+        list.events.push_back(makeEvent(id, nullptr, -2.8));
+        list.events.push_back(makeEvent(id, nullptr, 99.0));
+        list.events.push_back(makeEvent(id, nullptr, -99.0));
         plugin.params.processEvents(&list.in, nullptr);
-        REQUIRE(plugin.params.getInfo("s").getValue() == 2.0f);
+
+        REQUIRE(plugin.params.getInfo("s").getValue() == -3.0f);
+        ParamMessageQueue::Message message{};
+        for (const float expected : {2.0f, -2.0f, 3.0f, -3.0f}) {
+            REQUIRE(queue.toUi().try_dequeue(message));
+            REQUIRE(message.type == ParamMessageQueue::PARAM_VALUE);
+            REQUIRE(message.paramId == id);
+            REQUIRE(message.value == expected);
+        }
+        REQUIRE_FALSE(queue.toUi().try_dequeue(message));
     }
 
     SECTION("host changes are forwarded to the UI queue") {
@@ -601,6 +670,48 @@ TEST_CASE("ParamInfo UI methods notify host and queue", "[params][ui][host]") {
     }
 }
 
+TEST_CASE("ParamInfo UI methods coerce stepped values before notifications", "[params][stepped][ui]") {
+    FakeHost fake;
+    TestPlugin plugin(&fake.host);
+    plugin.params.registerParam(rangedConfig("stepped", -10.0f, 10.0f, 0.0f, true));
+    const auto& info = plugin.params.getInfo("stepped");
+
+    ParamMessageQueue queue;
+    plugin.params.setMessageQueue(&queue);
+    REQUIRE(plugin.clapPlugin()->init(plugin.clapPlugin()));
+
+    std::vector<float> seen;
+    info.on_value_changed.connect([&](float value) { seen.push_back(value); });
+    ParamMessageQueue::Message message{};
+
+    SECTION("setValueNotifyingHost stores, signals, and queues coerced values") {
+        info.setValueNotifyingHost(2.8f);
+        info.setValueNotifyingHost(-2.8f);
+
+        REQUIRE(info.getValue() == -2.0f);
+        REQUIRE(seen == std::vector<float>{2.0f, -2.0f});
+        for (const float expected : {2.0f, -2.0f}) {
+            REQUIRE(queue.toAudio().try_dequeue(message));
+            REQUIRE(message.type == ParamMessageQueue::PARAM_VALUE);
+            REQUIRE(message.paramId == info.clapId);
+            REQUIRE(message.value == expected);
+        }
+        REQUIRE_FALSE(queue.toAudio().try_dequeue(message));
+        REQUIRE(fake.flush_count == 2);
+    }
+
+    SECTION("setValueSilently stores coerced values without notifications") {
+        info.setValueSilently(2.8f);
+        REQUIRE(info.getValue() == 2.0f);
+        info.setValueSilently(-2.8f);
+        REQUIRE(info.getValue() == -2.0f);
+
+        REQUIRE(seen.empty());
+        REQUIRE_FALSE(queue.toAudio().try_dequeue(message));
+        REQUIRE(fake.flush_count == 0);
+    }
+}
+
 TEST_CASE("ParamsExtension host rescan", "[params][host]") {
     SECTION("forwards flags to the host") {
         FakeHost fake;
@@ -730,6 +841,35 @@ TEST_CASE("ParamsExtension JSON save and load", "[params][json]") {
         REQUIRE(message.type == ParamMessageQueue::PARAM_VALUE);
         REQUIRE(message.paramId == id_a);
         REQUIRE(message.value == Approx(0.42f));
+        REQUIRE_FALSE(queue.toUi().try_dequeue(message));
+    }
+
+    SECTION("stepped values are coerced before storage and UI queueing") {
+        TestPlugin stepped;
+        stepped.params.registerParam(rangedConfig("positive", -10.0f, 10.0f, 0.0f, true));
+        stepped.params.registerParam(rangedConfig("negative", -10.0f, 10.0f, 0.0f, true));
+        const clap_id positive_id = stepped.params.getInfo("positive").clapId;
+        const clap_id negative_id = stepped.params.getInfo("negative").clapId;
+
+        ParamMessageQueue queue;
+        stepped.params.setMessageQueue(&queue);
+        applause::json state = applause::json::array();
+        state.push_back({{"id", positive_id}, {"value", 2.8f}});
+        state.push_back({{"id", negative_id}, {"value", -2.8f}});
+        REQUIRE(stepped.params.loadFromJson(state));
+
+        REQUIRE(stepped.params.getInfo("positive").getValue() == 2.0f);
+        REQUIRE(stepped.params.getInfo("negative").getValue() == -2.0f);
+
+        ParamMessageQueue::Message message{};
+        REQUIRE(queue.toUi().try_dequeue(message));
+        REQUIRE(message.type == ParamMessageQueue::PARAM_VALUE);
+        REQUIRE(message.paramId == positive_id);
+        REQUIRE(message.value == 2.0f);
+        REQUIRE(queue.toUi().try_dequeue(message));
+        REQUIRE(message.type == ParamMessageQueue::PARAM_VALUE);
+        REQUIRE(message.paramId == negative_id);
+        REQUIRE(message.value == -2.0f);
         REQUIRE_FALSE(queue.toUi().try_dequeue(message));
     }
 }

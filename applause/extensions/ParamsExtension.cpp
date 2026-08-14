@@ -13,9 +13,16 @@
 #include <applause/util/DebugHelpers.h>
 
 namespace applause {
+float ParamsExtension::coerceValue(float value, const ParamInfo& info) noexcept {
+    value = std::clamp(value, info.minValue, info.maxValue);
+    return info.stepped ? std::trunc(value) : value;
+}
+
 // This default converter function tries to fit the number into five digits,
 // using no more than two digits of decimal precision (1/100ths).
 std::string ParamsExtension::defaultValueToText(float value, const ParamInfo& info) {
+    value = coerceValue(value, info);
+
     std::ostringstream stream;
 
     if (info.stepped) {
@@ -74,20 +81,13 @@ std::optional<float> ParamsExtension::defaultTextToValue(const std::string& text
         return std::nullopt;
     }
 
-    value = std::clamp(value, info.minValue, info.maxValue);
-
-    // For stepped parameters, truncate to integer
-    if (info.stepped) {
-        value = static_cast<float>(static_cast<int>(value));
-    }
-
-    return value;
+    return coerceValue(value, info);
 }
 
 float ParamInfo::getValue() const noexcept { return handle_->getValue(); }
 
 void ParamInfo::setValueNotifyingHost(float value) const noexcept {
-    value = std::clamp(value, minValue, maxValue);
+    value = ParamsExtension::coerceValue(value, *this);
 
     // Queue message to audio thread if message queue exists (GUI is present)
     if (registry_->message_queue_) {
@@ -106,7 +106,7 @@ void ParamInfo::setValueNotifyingHost(float value) const noexcept {
 }
 
 void ParamInfo::setValueSilently(float value) const noexcept {
-    handle_->value_->store(std::clamp(value, minValue, maxValue), std::memory_order_relaxed);
+    handle_->value_->store(ParamsExtension::coerceValue(value, *this), std::memory_order_relaxed);
 }
 
 void ParamInfo::beginGesture() const noexcept {
@@ -133,10 +133,14 @@ void ParamInfo::endGesture() const noexcept {
     }
 }
 
-std::string ParamInfo::valueToText(float value) const noexcept { return value_to_text_(value, *this); }
+std::string ParamInfo::valueToText(float value) const noexcept {
+    return value_to_text_(ParamsExtension::coerceValue(value, *this), *this);
+}
 
 std::optional<float> ParamInfo::textToValue(const std::string& text) const noexcept {
-    return text_to_value_(text, *this);
+    auto value = text_to_value_(text, *this);
+    if (value) value = ParamsExtension::coerceValue(*value, *this);
+    return value;
 }
 
 uint32_t ParamsExtension::clap_params_count(const clap_plugin_t* plugin) noexcept {
@@ -279,8 +283,8 @@ void ParamsExtension::registerParam(const ParamConfig& config) {
     info.unit = config.unit;
     info.minValue = config.min_value;
     info.maxValue = config.max_value;
-    info.defaultValue = config.default_value;
     info.stepped = config.is_stepped;
+    info.defaultValue = coerceValue(config.default_value, info);
     info.internal = config.is_internal;
     info.hidden = config.is_hidden;
     info.scaling_ = config.scaling;
@@ -412,15 +416,7 @@ void ParamsExtension::processEvents(const clap_input_events_t* in, const clap_ou
                        "(ID {})",
                        param_info.name, param_id);
 
-                float new_value = static_cast<float>(param_event->value);
-                ASSERT(new_value >= param_info.minValue && new_value <= param_info.maxValue,
-                       "Parameter value {} out of range [{}, {}] for parameter "
-                       "'{}'",
-                       new_value, param_info.minValue, param_info.maxValue, param_info.name);
-
-                if (param_info.stepped) {
-                    new_value = static_cast<float>(static_cast<int>(new_value));
-                }
+                const float new_value = coerceValue(static_cast<float>(param_event->value), param_info);
 
                 values_[index].store(new_value, std::memory_order_relaxed);
 

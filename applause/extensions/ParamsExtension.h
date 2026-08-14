@@ -190,7 +190,8 @@ public:
 
     /**
      * Convert a parameter value to display text.
-     * Uses custom converter if provided, otherwise uses default formatting.
+     * The value is clamped and, for stepped parameters, truncated before using
+     * the custom converter or default formatting.
      *
      * @param value The parameter value to format
      * @return Formatted text representation including unit if applicable
@@ -201,7 +202,7 @@ public:
      * Parse user input text to extract a numeric value for this parameter.
      *
      * Uses custom converter if provided, otherwise extracts the first number
-     * found in the text, ignoring non-numeric characters. The extracted value
+     * found in the text, ignoring non-numeric characters. The converted value
      * is automatically clamped to [minValue, maxValue]. For stepped parameters,
      * the value is truncated to an integer.
      *
@@ -297,6 +298,8 @@ private:
                                           double* out_value) noexcept;
     static void clap_params_flush(const clap_plugin_t* plugin, const clap_input_events_t* in,
                                   const clap_output_events_t* out) noexcept;
+
+    static float coerceValue(float value, const ParamInfo& info) noexcept;
 
     void flush(const clap_input_events_t* in, const clap_output_events_t* out) noexcept;
 
@@ -545,12 +548,12 @@ inline bool ParamsExtension::loadFromJson(const applause::json& json) noexcept {
             if (it != clap_id_to_index_.end()) {
                 uint32_t index = it->second;
                 const auto& info = infos_[index];
-                const float clamped = std::clamp(value, info.minValue, info.maxValue);
-                values_[index].store(clamped, std::memory_order_relaxed);
+                const float coerced = coerceValue(value, info);
+                values_[index].store(coerced, std::memory_order_relaxed);
 
                 // Notify UI of parameter change if message queue exists
                 if (message_queue_) {
-                    message_queue_->toUi().enqueue({ParamMessageQueue::PARAM_VALUE, param_id, clamped});
+                    message_queue_->toUi().enqueue({ParamMessageQueue::PARAM_VALUE, param_id, coerced});
                 }
 
                 loaded_count++;
