@@ -171,7 +171,15 @@ void ModMatrixComponent::Row::setControlsActive(bool active) {
     delete_button_.setActive(active);
 }
 
-ModMatrixComponent::ModMatrixComponent(applause::ModMatrixControl& matrix) : matrix_(matrix) {
+void ModMatrixComponent::Row::setFont(const applause::Font& font) {
+    src_menu_.setFont(font);
+    dst_menu_.setFont(font);
+    bipolar_toggle_.setFont(font);
+    delete_button_.setFont(font);
+}
+
+ModMatrixComponent::ModMatrixComponent(applause::ModMatrixControl& matrix) :
+    matrix_(matrix), header_font_(11, applause::fonts::Barlow_Medium_ttf) {
     scrollableLayout().setFlex(true);
     scrollableLayout().setFlexRows(true);
     scrollableLayout().setFlexGap(paletteValue(ApplauseModMatrixRowGap));
@@ -200,11 +208,10 @@ void ModMatrixComponent::buildHeader() {
         canvas.fill(10, h.height() - 4, h.width() - 20, 1);
     };
 
-    applause::Font header_font(11, applause::fonts::Barlow_Medium_ttf);
-    auto setupLabel = [&](applause::Frame& frame, const char* text) {
-        frame.onDraw() = [&frame, text, header_font](applause::Canvas& canvas) {
+    auto setupLabel = [this](applause::Frame& frame, const char* text) {
+        frame.onDraw() = [this, &frame, text](applause::Canvas& canvas) {
             canvas.setColor(0xff888888);
-            canvas.text(text, header_font, applause::Font::kCenter, 0, 0, frame.width(), frame.height());
+            canvas.text(text, header_font_, applause::Font::kCenter, 0, 0, frame.width(), frame.height());
         };
     };
 
@@ -232,12 +239,23 @@ void ModMatrixComponent::buildHeader() {
     header_delete_.layout().setFlexShrink(0.0f);
 }
 
+void ModMatrixComponent::setFont(const applause::Font& font) {
+    header_font_ = font;
+    font_override_ = font;
+    for (auto& row : rows_) row->setFont(font);
+    header_source_.redraw();
+    header_dest_.redraw();
+    header_polarity_.redraw();
+    header_amount_.redraw();
+}
+
 void ModMatrixComponent::rebuildRows() {
     for (auto& row : rows_) removeScrolledChild(row.get());
     rows_.clear();
 
     for (auto& conn : matrix_.getConnections()) {
         auto row = std::make_unique<Row>(*this, false);
+        if (font_override_) row->setFont(*font_override_);
         row->layout().setHeight(paletteValue(ApplauseModMatrixRowHeight));
         row->layout().setFlexGrow(0.0f);
         row->layout().setFlexShrink(0.0f);
@@ -268,6 +286,7 @@ void ModMatrixComponent::resized() {
 
 void ModMatrixComponent::addDummyRow() {
     auto row = std::make_unique<Row>(*this, true);
+    if (font_override_) row->setFont(*font_override_);
     row->layout().setHeight(paletteValue(ApplauseModMatrixRowHeight));
     row->layout().setFlexGrow(0.0f);
     row->layout().setFlexShrink(0.0f);

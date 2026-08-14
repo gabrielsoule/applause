@@ -8,6 +8,7 @@
 #include <applause/ui/components/Slider.h>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -31,6 +32,7 @@ public:
         Row(ModMatrixComponent& owner, bool is_dummy);
 
         void bindToConnection(const ModConnection& conn);
+        void setFont(const applause::Font& font);
 
         bool is_dummy;
         int src_list_id = -1;  // ModMatrix source index, or -1 if unset
@@ -51,6 +53,7 @@ public:
 
     explicit ModMatrixComponent(applause::ModMatrixControl& matrix);
 
+    void setFont(const applause::Font& font);
     void rebuildRows();
     void resized() override;
 
@@ -61,6 +64,8 @@ private:
     void buildHeader();
 
     applause::ModMatrixControl& matrix_;
+    applause::Font header_font_;
+    std::optional<applause::Font> font_override_;
     applause::Frame header_;
     applause::Frame header_source_;
     applause::Frame header_dest_;
