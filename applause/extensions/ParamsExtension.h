@@ -11,6 +11,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -48,6 +49,18 @@ struct ParamConfig {
     // Optional custom converters (default to nullptr)
     std::function<std::string(float value, const ParamInfo& info)> value_to_text;
     std::function<std::optional<float>(const std::string& text, const ParamInfo& info)> text_to_value;
+
+    /**
+     * Labels for a contiguous choice parameter.
+     *
+     * When non-empty, max_value is derived as
+     * min_value + choices.size() - 1, and the parameter is automatically marked
+     * stepped and enumerated with linear scaling. Choice labels must
+     * be unique UTF-8 strings without leading or trailing whitespace and are
+     * copied into ParamInfo during registration. A custom value_to_text
+     * overrides the displayed labels.
+     */
+    std::vector<std::string> choices;
 };
 
 /**
@@ -191,7 +204,8 @@ public:
     /**
      * Convert a parameter value to display text.
      * The value is clamped and, for stepped parameters, truncated before using
-     * the custom converter or default formatting.
+     * the custom converter or default formatting. Enumerated parameters use
+     * their registered choice label by default.
      *
      * @param value The parameter value to format
      * @return Formatted text representation including unit if applicable
@@ -201,9 +215,10 @@ public:
     /**
      * Parse user input text to extract a numeric value for this parameter.
      *
-     * Uses custom converter if provided, otherwise extracts the first number
-     * found in the text, ignoring non-numeric characters. The converted value
-     * is automatically clamped to [minValue, maxValue]. For stepped parameters,
+     * Uses a custom converter if provided. Otherwise, enumerated parameters
+     * first match their displayed or canonical choice labels, then fall back to
+     * extracting the first number found in the text. The converted value is
+     * automatically clamped to [minValue, maxValue]. For stepped parameters,
      * the value is truncated to an integer.
      *
      * @param text User input text to parse (e.g., "123.4", "50Hz", "100 ms")
@@ -218,6 +233,12 @@ public:
      *   "" → std::nullopt
      */
     std::optional<float> textToValue(const std::string& text) const noexcept;
+
+    /** Whether this parameter represents an enumerated list of choices. */
+    [[nodiscard]] bool isEnumerated() const noexcept { return !choice_names_.empty(); }
+
+    /** Canonical choice labels in numeric value order. Empty for non-enumerated parameters. */
+    [[nodiscard]] std::span<const std::string> choices() const noexcept { return choice_names_; }
 
     /**
      * Convert a plain value to normalized [0,1] using configured scaling.
@@ -251,6 +272,8 @@ private:
     // Custom converters (following member naming convention)
     std::function<std::string(float value, const ParamInfo& info)> value_to_text_;
     std::function<std::optional<float>(const std::string& text, const ParamInfo& info)> text_to_value_;
+
+    std::vector<std::string> choice_names_;
 
     ValueScaling scaling_;  // Parameter scaling for normalization
 
@@ -349,6 +372,7 @@ public:
     /**
      * @brief Register a new parameter with the extension.
      * @param config ParamConfig containing the parameter configuration
+     * @throws std::invalid_argument if enum-param choice metadata is invalid
      * @note Thread-safe: Call only from main thread during plugin
      * initialization
      * @note Generates a stable CLAP ID from the string ID using FNV-1a hash

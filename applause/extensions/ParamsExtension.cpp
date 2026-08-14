@@ -7,13 +7,17 @@
 #include <cmath>
 #include <cstring>
 #include <iomanip>
+#include <limits>
 #include <sstream>
+#include <stdexcept>
+#include <utility>
 
 #include <applause/core/PluginBase.h>
 #include <applause/util/DebugHelpers.h>
 
 namespace applause {
 float ParamsExtension::coerceValue(float value, const ParamInfo& info) noexcept {
+    if (info.isEnumerated() && std::isnan(value)) value = info.defaultValue;
     value = std::clamp(value, info.minValue, info.maxValue);
     return info.stepped ? std::trunc(value) : value;
 }
@@ -22,6 +26,14 @@ float ParamsExtension::coerceValue(float value, const ParamInfo& info) noexcept 
 // using no more than two digits of decimal precision (1/100ths).
 std::string ParamsExtension::defaultValueToText(float value, const ParamInfo& info) {
     value = coerceValue(value, info);
+
+    if (info.isEnumerated()) {
+        const float offset = value - info.minValue;
+        if (std::isfinite(offset) && offset >= 0.0f && std::trunc(offset) == offset &&
+            static_cast<double>(offset) < static_cast<double>(info.choices().size()))
+            return info.choices()[static_cast<std::size_t>(offset)];
+        return std::to_string(value);
+    }
 
     std::ostringstream stream;
 
@@ -58,6 +70,32 @@ std::string ParamsExtension::defaultValueToText(float value, const ParamInfo& in
 }
 
 std::optional<float> ParamsExtension::defaultTextToValue(const std::string& text, const ParamInfo& info) {
+    if (info.isEnumerated()) {
+        const auto find_choice = [&info](std::string_view candidate) -> std::optional<float> {
+            const auto choices = info.choices();
+            for (std::size_t index = 0; index < choices.size(); ++index) {
+                const float value = info.minValue + static_cast<float>(index);
+                if (info.valueToText(value) == candidate) return value;
+            }
+
+            const auto canonical_choice = std::find(choices.begin(), choices.end(), candidate);
+            if (canonical_choice != choices.end())
+                return info.minValue + static_cast<float>(canonical_choice - choices.begin());
+            return std::nullopt;
+        };
+
+        if (auto value = find_choice(text)) return value;
+
+        std::string_view choice_text = text;
+        while (!choice_text.empty() && std::isspace(static_cast<unsigned char>(choice_text.front())))
+            choice_text.remove_prefix(1);
+        while (!choice_text.empty() && std::isspace(static_cast<unsigned char>(choice_text.back())))
+            choice_text.remove_suffix(1);
+        if (choice_text.size() != text.size()) {
+            if (auto value = find_choice(choice_text)) return value;
+        }
+    }
+
     if (text.empty()) {
         return std::nullopt;
     }
@@ -176,6 +214,7 @@ bool ParamsExtension::clap_params_get_info(const clap_plugin_t* plugin, uint32_t
 
     param_info->flags = 0;
     if (info.stepped) param_info->flags |= CLAP_PARAM_IS_STEPPED;
+    if (info.isEnumerated()) param_info->flags |= CLAP_PARAM_IS_ENUM;
     if (info.hidden) param_info->flags |= CLAP_PARAM_IS_HIDDEN;
 
     // All parameters are automatable by default
@@ -272,7 +311,41 @@ void ParamsExtension::registerParam(const ParamConfig& config) {
            "Too many parameters registered! Allocate more through the "
            "ParamRegistry constructor.");
 
-    ASSERT(config.default_value >= config.min_value && config.default_value <= config.max_value,
+    if (!config.choices.empty()) {
+        if (config.choices.size() < 2)
+            throw std::invalid_argument("Choice parameter '" + config.string_id + "' must have at least two choices");
+
+        constexpr double max_exact_float_integer = 1u << std::numeric_limits<float>::digits;
+        const double max_choice = static_cast<double>(config.min_value) +
+                                  static_cast<double>(config.choices.size() - 1);
+        if (!std::isfinite(config.min_value) || std::trunc(config.min_value) != config.min_value ||
+            static_cast<double>(config.choices.size() - 1) > max_exact_float_integer ||
+            std::abs(static_cast<double>(config.min_value)) > max_exact_float_integer ||
+            std::abs(max_choice) > max_exact_float_integer)
+            throw std::invalid_argument("Choice parameter '" + config.string_id + "' has an invalid range");
+
+        for (auto choice = config.choices.begin(); choice != config.choices.end(); ++choice) {
+            const bool invalid_whitespace =
+                choice->empty() || std::isspace(static_cast<unsigned char>(choice->front())) ||
+                std::isspace(static_cast<unsigned char>(choice->back()));
+            if (invalid_whitespace || choice->find('\0') != std::string::npos)
+                throw std::invalid_argument("Choice parameter '" + config.string_id + "' has an invalid label");
+            if (std::find(config.choices.begin(), choice, *choice) != choice)
+                throw std::invalid_argument("Choice parameter '" + config.string_id + "' has duplicate labels");
+        }
+
+        if (!std::isfinite(config.default_value) || config.default_value < config.min_value ||
+            static_cast<double>(config.default_value) > max_choice)
+            throw std::invalid_argument("Choice parameter '" + config.string_id + "' has an invalid default value");
+    }
+
+    const float min_value = config.min_value;
+    const float max_value = config.choices.empty()
+                                ? config.max_value
+                                : static_cast<float>(static_cast<double>(config.min_value) +
+                                                     static_cast<double>(config.choices.size() - 1));
+
+    ASSERT(config.default_value >= min_value && config.default_value <= max_value,
            "Default value not between min and max value!");
 
     // Create ParamInfo from ParamConfig
@@ -281,15 +354,18 @@ void ParamsExtension::registerParam(const ParamConfig& config) {
     info.module = config.module;
     info.shortName = config.short_name;
     info.unit = config.unit;
-    info.minValue = config.min_value;
-    info.maxValue = config.max_value;
-    info.stepped = config.is_stepped;
+    info.minValue = min_value;
+    info.maxValue = max_value;
+    info.stepped = config.is_stepped || !config.choices.empty();
     info.defaultValue = coerceValue(config.default_value, info);
     info.internal = config.is_internal;
     info.hidden = config.is_hidden;
-    info.scaling_ = config.scaling;
+    info.scaling_ = config.choices.empty() ? config.scaling : ValueScaling::linear();
     info.polyphonic = config.is_polyphonic;
     info.stringId = config.string_id;
+    info.choice_names_ = config.choices;
+    info.value_to_text_ = config.value_to_text ? config.value_to_text : defaultValueToText;
+    info.text_to_value_ = config.text_to_value ? config.text_to_value : defaultTextToValue;
 
     std::string id;
 
@@ -321,23 +397,49 @@ void ParamsExtension::registerParam(const ParamConfig& config) {
         }
     }
 
-    // Store in dense arrays using current count as index
     uint32_t index = param_count_;
+    std::atomic<float> provisional_value{info.defaultValue};
+    ParamHandle provisional_handle;
+    provisional_handle.value_ = &provisional_value;
+    info.handle_ = &provisional_handle;
+    info.registry_ = this;
+
+    if (info.isEnumerated()) {
+        std::vector<std::string> rendered_choices;
+        rendered_choices.reserve(info.choices().size());
+        for (std::size_t choice_index = 0; choice_index < info.choices().size(); ++choice_index) {
+            const float value = info.minValue + static_cast<float>(choice_index);
+            auto label = info.value_to_text_(coerceValue(value, info), info);
+            const bool invalid_whitespace =
+                label.empty() || std::isspace(static_cast<unsigned char>(label.front())) ||
+                std::isspace(static_cast<unsigned char>(label.back()));
+            if (invalid_whitespace || label.find('\0') != std::string::npos)
+                throw std::invalid_argument("Choice parameter '" + config.string_id +
+                                            "' has a converter that produces an invalid label");
+            if (std::find(rendered_choices.begin(), rendered_choices.end(), label) != rendered_choices.end())
+                throw std::invalid_argument("Choice parameter '" + config.string_id +
+                                            "' has a converter that produces duplicate labels");
+            const auto canonical = std::find(info.choices().begin(), info.choices().end(), label);
+            if (canonical != info.choices().end() &&
+                static_cast<std::size_t>(canonical - info.choices().begin()) != choice_index)
+                throw std::invalid_argument("Choice parameter '" + config.string_id +
+                                            "' has ambiguous canonical and displayed labels");
+            rendered_choices.push_back(std::move(label));
+        }
+    }
+
+    // Store in dense arrays using current count as index
     values_[index].store(info.defaultValue);
     handles_[index].value_ = &values_[index];
     info.handle_ = &handles_[index];
     infos_[index] = info;
     infos_[index].registry_ = this;
 
-    // Use custom converters if provided, otherwise use defaults
-    infos_[index].value_to_text_ = config.value_to_text ? config.value_to_text : defaultValueToText;
-    infos_[index].text_to_value_ = config.text_to_value ? config.text_to_value : defaultTextToValue;
-
     // Populate DSP-safe scale info array
     scale_info_[index] = ValueScaleInfo{
-        config.min_value,
-        config.max_value,
-        config.scaling
+        info.minValue,
+        info.maxValue,
+        info.scaling_
     };
 
     // Update lookup structures

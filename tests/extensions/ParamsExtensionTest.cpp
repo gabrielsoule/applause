@@ -2,8 +2,11 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstring>
+#include <limits>
 #include <optional>
+#include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <applause/core/PluginBase.h>
@@ -103,6 +106,15 @@ ParamConfig rangedConfig(std::string string_id, float min, float max, float def,
 
 ParamConfig makeConfig(std::string string_id, float default_value) {
     return rangedConfig(std::move(string_id), 0.0f, 1.0f, default_value);
+}
+
+ParamConfig choiceConfig(std::string string_id, float min, float def, std::vector<std::string> choices) {
+    ParamConfig config;
+    config.string_id = std::move(string_id);
+    config.min_value = min;
+    config.default_value = def;
+    config.choices = std::move(choices);
+    return config;
 }
 
 const clap_plugin_params_t* clapParams(TestPlugin& plugin) {
@@ -293,6 +305,196 @@ TEST_CASE("ParamsExtension coerces stepped defaults during registration", "[para
     REQUIRE(info.default_value == 2.0);
     REQUIRE(clapParams(plugin)->get_info(plugin.clapPlugin(), 1, &info));
     REQUIRE(info.default_value == -2.0);
+}
+
+TEST_CASE("ParamsExtension choice parameters derive and expose enum metadata", "[params][choices][info]") {
+    TestPlugin plugin;
+    auto config = choiceConfig("mode", 4.0f, 5.0f, {"Off", "2x", "4x"});
+    config.scaling = ValueScaling::quadratic();
+    plugin.params.registerParam(config);
+
+    config.choices[0] = "Changed";
+    config.choices.clear();
+
+    const auto& parameter = plugin.params.getInfo("mode");
+    REQUIRE(parameter.minValue == 4.0f);
+    REQUIRE(parameter.maxValue == 6.0f);
+    REQUIRE(parameter.defaultValue == 5.0f);
+    REQUIRE(parameter.getValue() == 5.0f);
+    REQUIRE(parameter.stepped);
+    REQUIRE(parameter.isEnumerated());
+    REQUIRE(parameter.choices().size() == 3);
+    REQUIRE(parameter.choices()[0] == "Off");
+    REQUIRE(parameter.choices()[2] == "4x");
+
+    const auto& scale = plugin.params.getScaleInfoArray()[0];
+    REQUIRE(scale.min == 4.0f);
+    REQUIRE(scale.max == 6.0f);
+    REQUIRE(scale.scaling.type == ValueScale::Linear);
+    REQUIRE(plugin.params.getNormalizedAt(0) == Approx(0.5f));
+    REQUIRE(plugin.params.fromNormalizedAt(0, 1.0f) == Approx(6.0f));
+
+    plugin.params.registerParam({.string_id = "implicit_default", .choices = {"A", "B"}});
+    REQUIRE(plugin.params.getInfo("implicit_default").defaultValue == 0.0f);
+
+    clap_param_info_t info{};
+    REQUIRE(clapParams(plugin)->get_info(plugin.clapPlugin(), 0, &info));
+    REQUIRE(info.min_value == Approx(4.0));
+    REQUIRE(info.max_value == Approx(6.0));
+    REQUIRE(info.default_value == Approx(5.0));
+    REQUIRE(info.flags == (CLAP_PARAM_IS_STEPPED | CLAP_PARAM_IS_ENUM | CLAP_PARAM_IS_AUTOMATABLE));
+}
+
+TEST_CASE("ParamsExtension choice text conversion is bidirectional", "[params][choices][text]") {
+    TestPlugin plugin;
+    plugin.params.registerParam(choiceConfig("mode", 4.0f, 5.0f, {"Off", "2x", "4x"}));
+    const auto& parameter = plugin.params.getInfo("mode");
+
+    SECTION("values map by offset after normal coercion") {
+        REQUIRE(parameter.valueToText(4.0f) == "Off");
+        REQUIRE(parameter.valueToText(5.9f) == "2x");
+        REQUIRE(parameter.valueToText(-100.0f) == "Off");
+        REQUIRE(parameter.valueToText(100.0f) == "4x");
+        REQUIRE(parameter.valueToText(std::numeric_limits<float>::quiet_NaN()) == "2x");
+    }
+
+    SECTION("labels are matched before numeric fallback") {
+        REQUIRE(parameter.textToValue("Off") == 4.0f);
+        REQUIRE(parameter.textToValue("2x") == 5.0f);
+        REQUIRE(parameter.textToValue(" 2x ") == 5.0f);
+        REQUIRE(parameter.textToValue("4x") == 6.0f);
+        REQUIRE(parameter.textToValue("5.9") == 5.0f);
+        REQUIRE(parameter.textToValue("999") == 6.0f);
+        REQUIRE_FALSE(parameter.textToValue("unknown").has_value());
+    }
+
+    SECTION("inconsistent public metadata cannot cause out-of-bounds choice access") {
+        auto& mutable_parameter = plugin.params.getInfo("mode");
+        mutable_parameter.maxValue = 10.0f;
+        REQUIRE_FALSE(mutable_parameter.valueToText(10.0f).empty());
+    }
+
+    SECTION("CLAP callbacks use the generated converters") {
+        auto* clap_params = clapParams(plugin);
+        char text[32] = {};
+        REQUIRE(clap_params->value_to_text(plugin.clapPlugin(), parameter.clapId, 6.0, text, sizeof(text)));
+        REQUIRE(std::string(text) == "4x");
+
+        double value = 0.0;
+        REQUIRE(clap_params->text_to_value(plugin.clapPlugin(), parameter.clapId, "2x", &value));
+        REQUIRE(value == Approx(5.0));
+        REQUIRE(clap_params->text_to_value(plugin.clapPlugin(), parameter.clapId, "6", &value));
+        REQUIRE(value == Approx(6.0));
+    }
+}
+
+TEST_CASE("ParamsExtension custom converters override choice converters per direction",
+          "[params][choices][text][custom]") {
+    TestPlugin plugin;
+
+    auto custom_format = choiceConfig("format", 0.0f, 0.0f, {"A", "B"});
+    custom_format.value_to_text = [](float value, const ParamInfo&) {
+        return value == 0.0f ? "Custom A" : "Custom B";
+    };
+    plugin.params.registerParam(custom_format);
+
+    auto custom_parse = choiceConfig("parse", 0.0f, 0.0f, {"A", "B"});
+    custom_parse.text_to_value = [](const std::string& text, const ParamInfo&) -> std::optional<float> {
+        if (text == "custom") return 1.0f;
+        return std::nullopt;
+    };
+    plugin.params.registerParam(custom_parse);
+
+    const auto& formatted = plugin.params.getInfo("format");
+    REQUIRE(formatted.valueToText(1.0f) == "Custom B");
+    REQUIRE(formatted.textToValue("Custom B") == 1.0f);
+    REQUIRE(formatted.textToValue("B") == 1.0f);
+    REQUIRE(formatted.textToValue("1") == 1.0f);
+
+    const auto& parsed = plugin.params.getInfo("parse");
+    REQUIRE(parsed.valueToText(1.0f) == "B");
+    REQUIRE(parsed.textToValue("custom") == 1.0f);
+    REQUIRE_FALSE(parsed.textToValue("B").has_value());
+    REQUIRE_FALSE(parsed.textToValue("1").has_value());
+}
+
+TEST_CASE("ParamsExtension rejects invalid choice definitions", "[params][choices][validation]") {
+    const auto registerConfig = [](ParamConfig config) {
+        TestPlugin plugin;
+        plugin.params.registerParam(config);
+    };
+
+    SECTION("at least two choices are required") {
+        REQUIRE_THROWS_AS(registerConfig(choiceConfig("mode", 0.0f, 0.0f, {"Only"})), std::invalid_argument);
+    }
+
+    SECTION("labels must be nonblank, representable C strings, and unique") {
+        REQUIRE_THROWS_AS(registerConfig(choiceConfig("empty", 0.0f, 0.0f, {"A", ""})),
+                          std::invalid_argument);
+        REQUIRE_THROWS_AS(registerConfig(choiceConfig("blank", 0.0f, 0.0f, {"A", " \t"})),
+                          std::invalid_argument);
+        REQUIRE_THROWS_AS(
+            registerConfig(choiceConfig("nul", 0.0f, 0.0f, {"A", std::string("B\0C", 3)})),
+            std::invalid_argument);
+        REQUIRE_THROWS_AS(registerConfig(choiceConfig("duplicate", 0.0f, 0.0f, {"A", "A"})),
+                          std::invalid_argument);
+    }
+
+    SECTION("minimum must be integral and defaults must be finite and in range") {
+        REQUIRE_THROWS_AS(registerConfig(choiceConfig("minimum", 0.5f, 1.0f, {"A", "B"})),
+                          std::invalid_argument);
+        REQUIRE_THROWS_AS(registerConfig(choiceConfig("nan_min", std::numeric_limits<float>::quiet_NaN(), 0.0f,
+                                                      {"A", "B"})),
+                          std::invalid_argument);
+        REQUIRE_THROWS_AS(registerConfig(choiceConfig("nan_default", 0.0f,
+                                                      std::numeric_limits<float>::quiet_NaN(), {"A", "B"})),
+                          std::invalid_argument);
+        REQUIRE_THROWS_AS(registerConfig(choiceConfig("outside", 4.0f, 6.0f, {"A", "B"})),
+                          std::invalid_argument);
+    }
+
+    SECTION("custom formatters must produce valid unique labels") {
+        auto blank = choiceConfig("blank_converter", 0.0f, 0.0f, {"A", "B"});
+        blank.value_to_text = [](float value, const ParamInfo&) { return value == 0.0f ? "A" : ""; };
+        REQUIRE_THROWS_AS(registerConfig(std::move(blank)), std::invalid_argument);
+
+        auto duplicate = choiceConfig("duplicate_converter", 0.0f, 0.0f, {"A", "B"});
+        duplicate.value_to_text = [](float, const ParamInfo&) { return "Same"; };
+        REQUIRE_THROWS_AS(registerConfig(std::move(duplicate)), std::invalid_argument);
+
+        auto ambiguous = choiceConfig("ambiguous_converter", 0.0f, 0.0f, {"A", "B"});
+        ambiguous.value_to_text = [](float value, const ParamInfo&) { return value == 0.0f ? "B" : "C"; };
+        REQUIRE_THROWS_AS(registerConfig(std::move(ambiguous)), std::invalid_argument);
+    }
+
+    SECTION("failed formatter validation leaves the next registration slot clean") {
+        TestPlugin plugin;
+        auto throwing = choiceConfig("throwing", 0.0f, 0.0f, {"A", "B"});
+        throwing.value_to_text = [](float, const ParamInfo&) -> std::string {
+            throw std::runtime_error("formatter failure");
+        };
+        REQUIRE_THROWS_AS(plugin.params.registerParam(throwing), std::runtime_error);
+        REQUIRE(clapParams(plugin)->count(plugin.clapPlugin()) == 0);
+
+        plugin.params.registerParam(choiceConfig("valid", 0.0f, 0.0f, {"A", "B"}));
+        REQUIRE(clapParams(plugin)->count(plugin.clapPlugin()) == 1);
+        REQUIRE(plugin.params.getInfo("valid").valueToText(1.0f) == "B");
+    }
+}
+
+TEST_CASE("ParamsExtension choice indices round-trip through JSON state", "[params][choices][state]") {
+    TestPlugin source;
+    source.params.registerParam(choiceConfig("mode", 4.0f, 4.0f, {"Off", "2x", "4x"}));
+    source.params.getInfo("mode").setValueSilently(6.0f);
+
+    json state;
+    REQUIRE(source.params.saveToJson(state));
+
+    TestPlugin restored;
+    restored.params.registerParam(choiceConfig("mode", 4.0f, 4.0f, {"Off", "2x", "4x"}));
+    REQUIRE(restored.params.loadFromJson(state));
+    REQUIRE(restored.params.getInfo("mode").getValue() == 6.0f);
+    REQUIRE(restored.params.getInfo("mode").valueToText(6.0f) == "4x");
 }
 
 TEST_CASE("ParamsExtension default value_to_text formatting", "[params][text]") {
