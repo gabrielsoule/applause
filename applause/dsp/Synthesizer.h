@@ -154,15 +154,21 @@ public:
     }
 
     void activate(ProcessInfo info);
-    void noteOn(const clap_event_note_t* event);
-    void noteOff(const clap_event_note_t* event);
-    void noteChoke(const clap_event_note_t* event);
-    VoiceType& findFreeVoice();
-    VoiceType& stealVoice();
     void process(BufferType buffer, const clap_input_events_t* events);
     [[nodiscard]] std::span<VoiceType> getVoices() noexcept { return voices_; }
 
 protected:
+    /**
+     * Called before a sub-block of audio samples is rendered, but after MIDI events have been ingested
+     * and voices activated.
+     *
+     * This is a good time to update values from parameters, evaluate modulation graphs, prepare voices, etc.
+     *
+     * This method may be called more than once per audio block, since the Synthesizer splits
+     * blocks into sub-blocks based on MIDI events.
+     */
+    virtual void onPreProcess() noexcept {}
+
     /**
      * Renders one non-empty, event-stable range of the current process block.
      *
@@ -177,6 +183,9 @@ protected:
                                 int num_samples);
 
 private:
+    VoiceType& findFreeVoice();
+    VoiceType& stealVoice();
+
     std::array<VoiceType, NumVoices> voices_;
     int notes_played_ = 0;  // count the number of notes; used for finding the
     // oldest voice during voice stealing
@@ -217,55 +226,6 @@ Voice& Synthesizer<Voice, NumVoices>::stealVoice() {
 }
 
 template <typename Voice, std::size_t NumVoices>
-void Synthesizer<Voice, NumVoices>::noteOn(const clap_event_note_t* event) {
-    Voice& voice = findFreeVoice();
-    auto& state = static_cast<VoiceBase&>(voice);
-
-    // Use Note struct to store all note data with full precision
-    state.note_ = Note::fromNoteOn(event);
-    state.play_order_ = notes_played_++;
-    state.state_ = VoiceBase::State::KeyDown;
-    state.active_ = true;
-
-    state.noteOn();
-}
-
-template <typename Voice, std::size_t NumVoices>
-void Synthesizer<Voice, NumVoices>::noteOff(const clap_event_note_t* event) {
-    for (auto& voice : voices_) {
-        auto& state = static_cast<VoiceBase&>(voice);
-        if (state.active_ && state.state_ == VoiceBase::State::KeyDown) {
-            // Use CLAP wildcard matching: (port, channel, key, note_id)
-            if (state.note_.matches(event->key, event->note_id,
-                                    event->port_index, event->channel)) {
-                state.note_.setNoteOff(event);
-                state.noteOff(false);
-                if (state.active_)
-                    state.state_ = VoiceBase::State::Released;
-                // If specific note_id provided, only release that one voice
-                if (event->note_id != -1) break;
-            }
-        }
-    }
-}
-
-template <typename Voice, std::size_t NumVoices>
-void Synthesizer<Voice, NumVoices>::noteChoke(const clap_event_note_t* event) {
-    for (auto& voice : voices_) {
-        auto& state = static_cast<VoiceBase&>(voice);
-        if (state.active_) {
-            // Use CLAP wildcard matching: (port, channel, key, note_id)
-            if (state.note_.matches(event->key, event->note_id,
-                                    event->port_index, event->channel)) {
-                state.noteOff(true);  // Terminate immediately
-                // If specific note_id provided, only choke that one voice
-                if (event->note_id != -1) break;
-            }
-        }
-    }
-}
-
-template <typename Voice, std::size_t NumVoices>
 void Synthesizer<Voice, NumVoices>::renderSubBlock(
     typename Voice::BufferType buffer, int start_sample, int num_samples) {
     for (auto& voice : voices_) {
@@ -283,6 +243,7 @@ void Synthesizer<Voice, NumVoices>::process(
 
     const uint32_t total_frames = buffer.numFrames();
     uint32_t current_sample = 0;
+    bool has_processed_event = false;
 
     if (events) {
         const uint32_t event_count = events->size(events);
@@ -307,40 +268,79 @@ void Synthesizer<Voice, NumVoices>::process(
             // Render chunk before this event
             if (event_time > current_sample) {
                 const int num_samples = event_time - current_sample;
+                if (!has_processed_event) onPreProcess();
                 renderSubBlock(buffer, static_cast<int>(current_sample), num_samples);
             }
 
             // Handle note events
             if (header->type == CLAP_EVENT_NOTE_ON) {
                 const auto* note_event = reinterpret_cast<const clap_event_note_t*>(header);
-                noteOn(note_event);
+                auto& state = static_cast<VoiceBase&>(findFreeVoice());
+                state.note_ = Note::fromNoteOn(note_event);
+                state.play_order_ = notes_played_++;
+                state.state_ = VoiceBase::State::KeyDown;
+                state.active_ = true;
+
+                onPreProcess();
+                state.noteOn();
             } else if (header->type == CLAP_EVENT_NOTE_OFF) {
                 const auto* note_event = reinterpret_cast<const clap_event_note_t*>(header);
-                noteOff(note_event);
+                std::array<VoiceBase*, NumVoices> affected{};
+                std::size_t affected_count = 0;
+
+                for (auto& voice : voices_) {
+                    auto& state = static_cast<VoiceBase&>(voice);
+                    if (state.active_ && state.state_ == VoiceBase::State::KeyDown &&
+                        state.note_.matches(note_event->key, note_event->note_id,
+                                            note_event->port_index, note_event->channel)) {
+                        state.note_.setNoteOff(note_event);
+                        state.state_ = VoiceBase::State::Released;
+                        affected[affected_count++] = &state;
+                        if (note_event->note_id != -1) break;
+                    }
+                }
+
+                onPreProcess();
+                for (std::size_t voice = 0; voice < affected_count; ++voice)
+                    affected[voice]->noteOff(false);
             } else if (header->type == CLAP_EVENT_NOTE_CHOKE) {
                 const auto* note_event = reinterpret_cast<const clap_event_note_t*>(header);
-                noteChoke(note_event);
+                for (auto& voice : voices_) {
+                    auto& state = static_cast<VoiceBase&>(voice);
+                    if (state.active_ &&
+                        state.note_.matches(note_event->key, note_event->note_id,
+                                            note_event->port_index, note_event->channel)) {
+                        state.noteOff(true);
+                        if (note_event->note_id != -1) break;
+                    }
+                }
+                onPreProcess();
             } else if (header->type == CLAP_EVENT_NOTE_EXPRESSION) {
                 const auto* expr_event = reinterpret_cast<const clap_event_note_expression_t*>(header);
-                // Apply expression to all matching voices (supports wildcards)
+                const auto expression_id =
+                    static_cast<Note::Expression>(expr_event->expression_id);
+                std::array<VoiceBase*, NumVoices> affected{};
+                std::size_t affected_count = 0;
+
                 for (auto& voice : voices_) {
                     auto& state = static_cast<VoiceBase&>(voice);
                     if (state.active_ &&
                         state.note_.matches(
                             expr_event->key, expr_event->note_id,
                             expr_event->port_index, expr_event->channel)) {
-                        // Cast from CLAP expression ID to our enum (values match by design)
-                        auto expression_id = static_cast<Note::Expression>(expr_event->expression_id);
-                        // Update note data
                         state.note_.applyExpression(expression_id,
                                                     expr_event->value);
-                        // Notify voice so it can update cached values (e.g. phase increment)
-                        state.onExpressionChange(expression_id,
-                                                 expr_event->value);
+                        affected[affected_count++] = &state;
                     }
                 }
+
+                onPreProcess();
+                for (std::size_t voice = 0; voice < affected_count; ++voice)
+                    affected[voice]->onExpressionChange(expression_id,
+                                                        expr_event->value);
             }
 
+            has_processed_event = true;
             current_sample = event_time;
         }
     }
@@ -348,6 +348,7 @@ void Synthesizer<Voice, NumVoices>::process(
     // Render remaining samples after last event
     if (current_sample < total_frames) {
         const int num_samples = total_frames - current_sample;
+        if (!has_processed_event) onPreProcess();
         renderSubBlock(buffer, static_cast<int>(current_sample), num_samples);
     }
 }
