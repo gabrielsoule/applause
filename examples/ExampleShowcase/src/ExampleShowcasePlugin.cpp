@@ -3,7 +3,9 @@
 #include <applause/util/Json.h>
 #include <cmath>
 #include <map>
+#include <string>
 #include <vector>
+
 ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host) :
     PluginBase(descriptor, host),
     note_ports_(),
@@ -40,10 +42,9 @@ ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* des
     params_.registerParam(applause::ParamConfig{.string_id = "filter_mode",
                                                 .name = "Filter Mode",
                                                 .short_name = "Mode",
-                                                .min_value = 0.0f,
-                                                .max_value = 5.0f,
                                                 .default_value = 0.0f,
-                                                .is_stepped = true});
+                                                .choices = {"Low-pass", "Band-pass", "High-pass", "Notch", "Peak",
+                                                            "All-pass"}});
 
     // Additional parameters to demonstrate scrolling in GenericParameterUI
     params_.registerParam(applause::ParamConfig{.string_id = "volume",

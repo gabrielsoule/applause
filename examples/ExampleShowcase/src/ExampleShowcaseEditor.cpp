@@ -9,13 +9,86 @@
 #ifndef NDEBUG
 #include <applause/util/inspector/InspectorWindow.h>
 #endif
+#include <algorithm>
 #include <cmath>
 #include <fstream>
+#include <initializer_list>
+#include <iterator>
 #include <nfd.hpp>
+#include <numbers>
 #include <span>
 #include <sstream>
 
 using namespace applause::dimension;
+
+namespace {
+
+class WaveformCell final : public applause::SelectionGridCell {
+public:
+    enum class Waveform { Sine, Triangle, SawUp, SawDown, Square, Pulse };
+
+    explicit WaveformCell(Waveform waveform) : waveform_(waveform) {}
+
+protected:
+    void drawContent(applause::Canvas& canvas, float hover_amount) override {
+        if (selected())
+            canvas.setBlendedColor(ApplauseSelectionGridCellContentSelected,
+                                   ApplauseSelectionGridCellContentSelectedHover, hover_amount);
+        else
+            canvas.setBlendedColor(ApplauseSelectionGridCellContent, ApplauseSelectionGridCellContentHover,
+                                   hover_amount);
+        const auto bounds = localBounds().reduced(paletteValue(ApplauseSelectionGridCellContentPadding));
+        const float line_width = 2.0f;
+        const float x_inset =
+            std::min(line_width * 0.5f + 0.5f / canvas.dpiScale(), bounds.width() * 0.5f);
+        const float left = bounds.x() + x_inset;
+        const float top = bounds.y();
+        const float draw_width = bounds.width() - 2.0f * x_inset;
+        const float draw_height = bounds.height();
+        const auto point = [&](float x, float y) {
+            return applause::Point{left + x * draw_width, top + y * draw_height};
+        };
+        const auto polyline = [&](std::initializer_list<applause::Point> points) {
+            auto previous = points.begin();
+            for (auto current = std::next(previous); current != points.end(); ++current, ++previous)
+                canvas.segment(previous->x, previous->y, current->x, current->y, line_width, true);
+        };
+
+        switch (waveform_) {
+            case Waveform::Sine: {
+                auto previous = point(0.0f, 0.5f);
+                for (int i = 1; i <= 24; ++i) {
+                    const float phase = static_cast<float>(i) / 24.0f;
+                    auto current = point(phase, 0.5f - 0.42f * std::sin(phase * 2.0f * std::numbers::pi_v<float>));
+                    canvas.segment(previous.x, previous.y, current.x, current.y, line_width, true);
+                    previous = current;
+                }
+                break;
+            }
+            case Waveform::Triangle:
+                polyline({point(0.0f, 0.5f), point(0.25f, 0.08f), point(0.75f, 0.92f), point(1.0f, 0.5f)});
+                break;
+            case Waveform::SawUp:
+                polyline({point(0.0f, 0.92f), point(1.0f, 0.08f), point(1.0f, 0.92f)});
+                break;
+            case Waveform::SawDown:
+                polyline({point(0.0f, 0.08f), point(0.0f, 0.92f), point(1.0f, 0.08f)});
+                break;
+            case Waveform::Square:
+                polyline({point(0.0f, 0.08f), point(0.5f, 0.08f), point(0.5f, 0.92f), point(1.0f, 0.92f)});
+                break;
+            case Waveform::Pulse:
+                polyline({point(0.0f, 0.92f), point(0.2f, 0.92f), point(0.2f, 0.08f), point(0.45f, 0.08f),
+                          point(0.45f, 0.92f), point(1.0f, 0.92f)});
+                break;
+        }
+    }
+
+private:
+    Waveform waveform_;
+};
+
+}  // namespace
 
 ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
                                              applause::ModMatrixControl* mod_matrix) :
@@ -138,6 +211,25 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
     inactive_slider_.setValue(0.35f);
     inactive_slider_.setActive(false);
     sliders_panel_.content().addChild(&inactive_slider_);
+
+    // --- Selection Grids Panel ---
+    addChild(&selection_grids_panel_);
+
+    if (getParamsExtension()) {
+        filter_mode_grid_ = std::make_unique<applause::ParamSelectionGrid>(
+            getParamsExtension()->getInfo("filter_mode"), 3, 2);
+        selection_grids_panel_.content().addChild(filter_mode_grid_.get());
+    }
+
+    waveform_grid_.emplaceCell<WaveformCell>(0, WaveformCell::Waveform::Sine);
+    waveform_grid_.emplaceCell<WaveformCell>(1, WaveformCell::Waveform::Triangle);
+    waveform_grid_.emplaceCell<WaveformCell>(2, WaveformCell::Waveform::SawUp);
+    waveform_grid_.emplaceCell<WaveformCell>(3, WaveformCell::Waveform::SawDown);
+    waveform_grid_.emplaceCell<WaveformCell>(4, WaveformCell::Waveform::Square);
+    waveform_grid_.emplaceCell<WaveformCell>(5, WaveformCell::Waveform::Pulse);
+    waveform_grid_.onSelectionChanged() +=
+        [](int index) { LOG_INFO("Waveform grid selection: {}", index); };
+    selection_grids_panel_.content().addChild(&waveform_grid_);
 
     // --- Tooltips ---
     if (ui_button_) applause::setTooltip(*ui_button_, "A regular button");
@@ -264,13 +356,29 @@ void ExampleShowcaseEditor::resized() {
             small_toggle_button_->setBounds(btn_pad + small_bw + kGap, small_y, small_bw, small_bh);
     }
 
-    // --- Column 3 (right): MSEG, Mod Matrix ---
+    // --- Column 3 (right): MSEG, Selection Grids, Mod Matrix ---
     float col3_x = col2_x + col2_w + kGap;
     float col3_w = width() - col3_x - kPadding;
 
     float mseg_h = (col_h - kGap) * 0.45f;
-    mseg_panel_.setBounds(col3_x, kPadding, col3_w, mseg_h);
+    static constexpr float kSelectionGridsPanelWidth = 260.0f;
+    float mseg_w = col3_w - kSelectionGridsPanelWidth - kGap;
+    mseg_panel_.setBounds(col3_x, kPadding, mseg_w, mseg_h);
     mseg_display_.setBounds(0, 0, mseg_panel_.content().width(), mseg_panel_.content().height());
+
+    selection_grids_panel_.setBounds(col3_x + mseg_w + kGap, kPadding, kSelectionGridsPanelWidth, mseg_h);
+    {
+        auto& cc = selection_grids_panel_.content();
+        static constexpr float kTextGridHeight = 72.0f;
+        static constexpr float kGridGap = 8.0f;
+        if (filter_mode_grid_)
+            filter_mode_grid_->setBounds(0, 0, cc.width(), kTextGridHeight);
+
+        float waveform_y = kTextGridHeight + kGridGap;
+        float waveform_h = cc.height() - waveform_y;
+        float waveform_w = std::min(cc.width(), waveform_h * 2.0f / 3.0f);
+        waveform_grid_.setBounds((cc.width() - waveform_w) * 0.5f, waveform_y, waveform_w, waveform_h);
+    }
 
     float mod_y = kPadding + mseg_h + kGap;
     float mod_h = col_h - mseg_h - kGap;

@@ -4,8 +4,10 @@
 #include <applause/extensions/ParamsExtension.h>
 #include <applause/ui/ApplauseEditor.h>
 #include <applause/ui/components/Button.h>
+#include <applause/ui/components/SelectionGrid.h>
 #include <applause/ui/components/GenericParameterUI.h>
 #include <applause/ui/components/Panel.h>
+#include <applause/ui/components/ParamSelectionGrid.h>
 #include <applause/ui/components/ParamKnob.h>
 #include <applause/ui/components/Slider.h>
 #include <applause/ui/components/modulation/MSEGDisplay.h>
@@ -25,6 +27,7 @@ private:
     applause::Panel buttons_panel_{"Buttons"};
     applause::Panel sliders_panel_{"Sliders"};
     applause::Panel params_panel_{"Parameters"};
+    applause::Panel selection_grids_panel_{"Selection Grids"};
     applause::Panel mseg_panel_{"MSEG"};
     applause::Panel mod_matrix_panel_{"Mod Matrix"};
     applause::MSEGCurve<> demo_curve_;
@@ -63,6 +66,10 @@ private:
     applause::Slider normal_slider_;
     applause::Slider bipolar_slider_;
     applause::Slider inactive_slider_;
+
+    // Selection grids
+    std::unique_ptr<applause::ParamSelectionGrid> filter_mode_grid_;
+    applause::SelectionGrid waveform_grid_{2, 3};
 
     void onLoadFileClicked();
 };
