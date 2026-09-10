@@ -403,6 +403,8 @@ TEST_CASE("C4: loadParamBaseValues with extra destinations", "[modmatrix][scalin
     applause::ParamConfig config1;
     config1.string_id = "param1";
     config1.name = "Param 1";
+    config1.short_name = "P1";
+    config1.module = "Test";
     config1.min_value = 0.0f;
     config1.max_value = 1.0f;
     config1.default_value = 0.5f;
@@ -426,6 +428,8 @@ TEST_CASE("C4: loadParamBaseValues with extra destinations", "[modmatrix][scalin
     REQUIRE_FALSE(matrix.loadParamBaseValues(params));
     matrix.process();
 
+    REQUIRE(matrix.getDestination(0).name == "Test / P1");
+    REQUIRE(matrix.getDestination(1).name == "Param 2");
     REQUIRE(matrix.getModValue(0) == Catch::Approx(0.5f));
     REQUIRE(matrix.getModValue(1) == Catch::Approx(50.0f));
     REQUIRE(matrix.getModValue(2) == Catch::Approx(0.0f));

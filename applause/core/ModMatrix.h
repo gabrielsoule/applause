@@ -676,7 +676,10 @@ inline void ModMatrixControl::registerFromParamsExtension(const ParamsExtension&
 
     for (uint32_t i = 0; i < params.size(); ++i) {
         const auto& param = params[i];
-        registerDestination(param.stringId, param.polyphonic ? ModDstMode::Poly : ModDstMode::Mono, scales[i]);
+        auto& destination =
+            registerDestination(param.stringId, param.polyphonic ? ModDstMode::Poly : ModDstMode::Mono, scales[i]);
+        destination.name = param.shortName.empty() ? param.name : param.shortName;
+        if (!param.module.empty()) destination.name = param.module + " / " + destination.name;
     }
     param_dst_count_ = static_cast<uint16_t>(params.size());
     loadParamBaseValues(params_extension);
