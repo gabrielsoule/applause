@@ -423,12 +423,18 @@ TEST_CASE("C4: loadParamBaseValues with extra destinations", "[modmatrix][scalin
     matrix.registerFromParamsExtension(params);
     matrix.registerDestination("extra", ModDstMode::Mono);
 
-    matrix.loadParamBaseValues(params);
+    REQUIRE_FALSE(matrix.loadParamBaseValues(params));
     matrix.process();
 
     REQUIRE(matrix.getModValue(0) == Catch::Approx(0.5f));
     REQUIRE(matrix.getModValue(1) == Catch::Approx(50.0f));
     REQUIRE(matrix.getModValue(2) == Catch::Approx(0.0f));
+
+    params.getInfo("param1").setValueSilently(0.75f);
+    REQUIRE(matrix.loadParamBaseValues(params));
+    REQUIRE_FALSE(matrix.loadParamBaseValues(params));
+    matrix.process();
+    REQUIRE(matrix.getModValue(0) == Catch::Approx(0.75f));
 }
 
 TEST_CASE("D1: Mono source values propagate through MM connections", "[modmatrix][sources]") {
@@ -2099,8 +2105,8 @@ TEST_CASE("O7: The non-template graph controls a SIMD matrix", "[modmatrix][simd
     for (std::size_t lane = 0; lane < input.size(); ++lane) input[lane] = static_cast<float>(lane) / input.size();
     matrix.setPolySourceValue(src.index, 0, ModBatch::load_unaligned(input.data()));
     matrix.setPolySourceValue(src.index, 1, ModBatch(0.8f));
-    graph.setActiveLanes(0, 0b0101);
-    graph.setActiveLanes(1, 0b0010);
+    matrix.setActiveMask(0, ModBatch::batch_bool_type::from_mask(0b0101));
+    matrix.setActiveMask(1, ModBatch::batch_bool_type::from_mask(0b0010));
     matrix.process();
 
     REQUIRE(graph.copyActiveDestinationValues(dst.index, {}) == 3);
@@ -2117,25 +2123,25 @@ TEST_CASE("O7: The non-template graph controls a SIMD matrix", "[modmatrix][simd
     REQUIRE(partial[1] == Catch::Approx(input[2] * 0.5f));
     REQUIRE(partial[2] == -1.0f);
 
-    graph.setActiveLanes(0, 0b0100);
+    graph.setActiveMask(0, ModMatrixControl::Mask{0b0100});
     REQUIRE(graph.copyActiveDestinationValues(dst.index, values) == 2);
     REQUIRE(values[0] == Catch::Approx(input[2] * 0.5f));
     REQUIRE(values[1] == Catch::Approx(0.4f));
 
-    graph.setActiveLanes(0, 0);
+    graph.setActiveMask(0, ModMatrixControl::Mask{0});
     REQUIRE(graph.copyActiveDestinationValues(dst.index, values) == 1);
     REQUIRE(values[0] == Catch::Approx(0.4f));
-    graph.setActiveLanes(1, 0);
+    graph.setActiveMask(1, ModMatrixControl::Mask{0});
     REQUIRE(graph.copyActiveDestinationValues(dst.index, {}) == 0);
 
-    graph.setActiveLanes(0, 0b1000);
+    graph.setActiveMask(0, ModMatrixControl::Mask{0b1000});
     matrix.process();
     REQUIRE(graph.copyActiveDestinationValues(dst.index, values) == 1);
     REQUIRE(values[0] == Catch::Approx(input[3] * 0.5f));
 
     matrix.setPolySourceValue(src.index, 0, ModBatch(0.2f));
-    graph.setActiveLanes(0, 0b0001);
-    graph.setActiveLanes(0, 0b0001);
+    graph.setActiveMask(0, ModMatrixControl::Mask{0b0001});
+    graph.setActiveMask(0, ModMatrixControl::Mask{0b0001});
     matrix.process();
     REQUIRE(graph.copyActiveDestinationValues(dst.index, values) == 1);
     REQUIRE(values[0] == Catch::Approx(0.1f));

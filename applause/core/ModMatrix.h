@@ -178,6 +178,9 @@ public:
  * that modulate existing connections between sources and destinations cannot, themselves, be modulated.
  * We sacrifice generality upon the altar of pragmatism.
  *
+ * The modulation system can be templated with respect to scalar modulation signals or "batched" SIMD signals.
+ * The templated material is split into a separate class to minimize template contagion elsewhere in the codebase.
+ *
  * Deeper modulation graphs would necessitate development of a signal digraph processing system, a graph compiler,
  * loop detection & resolution, et cetera. We omit this for now, as deeper recursive modulation (i.e. modulation of a
  * connection that modulates a connection that modulates a parameter) is an edge case not required within most synthesis
@@ -188,7 +191,7 @@ public:
  */
 class ModMatrixControl {
 public:
-    using LaneBits = std::uint64_t;
+    using Mask = std::uint64_t;
 
     struct Config {
         uint16_t num_voices;  // A SIMD batch is one matrix voice.
@@ -198,11 +201,11 @@ public:
     };
 
 protected:
-    explicit ModMatrixControl(Config config, LaneBits active_lane_mask) :
+    explicit ModMatrixControl(Config config, Mask valid_mask) :
         config_(config),
-        active_lane_mask_(active_lane_mask),
+        valid_mask_(valid_mask),
         program_(config.max_connections),
-        active_lane_bits_(config.num_voices, 0),
+        active_masks_(config.num_voices, 0),
         src_registry_(config.max_sources),
         dst_registry_(config.max_destinations),
         dst_scale_info_(config.max_destinations),
@@ -413,14 +416,14 @@ public:
     ModConnection addDepthModulation(ModSource src, const ModConnection& target_conn, float depth = 1.0f,
                                      std::optional<bool> bipolar_mapping = std::nullopt);
 
-    /** Activates every lane of a matrix voice. SIMD callers with partial batches use setActiveLanes(). */
+    /** Activates every lane of a matrix voice. SIMD callers with partial batches use setActiveMask(). */
     void notifyVoiceOn(uint16_t voice_index) noexcept;
 
     /** Deactivates every lane of a matrix voice. */
     void notifyVoiceOff(uint16_t voice_index) noexcept;
 
-    /** Sets the occupied lanes for one matrix voice. Zero deactivates the voice. */
-    void setActiveLanes(uint16_t voice_index, LaneBits lane_bits) noexcept;
+    /** Sets the active-lane mask for one matrix voice. Zero deactivates the voice. */
+    void setActiveMask(uint16_t voice_index, Mask mask) noexcept;
 
     /**
      * Copies as many active destination values as fit in output, in plain units.
@@ -477,9 +480,10 @@ public:
     /**
      * Load all param values as normalized into base destination values.
      * Assumes param index == destination index (1:1 bijection).
-     * Call once per block before process().
+     * Call once per block in your process function, before you do processing
+     * @return true if any base value changed.
      */
-    void loadParamBaseValues(const applause::ParamsExtension& params);
+    bool loadParamBaseValues(const applause::ParamsExtension& params) noexcept;
 
 private:
     // Depth accessors for ModConnection (avoids dangling pointer issues)
@@ -497,7 +501,7 @@ private:
     void recompileProgram();
 
     const Config config_;
-    const LaneBits active_lane_mask_;
+    const Mask valid_mask_;
 
     ModProgram program_;
 
@@ -506,7 +510,7 @@ private:
     uint16_t param_dst_count_ = 0;
 
     std::vector<uint16_t> active_voices_;
-    std::vector<LaneBits> active_lane_bits_;
+    std::vector<Mask> active_masks_;
 
     std::unordered_map<std::string, uint16_t> src_lookup_;
     std::unordered_map<std::string, uint16_t> dst_lookup_;
@@ -539,18 +543,18 @@ template <ModSignal Signal>
 class ModMatrix final : public ModMatrixControl {
     static_assert(sample_width_v<Signal> <= 64);
 
-    static constexpr LaneBits active_lane_mask = [] {
+    static constexpr Mask valid_mask = [] {
         if constexpr (sample_width_v<Signal> == 64)
-            return ~LaneBits{0};
+            return ~Mask{0};
         else
-            return (LaneBits{1} << sample_width_v<Signal>) - 1;
+            return (Mask{1} << sample_width_v<Signal>) - 1;
     }();
 
 public:
     using Config = ModMatrixControl::Config;
 
     explicit ModMatrix(Config config) :
-        ModMatrixControl(config, active_lane_mask),
+        ModMatrixControl(config, valid_mask),
         poly_src_stride_(config.max_sources),
         poly_dst_stride_(config.max_destinations),
         poly_depth_stride_(config.max_connections),
@@ -568,6 +572,18 @@ public:
         ASSERT(srcIdx < src_count_, "Source index out of bounds");
         ASSERT(voice < config_.num_voices, "Voice index out of bounds");
         poly_src_buf_[static_cast<size_t>(voice) * poly_src_stride_ + srcIdx] = value;
+    }
+
+    void setActiveMask(uint16_t voice, Mask mask) noexcept
+        requires Scalar<Signal>
+    {
+        ModMatrixControl::setActiveMask(voice, mask);
+    }
+
+    void setActiveMask(uint16_t voice, const mask_t<Signal>& mask) noexcept
+        requires SimdBatch<Signal>
+    {
+        ModMatrixControl::setActiveMask(voice, mask.mask());
     }
 
     [[nodiscard]] Signal getPolyModValue(uint16_t dstIdx, uint16_t voice) const {
@@ -907,26 +923,26 @@ inline ModConnection ModMatrixControl::reassignDestination(const ModConnection& 
 }
 
 inline void ModMatrixControl::notifyVoiceOn(uint16_t voice_index) noexcept {
-    setActiveLanes(voice_index, active_lane_mask_);
+    setActiveMask(voice_index, valid_mask_);
 }
 
 inline void ModMatrixControl::notifyVoiceOff(uint16_t voice_index) noexcept {
-    setActiveLanes(voice_index, 0);
+    setActiveMask(voice_index, 0);
 }
 
-inline void ModMatrixControl::setActiveLanes(uint16_t voice_index, LaneBits lane_bits) noexcept {
+inline void ModMatrixControl::setActiveMask(uint16_t voice_index, Mask mask) noexcept {
     ASSERT(voice_index < config_.num_voices, "Voice index out of bounds");
-    ASSERT((lane_bits & ~active_lane_mask_) == 0, "Lane mask contains invalid bits");
-    lane_bits &= active_lane_mask_;
+    ASSERT((mask & ~valid_mask_) == 0, "Mask contains invalid lanes");
+    mask &= valid_mask_;
 
-    auto& current = active_lane_bits_[voice_index];
-    if (current == lane_bits) return;
+    auto& current = active_masks_[voice_index];
+    if (current == mask) return;
 
     const bool was_active = current != 0;
-    current = lane_bits;
-    if (!was_active && lane_bits != 0)
+    current = mask;
+    if (!was_active && mask != 0)
         active_voices_.push_back(voice_index);
-    else if (was_active && lane_bits == 0)
+    else if (was_active && mask == 0)
         std::erase(active_voices_, voice_index);
 }
 
@@ -936,13 +952,21 @@ inline void ModMatrixControl::setBaseValue(uint16_t dstIdx, float plain_value) {
     base_dst_[dstIdx] = scale.scaling.toNormalized(plain_value, scale.min, scale.max);
 }
 
-inline void ModMatrixControl::loadParamBaseValues(const ParamsExtension& params) {
+inline bool ModMatrixControl::loadParamBaseValues(const ParamsExtension& params) noexcept {
+    const auto param_count = params.getParamCount();
+    ASSERT(param_count == param_dst_count_, "Parameter count changed after destination registration");
+    if (param_count != param_dst_count_) return false;
+
+    bool changed = false;
     const auto* values = params.getValuesArray();
     for (uint16_t i = 0; i < param_dst_count_; ++i) {
         const auto& scale = dst_scale_info_[i];
         const float plain = values[i].load(std::memory_order_relaxed);
-        base_dst_[i] = scale.scaling.toNormalized(plain, scale.min, scale.max);
+        const float normalized = scale.scaling.toNormalized(plain, scale.min, scale.max);
+        changed |= normalized != base_dst_[i];
+        base_dst_[i] = normalized;
     }
+    return changed;
 }
 
 template <ModSignal Signal>
@@ -1048,15 +1072,15 @@ size_t ModMatrix<Signal>::copyActiveDestinationValues(uint16_t dstIdx, std::span
 
     for (size_t i = 0; i < voice_count; ++i) {
         const uint16_t voice = active_voices_[i];
-        LaneBits bits = active_lane_bits_[voice] & active_lane_mask_;
-        required += std::popcount(bits);
+        Mask mask = active_masks_[voice] & valid_mask_;
+        required += std::popcount(mask);
         if (written == output.size()) continue;
 
         store_unaligned(poly_dst_buf_[static_cast<size_t>(voice) * poly_dst_stride_ + dstIdx], lanes.data());
-        while (bits != 0 && written < output.size()) {
-            const auto lane = std::countr_zero(bits);
+        while (mask != 0 && written < output.size()) {
+            const auto lane = std::countr_zero(mask);
             output[written++] = lanes[lane];
-            bits &= bits - 1;
+            mask &= mask - 1;
         }
     }
 
