@@ -10,6 +10,7 @@
 #include <applause/util/inspector/InspectorWindow.h>
 #endif
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <fstream>
 #include <initializer_list>
@@ -253,9 +254,30 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
     demo_curve_.loop = true;
 
     mseg_display_.setCurve(&demo_curve_);
-    mseg_panel_.content().addChild(&mseg_display_);
+    mseg_panel_.content().addChild(&mseg_plot_);
+    mseg_plot_.addChild(&mseg_display_);
 
-    // --- Mod Matrix Panel (bottom) ---
+    // --- Trace and Plot Panel ---
+    addChild(&plots_panel_);
+    plots_panel_.content().addChild(&trace_demo_);
+    plots_panel_.content().addChild(&plot_demo_);
+    plot_demo_.addChild(&plot_trace_demo_);
+
+    std::array<float, 256> samples;
+    for (size_t i = 0; i < samples.size(); ++i) {
+        const float x = static_cast<float>(i) / static_cast<float>(samples.size() - 1);
+        samples[i] = 0.5f + 0.4f * std::sin(4.0f * std::numbers::pi_v<float> * x);
+    }
+    trace_demo_.setSamples(samples);
+
+    for (size_t i = 0; i < samples.size(); ++i) {
+        const float x = static_cast<float>(i) / static_cast<float>(samples.size() - 1);
+        samples[i] = 1.0f / std::sqrt(1.0f + std::pow(x / 0.55f, 8.0f));
+    }
+    plot_trace_demo_.setSamples(samples);
+    plot_demo_.setGridDivisions(6, 4);
+
+    // --- Mod Matrix Panel ---
     addChild(&mod_matrix_panel_);
 
     if (mod_matrix) {
@@ -356,7 +378,7 @@ void ExampleShowcaseEditor::resized() {
             small_toggle_button_->setBounds(btn_pad + small_bw + kGap, small_y, small_bw, small_bh);
     }
 
-    // --- Column 3 (right): MSEG, Selection Grids, Mod Matrix ---
+    // --- Column 3 (right): MSEG, Selection Grids, Mod Matrix, Plots ---
     float col3_x = col2_x + col2_w + kGap;
     float col3_w = width() - col3_x - kPadding;
 
@@ -364,7 +386,10 @@ void ExampleShowcaseEditor::resized() {
     static constexpr float kSelectionGridsPanelWidth = 260.0f;
     float mseg_w = col3_w - kSelectionGridsPanelWidth - kGap;
     mseg_panel_.setBounds(col3_x, kPadding, mseg_w, mseg_h);
-    mseg_display_.setBounds(0, 0, mseg_panel_.content().width(), mseg_panel_.content().height());
+    mseg_plot_.setBounds(0, 0, mseg_panel_.content().width(), mseg_panel_.content().height());
+    mseg_display_.setBounds(kGap, kGap,
+                            std::max(0.0f, mseg_plot_.width() - 2.0f * kGap),
+                            std::max(0.0f, mseg_plot_.height() - 2.0f * kGap));
 
     selection_grids_panel_.setBounds(col3_x + mseg_w + kGap, kPadding, kSelectionGridsPanelWidth, mseg_h);
     {
@@ -381,10 +406,18 @@ void ExampleShowcaseEditor::resized() {
     }
 
     float mod_y = kPadding + mseg_h + kGap;
-    float mod_h = col_h - mseg_h - kGap;
+    static constexpr float kPlotsPanelHeight = 140.0f;
+    float mod_h = col_h - mseg_h - 2 * kGap - kPlotsPanelHeight;
     mod_matrix_panel_.setBounds(col3_x, mod_y, col3_w, mod_h);
     if (mod_matrix_ui_)
         mod_matrix_ui_->setBounds(0, 0, mod_matrix_panel_.content().width(), mod_matrix_panel_.content().height());
+
+    plots_panel_.setBounds(col3_x, mod_y + mod_h + kGap, col3_w, kPlotsPanelHeight);
+    auto& pc = plots_panel_.content();
+    float plot_w = (pc.width() - kGap) * 0.5f;
+    trace_demo_.setBounds(0, 0, plot_w, pc.height());
+    plot_demo_.setBounds(plot_w + kGap, 0, plot_w, pc.height());
+    plot_trace_demo_.setBounds(plot_demo_.localBounds());
 }
 
 void ExampleShowcaseEditor::onLoadFileClicked() {

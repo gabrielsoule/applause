@@ -9,6 +9,7 @@
 #include <applause/ui/components/Panel.h>
 #include <applause/ui/components/ParamSelectionGrid.h>
 #include <applause/ui/components/ParamKnob.h>
+#include <applause/ui/components/Plot.h>
 #include <applause/ui/components/Slider.h>
 #include <applause/ui/components/modulation/MSEGDisplay.h>
 #include <applause/ui/components/modulation/ModMatrixComponent.h>
@@ -28,10 +29,15 @@ private:
     applause::Panel sliders_panel_{"Sliders"};
     applause::Panel params_panel_{"Parameters"};
     applause::Panel selection_grids_panel_{"Selection Grids"};
+    applause::Panel plots_panel_{"TraceView / PlotView"};
     applause::Panel mseg_panel_{"MSEG"};
     applause::Panel mod_matrix_panel_{"Mod Matrix"};
     applause::MSEGCurve<> demo_curve_;
+    applause::PlotView mseg_plot_;
     applause::MSEGDisplay mseg_display_;
+    applause::SimpleCurve trace_demo_;
+    applause::PlotView plot_demo_;
+    applause::SimpleCurve plot_trace_demo_;
     std::unique_ptr<applause::GenericParameterUI> parameter_ui_;
     std::unique_ptr<applause::ModMatrixComponent> mod_matrix_ui_;
 
