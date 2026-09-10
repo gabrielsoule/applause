@@ -81,8 +81,19 @@ struct CountingVoice : applause::SynthesizerVoice<float> {
 };
 
 struct SynchronouslyTerminatingVoice : applause::SynthesizerVoice<float> {
-    void process(BufferType, int, int) override {}
+    void process(BufferType, int, int) override { ++process_calls; }
     void noteOff(bool) override { terminateVoice(); }
+
+    int process_calls = 0;
+};
+
+struct PreProcessTerminatingVoice : applause::SynthesizerVoice<float> {
+    void process(BufferType, int, int) override { ++process_calls; }
+    void onPreProcess() noexcept override { terminateVoice(); }
+    void noteOn() override { ++note_on_calls; }
+
+    int process_calls = 0;
+    int note_on_calls = 0;
 };
 
 struct DispatchedVoice : applause::SynthesizerVoice<float> {
@@ -92,7 +103,7 @@ struct DispatchedVoice : applause::SynthesizerVoice<float> {
 };
 
 struct CallbackVoice : applause::SynthesizerVoice<float> {
-    void process(BufferType, int, int) override {}
+    void process(BufferType, int, int) override { ++process_calls; }
 
     void noteOn() override { ++note_on_calls; }
 
@@ -116,8 +127,20 @@ struct CallbackVoice : applause::SynthesizerVoice<float> {
     int note_off_calls = 0;
     int immediate_note_off_calls = 0;
     int expression_calls = 0;
+    int process_calls = 0;
     applause::Note::Expression last_expression = applause::Note::Volume;
     double last_expression_value = 0.0;
+};
+
+struct PressureReleaseVoice : CallbackVoice {
+    void onPreProcess() noexcept override { release_pressure = note_.pressure; }
+
+    void noteOff(bool terminate_now) override {
+        CallbackVoice::noteOff(terminate_now);
+        if (!terminate_now && release_pressure >= 0.5) terminateVoice();
+    }
+
+    double release_pressure = 0.0;
 };
 
 struct MissingProcessVoice : applause::SynthesizerVoice<float> {};
@@ -142,35 +165,54 @@ protected:
 };
 
 struct PreProcessVoice : applause::SynthesizerVoice<float> {
+    struct Snapshot {
+        bool active;
+        State state;
+        int32_t note_id;
+        double pressure;
+        double note_off_velocity;
+    };
+
     void process(BufferType, int, int) override {}
+    void onPreProcess() noexcept override {
+        trace->push_back('V');
+        snapshots->push_back({active_, state_, note_.note_id,
+                              note_.pressure, note_.note_off_velocity});
+    }
     void noteOn() override { trace->push_back('N'); }
     void noteOff(bool terminate_now) override {
         trace->push_back(terminate_now ? 'K' : 'F');
         applause::SynthesizerVoice<float>::noteOff(terminate_now);
     }
-    void onExpressionChange(applause::Note::Expression, double) override {
+    void onExpressionChange(applause::Note::Expression expression,
+                            double value) override {
         trace->push_back('E');
+        ++expression_calls;
+        last_expression = expression;
+        last_expression_value = value;
     }
 
     std::vector<char>* trace = nullptr;
+    std::vector<Snapshot>* snapshots = nullptr;
+    int expression_calls = 0;
+    applause::Note::Expression last_expression = applause::Note::Volume;
+    double last_expression_value = 0.0;
 };
 
 class PreProcessTestSynth final : public applause::Synthesizer<PreProcessVoice, 1> {
 public:
     using VoiceState = applause::SynthesizerVoice<float>::State;
 
-    struct Snapshot {
-        bool active;
-        VoiceState state;
-        int32_t note_id;
-        double pressure;
-        double note_off_velocity;
-    };
+    using Snapshot = PreProcessVoice::Snapshot;
 
-    PreProcessTestSynth() { getVoices().front().trace = &trace; }
+    PreProcessTestSynth() {
+        getVoices().front().trace = &trace;
+        getVoices().front().snapshots = &voice_snapshots;
+    }
 
     std::vector<char> trace;
     std::vector<Snapshot> snapshots;
+    std::vector<Snapshot> voice_snapshots;
 
 protected:
     void onPreProcess() noexcept override {
@@ -235,6 +277,7 @@ TEST_CASE("Synthesizer keeps a synchronously terminated note-off voice idle", "[
     const auto voices = synth.getVoices();
     REQUIRE_FALSE(voices[0].active_);
     REQUIRE(voices[0].state_ == Voice::State::Idle);
+    REQUIRE(voices[0].process_calls == 0);
 
     auto second_note = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 2, 64);
     EventList second_events;
@@ -244,6 +287,180 @@ TEST_CASE("Synthesizer keeps a synchronously terminated note-off voice idle", "[
     REQUIRE(voices[0].active_);
     REQUIRE(voices[0].state_ == Voice::State::KeyDown);
     REQUIRE(voices[0].note_.note_id == 2);
+}
+
+TEST_CASE("Synthesizer skips callbacks and rendering after preprocessing terminates a voice",
+          "[dsp][synthesizer]") {
+    applause::Synthesizer<PreProcessTerminatingVoice, 1> synth;
+    auto note_on = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 1, 60);
+    EventList event_list;
+    event_list.add(note_on);
+
+    std::array<float, 1> samples{};
+    std::array<float*, 1> channels{samples.data()};
+    synth.process({channels.data(), channels.size(), samples.size()},
+                  &event_list.input);
+
+    const auto& voice = synth.getVoices().front();
+    REQUIRE_FALSE(voice.active_);
+    REQUIRE(voice.note_on_calls == 0);
+    REQUIRE(voice.process_calls == 0);
+}
+
+TEST_CASE("Synthesizer reuses a same-sample release before stealing another voice",
+          "[dsp][synthesizer]") {
+    applause::Synthesizer<PressureReleaseVoice, 2> synth;
+    auto first_note = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 1, 60);
+    EventList first_events;
+    first_events.add(first_note);
+    synth.process({}, &first_events.input);
+
+    auto second_note = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 2, 64);
+    auto note_off = makeNoteEvent(CLAP_EVENT_NOTE_OFF, 0, 2, 64);
+    auto replacement = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 3, 67);
+    auto pressure = makeExpressionEvent(
+        0, 2, 64, CLAP_NOTE_EXPRESSION_PRESSURE, 0.75);
+    EventList release_events;
+
+    SECTION("the released note was already playing") {
+        EventList second_events;
+        second_events.add(second_note);
+        synth.process({}, &second_events.input);
+    }
+
+    SECTION("the released note starts at the same sample") {
+        release_events.add(second_note);
+    }
+
+    release_events.add(note_off);
+    release_events.add(replacement);
+    release_events.add(pressure);
+    synth.process({}, &release_events.input);
+
+    const auto voices = synth.getVoices();
+    REQUIRE(voices[0].active_);
+    REQUIRE(voices[0].note_.note_id == 1);
+    REQUIRE(voices[0].immediate_note_off_calls == 0);
+    REQUIRE(voices[1].active_);
+    REQUIRE(voices[1].state_ == PressureReleaseVoice::State::KeyDown);
+    REQUIRE(voices[1].note_.note_id == 3);
+    REQUIRE(voices[1].note_on_calls == 2);
+    REQUIRE(voices[1].note_off_calls == 1);
+    REQUIRE(voices[1].immediate_note_off_calls == 0);
+    REQUIRE(voices[1].expression_calls == 1);
+    REQUIRE(voices[1].last_expression_value == 0.75);
+    REQUIRE(voices[1].note_.pressure == 0.0);
+}
+
+TEST_CASE("Synthesizer keeps a release tail active when allocating a same-sample note",
+          "[dsp][synthesizer]") {
+    applause::Synthesizer<PressureReleaseVoice, 2> synth;
+    auto first_note = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 1, 60);
+    auto second_note = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 2, 64);
+    EventList first_events;
+    first_events.add(first_note);
+    first_events.add(second_note);
+    synth.process({}, &first_events.input);
+
+    auto note_off = makeNoteEvent(CLAP_EVENT_NOTE_OFF, 0, 2, 64);
+    auto replacement = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 3, 67);
+    auto pressure = makeExpressionEvent(
+        0, 2, 64, CLAP_NOTE_EXPRESSION_PRESSURE, 0.25);
+    EventList release_events;
+    release_events.add(note_off);
+    release_events.add(replacement);
+    release_events.add(pressure);
+    synth.process({}, &release_events.input);
+
+    const auto voices = synth.getVoices();
+    REQUIRE(voices[0].active_);
+    REQUIRE(voices[0].note_.note_id == 3);
+    REQUIRE(voices[0].immediate_note_off_calls == 1);
+    REQUIRE(voices[1].active_);
+    REQUIRE(voices[1].state_ == PressureReleaseVoice::State::Released);
+    REQUIRE(voices[1].note_.note_id == 2);
+    REQUIRE(voices[1].note_off_calls == 1);
+    REQUIRE(voices[1].immediate_note_off_calls == 0);
+    REQUIRE(voices[1].expression_calls == 1);
+    REQUIRE(voices[1].release_pressure == 0.25);
+}
+
+TEST_CASE("Synthesizer reuses a slot repeatedly at the same sample",
+          "[dsp][synthesizer]") {
+    applause::Synthesizer<PressureReleaseVoice, 2> synth;
+    auto first_note = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 1, 60);
+    auto second_note = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 2, 64);
+    EventList first_events;
+    first_events.add(first_note);
+    first_events.add(second_note);
+    synth.process({}, &first_events.input);
+
+    const std::array notes{
+        makeNoteEvent(CLAP_EVENT_NOTE_OFF, 0, 2, 64),
+        makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 3, 65),
+        makeNoteEvent(CLAP_EVENT_NOTE_OFF, 0, 3, 65),
+        makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 4, 67),
+        makeNoteEvent(CLAP_EVENT_NOTE_OFF, 0, 4, 67),
+        makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 5, 69),
+    };
+    const std::array expressions{
+        makeExpressionEvent(0, 1, 60, CLAP_NOTE_EXPRESSION_PRESSURE, 0.25),
+        makeExpressionEvent(0, 2, 64, CLAP_NOTE_EXPRESSION_PRESSURE, 0.75),
+        makeExpressionEvent(0, 3, 65, CLAP_NOTE_EXPRESSION_PRESSURE, 0.75),
+        makeExpressionEvent(0, 4, 67, CLAP_NOTE_EXPRESSION_PRESSURE, 0.75),
+    };
+    EventList replacement_events;
+    for (const auto& note : notes) replacement_events.add(note);
+    for (const auto& expression : expressions) replacement_events.add(expression);
+    synth.process({}, &replacement_events.input);
+
+    const auto voices = synth.getVoices();
+    REQUIRE(voices[0].active_);
+    REQUIRE(voices[0].note_.note_id == 1);
+    REQUIRE(voices[0].immediate_note_off_calls == 0);
+    REQUIRE(voices[0].expression_calls == 1);
+    REQUIRE(voices[0].last_expression_value == 0.25);
+    REQUIRE(voices[1].active_);
+    REQUIRE(voices[1].state_ == PressureReleaseVoice::State::KeyDown);
+    REQUIRE(voices[1].note_.note_id == 5);
+    REQUIRE(voices[1].note_on_calls == 4);
+    REQUIRE(voices[1].note_off_calls == 3);
+    REQUIRE(voices[1].immediate_note_off_calls == 0);
+    REQUIRE(voices[1].expression_calls == 3);
+    REQUIRE(voices[1].note_.pressure == 0.0);
+}
+
+TEST_CASE("Synthesizer keeps unrelated starts deferred while settling a release",
+          "[dsp][synthesizer]") {
+    applause::Synthesizer<PressureReleaseVoice, 2> synth;
+    auto first_note = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 1, 60);
+    EventList first_events;
+    first_events.add(first_note);
+    synth.process({}, &first_events.input);
+
+    auto transient_note = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 2, 64);
+    auto note_off = makeNoteEvent(CLAP_EVENT_NOTE_OFF, 0, 1, 60);
+    auto replacement = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 3, 67);
+    auto choke = makeNoteEvent(CLAP_EVENT_NOTE_CHOKE, 0, 2, 64);
+    auto pressure = makeExpressionEvent(
+        0, 1, 60, CLAP_NOTE_EXPRESSION_PRESSURE, 0.75);
+    EventList replacement_events;
+    replacement_events.add(transient_note);
+    replacement_events.add(note_off);
+    replacement_events.add(replacement);
+    replacement_events.add(choke);
+    replacement_events.add(pressure);
+    synth.process({}, &replacement_events.input);
+
+    const auto voices = synth.getVoices();
+    REQUIRE(voices[0].active_);
+    REQUIRE(voices[0].note_.note_id == 3);
+    REQUIRE(voices[0].note_on_calls == 2);
+    REQUIRE(voices[0].note_off_calls == 1);
+    REQUIRE(voices[0].immediate_note_off_calls == 0);
+    REQUIRE_FALSE(voices[1].active_);
+    REQUIRE(voices[1].note_on_calls == 0);
+    REQUIRE(voices[1].immediate_note_off_calls == 1);
 }
 
 TEST_CASE("Synthesizer dispatches virtual voice callbacks", "[dsp][synthesizer]") {
@@ -305,10 +522,11 @@ TEST_CASE("Synthesizer calls onPreProcess once per event-stable DSP range",
     std::array<float*, 1> channels{samples.data()};
     synth.process({channels.data(), channels.size(), samples.size()}, &event_list.input);
 
-    const std::vector<char> expected_trace{'P', 'R', 'P', 'N', 'R',
-                                           'P', 'E', 'R', 'P', 'F', 'R'};
+    const std::vector<char> expected_trace{'P', 'R', 'V', 'P', 'N', 'R',
+                                           'V', 'P', 'E', 'R', 'V', 'P', 'F', 'R'};
     REQUIRE(synth.trace == expected_trace);
     REQUIRE(synth.snapshots.size() == 4);
+    REQUIRE(synth.voice_snapshots.size() == 3);
 
     REQUIRE_FALSE(synth.snapshots[0].active);
     REQUIRE(synth.snapshots[1].active);
@@ -317,6 +535,12 @@ TEST_CASE("Synthesizer calls onPreProcess once per event-stable DSP range",
     REQUIRE(synth.snapshots[2].pressure == 0.75);
     REQUIRE(synth.snapshots[3].note_off_velocity == 0.25);
     REQUIRE(synth.snapshots[3].state == PreProcessTestSynth::VoiceState::Released);
+
+    REQUIRE(synth.voice_snapshots[0].state == PreProcessTestSynth::VoiceState::KeyDown);
+    REQUIRE(synth.voice_snapshots[0].note_id == 1);
+    REQUIRE(synth.voice_snapshots[1].pressure == 0.75);
+    REQUIRE(synth.voice_snapshots[2].note_off_velocity == 0.25);
+    REQUIRE(synth.voice_snapshots[2].state == PreProcessTestSynth::VoiceState::Released);
 }
 
 TEST_CASE("Synthesizer does not preprocess an empty range before a frame-zero event",
@@ -330,8 +554,136 @@ TEST_CASE("Synthesizer does not preprocess an empty range before a frame-zero ev
     std::array<float*, 1> channels{samples.data()};
     synth.process({channels.data(), channels.size(), samples.size()}, &event_list.input);
 
-    const std::vector<char> expected_trace{'P', 'N', 'R'};
+    const std::vector<char> expected_trace{'V', 'P', 'N', 'R'};
     REQUIRE(synth.trace == expected_trace);
+}
+
+TEST_CASE("Synthesizer coalesces same-sample events before preprocessing",
+          "[dsp][synthesizer]") {
+    PreProcessTestSynth synth;
+    auto first_pressure = makeExpressionEvent(
+        0, 1, 60, CLAP_NOTE_EXPRESSION_PRESSURE, 0.25);
+    auto note_on = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 1, 60);
+    auto final_pressure = makeExpressionEvent(
+        0, 1, 60, CLAP_NOTE_EXPRESSION_PRESSURE, 0.75);
+    EventList event_list;
+    event_list.add(first_pressure);
+    event_list.add(note_on);
+    event_list.add(final_pressure);
+
+    std::array<float, 1> samples{};
+    std::array<float*, 1> channels{samples.data()};
+    synth.process({channels.data(), channels.size(), samples.size()},
+                  &event_list.input);
+
+    const std::vector<char> expected_trace{'V', 'P', 'N', 'E', 'R'};
+    REQUIRE(synth.trace == expected_trace);
+    REQUIRE(synth.voice_snapshots.size() == 1);
+    REQUIRE(synth.voice_snapshots[0].state == PreProcessTestSynth::VoiceState::KeyDown);
+    REQUIRE(synth.voice_snapshots[0].pressure == 0.75);
+    REQUIRE(synth.snapshots.size() == 1);
+    REQUIRE(synth.snapshots[0].pressure == 0.75);
+
+    const auto& voice = synth.getVoices().front();
+    REQUIRE(voice.expression_calls == 1);
+    REQUIRE(voice.last_expression == applause::Note::Pressure);
+    REQUIRE(voice.last_expression_value == 0.75);
+}
+
+TEST_CASE("Synthesizer starts and releases a same-sample note after one preparation",
+          "[dsp][synthesizer]") {
+    PreProcessTestSynth synth;
+    auto note_on = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 1, 60);
+    auto note_off = makeNoteEvent(CLAP_EVENT_NOTE_OFF, 0, 1, 60);
+    EventList event_list;
+    event_list.add(note_on);
+    event_list.add(note_off);
+
+    std::array<float, 1> samples{};
+    std::array<float*, 1> channels{samples.data()};
+    synth.process({channels.data(), channels.size(), samples.size()},
+                  &event_list.input);
+
+    const std::vector<char> expected_trace{'V', 'P', 'N', 'F', 'R'};
+    REQUIRE(synth.trace == expected_trace);
+    REQUIRE(synth.voice_snapshots.size() == 1);
+    REQUIRE(synth.voice_snapshots[0].state == PreProcessTestSynth::VoiceState::Released);
+}
+
+TEST_CASE("Synthesizer flushes event-only and block-end state",
+          "[dsp][synthesizer]") {
+    SECTION("zero-frame event") {
+        PreProcessTestSynth synth;
+        auto note_on = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 1, 60);
+        EventList event_list;
+        event_list.add(note_on);
+
+        synth.process({}, &event_list.input);
+
+        const std::vector<char> expected_trace{'V', 'P', 'N'};
+        REQUIRE(synth.trace == expected_trace);
+    }
+
+    SECTION("block-end event") {
+        PreProcessTestSynth synth;
+        auto note_on = makeNoteEvent(CLAP_EVENT_NOTE_ON, 4, 1, 60);
+        EventList event_list;
+        event_list.add(note_on);
+
+        std::array<float, 4> samples{};
+        std::array<float*, 1> channels{samples.data()};
+        synth.process({channels.data(), channels.size(), samples.size()},
+                      &event_list.input);
+
+        const std::vector<char> expected_trace{'P', 'R', 'V', 'P', 'N'};
+        REQUIRE(synth.trace == expected_trace);
+    }
+}
+
+TEST_CASE("Synthesizer discards a same-sample note choked before preparation",
+          "[dsp][synthesizer]") {
+    applause::Synthesizer<CallbackVoice, 1> synth;
+    auto note_on = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 1, 60);
+    auto choke = makeNoteEvent(CLAP_EVENT_NOTE_CHOKE, 0, 1, 60);
+    EventList event_list;
+    event_list.add(note_on);
+    event_list.add(choke);
+
+    std::array<float, 1> samples{};
+    std::array<float*, 1> channels{samples.data()};
+    synth.process({channels.data(), channels.size(), samples.size()},
+                  &event_list.input);
+
+    const auto& voice = synth.getVoices().front();
+    REQUIRE(voice.note_on_calls == 0);
+    REQUIRE(voice.immediate_note_off_calls == 1);
+    REQUIRE(voice.process_calls == 0);
+    REQUIRE_FALSE(voice.active_);
+}
+
+TEST_CASE("Synthesizer cleans a stolen voice before preparing its replacement",
+          "[dsp][synthesizer]") {
+    applause::Synthesizer<CallbackVoice, 1> synth;
+    std::array<float, 1> samples{};
+    std::array<float*, 1> channels{samples.data()};
+
+    auto first_note = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 1, 60);
+    EventList first_events;
+    first_events.add(first_note);
+    synth.process({channels.data(), channels.size(), samples.size()},
+                  &first_events.input);
+
+    auto replacement = makeNoteEvent(CLAP_EVENT_NOTE_ON, 0, 2, 64);
+    EventList replacement_events;
+    replacement_events.add(replacement);
+    synth.process({channels.data(), channels.size(), samples.size()},
+                  &replacement_events.input);
+
+    const auto& voice = synth.getVoices().front();
+    REQUIRE(voice.note_on_calls == 2);
+    REQUIRE(voice.immediate_note_off_calls == 1);
+    REQUIRE(voice.active_);
+    REQUIRE(voice.note_.note_id == 2);
 }
 
 TEST_CASE("Synthesizer ignores unsupported render boundaries", "[dsp][synthesizer]") {

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <span>
 #include <type_traits>
 
@@ -33,14 +34,31 @@ public:
     virtual void process(BufferType buffer, int start_sample,
                          int num_samples) = 0;
 
-    /** Called after the synthesizer initializes this voice's note state. */
+    /**
+     * Called on each active voice before the synthesizer prepares shared state
+     * for the next DSP range. Released voices remain active until terminated.
+     *
+     * Note expressions are current, but some event callbacks may still be pending.
+     * Implementations must tolerate new voices whose noteOn() callback has not run,
+     * and must not advance DSP time here. Resolving releases before voice allocation
+     * can repeat this hook at one sample, so it should be idempotent.
+     */
+    virtual void onPreProcess() noexcept {}
+
+    /**
+     * Called after preprocessing. note_ includes the final values from every
+     * expression event at this sample. If note-on and note-off share a sample,
+     * state_ is already Released and noteOff(false) follows this callback.
+     */
     virtual void noteOn() {}
 
     /**
      * Called when this voice's MIDI note is released.
      *
-     * This function can also be called when the voice is to be stolen,
+     * This function can also be called when the voice is to be stolen.
      *
+     * Same-sample events are coalesced, so an immediate termination may be
+     * requested for a transient voice before its noteOn() callback has run.
      *
      * @param terminate_now Set to true when the voice is set to be stolen; if true,
      * the voice must immediately call terminateVoice() to release itself back
@@ -60,6 +78,8 @@ public:
      *
      * Voices that cache computed values (like phase increment from frequency)
      * should override this to recalculate when relevant expressions change.
+     * Multiple updates to one expression at the same sample produce one
+     * callback with the final value.
      * @param expression_id The expression that changed (Note::Expression::Tuning, etc.)
      * @param value The new value for this expression
      *
@@ -159,13 +179,15 @@ public:
 
 protected:
     /**
-     * Called before a sub-block of audio samples is rendered, but after MIDI events have been ingested
-     * and voices activated.
+     * Called after active voice onPreProcess() hooks, before pending voice event
+     * callbacks and rendering. Note expressions at this sample have been applied.
+     * When the voice pool is full, pending releases are also prepared and dispatched
+     * before allocating another note, so this hook can run more than once per sample.
      *
      * This is a good time to update values from parameters, evaluate modulation graphs, prepare voices, etc.
      *
-     * This method may be called more than once per audio block, since the Synthesizer splits
-     * blocks into sub-blocks based on MIDI events.
+     * This method may be called without any following samples, since event-only
+     * and block-end updates are flushed immediately.
      */
     virtual void onPreProcess() noexcept {}
 
@@ -183,6 +205,7 @@ protected:
                                 int num_samples);
 
 private:
+    void preProcessRange() noexcept;
     VoiceType& findFreeVoice();
     VoiceType& stealVoice();
 
@@ -190,6 +213,15 @@ private:
     int notes_played_ = 0;  // count the number of notes; used for finding the
     // oldest voice during voice stealing
 };
+
+template <typename Voice, std::size_t NumVoices>
+void Synthesizer<Voice, NumVoices>::preProcessRange() noexcept {
+    for (auto& voice : voices_) {
+        auto& state = static_cast<VoiceBase&>(voice);
+        if (state.active_) state.onPreProcess();
+    }
+    onPreProcess();
+}
 
 template <typename Voice, std::size_t NumVoices>
 void Synthesizer<Voice, NumVoices>::activate(ProcessInfo info) {
@@ -243,113 +275,164 @@ void Synthesizer<Voice, NumVoices>::process(
 
     const uint32_t total_frames = buffer.numFrames();
     uint32_t current_sample = 0;
-    bool has_processed_event = false;
+    bool range_prepared = false;
+    const uint32_t event_count = events ? events->size(events) : 0;
+    uint32_t event_index = 0;
 
-    if (events) {
-        const uint32_t event_count = events->size(events);
+    const auto isSupported = [](const clap_event_header_t* header) noexcept {
+        if (!header || header->space_id != CLAP_CORE_EVENT_SPACE_ID) return false;
+        return header->type == CLAP_EVENT_NOTE_ON ||
+            header->type == CLAP_EVENT_NOTE_OFF ||
+            header->type == CLAP_EVENT_NOTE_CHOKE ||
+            header->type == CLAP_EVENT_NOTE_EXPRESSION;
+    };
 
-        for (uint32_t i = 0; i < event_count; ++i) {
-            const clap_event_header_t* header = events->get(events, i);
-            if (!header || header->space_id != CLAP_CORE_EVENT_SPACE_ID) {
-                continue;
+    static constexpr std::size_t expression_count =
+        static_cast<std::size_t>(Note::Expression::Pressure) + 1;
+    struct PendingCallbacks {
+        bool note_on = false;
+        bool note_off = false;
+        std::array<const clap_event_note_expression_t*, expression_count> expressions{};
+    };
+
+    while (event_index < event_count) {
+        while (event_index < event_count &&
+               !isSupported(events->get(events, event_index)))
+            ++event_index;
+        if (event_index == event_count) break;
+
+        const auto* first_header = events->get(events, event_index);
+        const uint32_t event_time = std::min(first_header->time, total_frames);
+        const uint32_t group_begin = event_index;
+        uint32_t group_end = group_begin + 1;
+        while (group_end < event_count) {
+            const auto* header = events->get(events, group_end);
+            if (isSupported(header) &&
+                std::min(header->time, total_frames) != event_time)
+                break;
+            ++group_end;
+        }
+
+        if (event_time > current_sample) {
+            if (!range_prepared) {
+                preProcessRange();
+                range_prepared = true;
             }
+            renderSubBlock(buffer, static_cast<int>(current_sample),
+                           static_cast<int>(event_time - current_sample));
+        }
 
-            const bool supported_event =
-                header->type == CLAP_EVENT_NOTE_ON ||
-                header->type == CLAP_EVENT_NOTE_OFF ||
-                header->type == CLAP_EVENT_NOTE_CHOKE ||
-                header->type == CLAP_EVENT_NOTE_EXPRESSION;
-            if (!supported_event) {
-                continue;
+        std::array<PendingCallbacks, NumVoices> pending{};
+        bool expressions_applied = false;
+
+        const auto flushCallbacks = [&](bool releases_only) {
+            for (uint32_t i = group_begin; i < group_end; ++i) {
+                const auto* header = events->get(events, i);
+                if (!isSupported(header) || header->type != CLAP_EVENT_NOTE_EXPRESSION)
+                    continue;
+
+                const auto* event = reinterpret_cast<const clap_event_note_expression_t*>(header);
+                if (event->expression_id < 0 ||
+                    static_cast<std::size_t>(event->expression_id) >= expression_count)
+                    continue;
+
+                const auto expression = static_cast<Note::Expression>(event->expression_id);
+                for (std::size_t slot = 0; slot < NumVoices; ++slot) {
+                    auto& state = static_cast<VoiceBase&>(voices_[slot]);
+                    auto& callbacks = pending[slot];
+                    if (expressions_applied && !callbacks.note_on) continue;
+                    if (state.active_ &&
+                        state.note_.matches(event->key, event->note_id, event->port_index, event->channel)) {
+                        state.note_.applyExpression(expression, event->value);
+                        callbacks.expressions[event->expression_id] = event;
+                    }
+                }
             }
+            expressions_applied = true;
+            preProcessRange();
 
-            const uint32_t event_time = std::min(header->time, total_frames);
+            for (std::size_t slot = 0; slot < NumVoices; ++slot) {
+                auto& state = static_cast<VoiceBase&>(voices_[slot]);
+                auto& callbacks = pending[slot];
+                if (releases_only && !callbacks.note_off) continue;
 
-            // Render chunk before this event
-            if (event_time > current_sample) {
-                const int num_samples = event_time - current_sample;
-                if (!has_processed_event) onPreProcess();
-                renderSubBlock(buffer, static_cast<int>(current_sample), num_samples);
+                if (callbacks.note_on && state.active_) state.noteOn();
+                for (const auto* event : callbacks.expressions) {
+                    if (!state.active_) break;
+                    if (event)
+                        state.onExpressionChange(static_cast<Note::Expression>(event->expression_id), event->value);
+                }
+                if (callbacks.note_off && state.active_) state.noteOff(false);
+                callbacks = {};
             }
+        };
 
-            // Handle note events
+        // Apply lifecycle changes in order, flushing releases only when allocation
+        // needs them. Each flush includes all expressions at this sample.
+        for (uint32_t i = group_begin; i < group_end; ++i) {
+            const auto* header = events->get(events, i);
+            if (!isSupported(header)) continue;
+
             if (header->type == CLAP_EVENT_NOTE_ON) {
-                const auto* note_event = reinterpret_cast<const clap_event_note_t*>(header);
-                auto& state = static_cast<VoiceBase&>(findFreeVoice());
+                if (std::any_of(pending.begin(), pending.end(),
+                                [](const auto& callbacks) { return callbacks.note_off; }) &&
+                    std::all_of(voices_.begin(), voices_.end(), [](const VoiceBase& voice) {
+                        return voice.active_ && voice.state_ != VoiceBase::State::Idle;
+                    }))
+                    flushCallbacks(true);
+
+                const auto* note_event =
+                    reinterpret_cast<const clap_event_note_t*>(header);
+                auto& voice = findFreeVoice();
+                const auto slot = static_cast<std::size_t>(&voice - voices_.data());
+                auto& state = static_cast<VoiceBase&>(voice);
+                pending[slot] = {};
                 state.note_ = Note::fromNoteOn(note_event);
                 state.play_order_ = notes_played_++;
                 state.state_ = VoiceBase::State::KeyDown;
                 state.active_ = true;
-
-                onPreProcess();
-                state.noteOn();
+                pending[slot].note_on = true;
             } else if (header->type == CLAP_EVENT_NOTE_OFF) {
-                const auto* note_event = reinterpret_cast<const clap_event_note_t*>(header);
-                std::array<VoiceBase*, NumVoices> affected{};
-                std::size_t affected_count = 0;
-
-                for (auto& voice : voices_) {
-                    auto& state = static_cast<VoiceBase&>(voice);
+                const auto* note_event =
+                    reinterpret_cast<const clap_event_note_t*>(header);
+                for (std::size_t slot = 0; slot < NumVoices; ++slot) {
+                    auto& state = static_cast<VoiceBase&>(voices_[slot]);
                     if (state.active_ && state.state_ == VoiceBase::State::KeyDown &&
                         state.note_.matches(note_event->key, note_event->note_id,
                                             note_event->port_index, note_event->channel)) {
                         state.note_.setNoteOff(note_event);
                         state.state_ = VoiceBase::State::Released;
-                        affected[affected_count++] = &state;
+                        pending[slot].note_off = true;
                         if (note_event->note_id != -1) break;
                     }
                 }
-
-                onPreProcess();
-                for (std::size_t voice = 0; voice < affected_count; ++voice)
-                    affected[voice]->noteOff(false);
             } else if (header->type == CLAP_EVENT_NOTE_CHOKE) {
-                const auto* note_event = reinterpret_cast<const clap_event_note_t*>(header);
-                for (auto& voice : voices_) {
-                    auto& state = static_cast<VoiceBase&>(voice);
+                const auto* note_event =
+                    reinterpret_cast<const clap_event_note_t*>(header);
+                for (std::size_t slot = 0; slot < NumVoices; ++slot) {
+                    auto& state = static_cast<VoiceBase&>(voices_[slot]);
                     if (state.active_ &&
                         state.note_.matches(note_event->key, note_event->note_id,
                                             note_event->port_index, note_event->channel)) {
                         state.noteOff(true);
+                        pending[slot] = {};
                         if (note_event->note_id != -1) break;
                     }
                 }
-                onPreProcess();
-            } else if (header->type == CLAP_EVENT_NOTE_EXPRESSION) {
-                const auto* expr_event = reinterpret_cast<const clap_event_note_expression_t*>(header);
-                const auto expression_id =
-                    static_cast<Note::Expression>(expr_event->expression_id);
-                std::array<VoiceBase*, NumVoices> affected{};
-                std::size_t affected_count = 0;
-
-                for (auto& voice : voices_) {
-                    auto& state = static_cast<VoiceBase&>(voice);
-                    if (state.active_ &&
-                        state.note_.matches(
-                            expr_event->key, expr_event->note_id,
-                            expr_event->port_index, expr_event->channel)) {
-                        state.note_.applyExpression(expression_id,
-                                                    expr_event->value);
-                        affected[affected_count++] = &state;
-                    }
-                }
-
-                onPreProcess();
-                for (std::size_t voice = 0; voice < affected_count; ++voice)
-                    affected[voice]->onExpressionChange(expression_id,
-                                                        expr_event->value);
             }
-
-            has_processed_event = true;
-            current_sample = event_time;
         }
+
+        flushCallbacks(false);
+        range_prepared = true;
+
+        current_sample = event_time;
+        event_index = group_end;
     }
 
-    // Render remaining samples after last event
     if (current_sample < total_frames) {
-        const int num_samples = total_frames - current_sample;
-        if (!has_processed_event) onPreProcess();
-        renderSubBlock(buffer, static_cast<int>(current_sample), num_samples);
+        if (!range_prepared) preProcessRange();
+        renderSubBlock(buffer, static_cast<int>(current_sample),
+                       static_cast<int>(total_frames - current_sample));
     }
 }
 }  // namespace applause
