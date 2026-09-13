@@ -15,8 +15,7 @@
 namespace {
 constexpr double sample_rate = 48000.0;
 constexpr double two_pi = 6.28318530717958647692;
-constexpr double voice_gain = 1.41421356237309504880 / 16.0;
-constexpr double raw_voice_gain = 1.0 / 16.0;
+constexpr double voice_gain = 1.41421356237309504880;
 constexpr double envelope_curve = -4.0;
 
 double envelopeProgress(std::size_t samples, std::size_t total_samples) {
@@ -269,9 +268,9 @@ TEST_CASE("SimdPolySynth routes independent oscillator waveforms and controls",
         const auto first_increment = first_frequency / sample_rate;
         const auto second_increment = second_frequency / sample_rate;
         const auto expected_left =
-            0.25 * centeredSaw(static_cast<double>(frame) * first_increment, first_increment) * raw_voice_gain;
+            0.25 * centeredSaw(static_cast<double>(frame) * first_increment, first_increment);
         const auto expected_right =
-            0.75 * centeredSquare(static_cast<double>(frame) * second_increment, second_increment) * raw_voice_gain;
+            0.75 * centeredSquare(static_cast<double>(frame) * second_increment, second_increment);
         CAPTURE(frame);
         REQUIRE(left[frame] == Catch::Approx(expected_left).margin(1.0e-5));
         REQUIRE(right[frame] == Catch::Approx(expected_right).margin(1.0e-5));
@@ -295,7 +294,7 @@ TEST_CASE("SimdPolySynth refreshes oscillator controls without resetting phase",
     std::array<float, 2> initial_right{};
     std::array<float*, 2> initial_channels{initial_left.data(), initial_right.data()};
     fixture.process({initial_channels.data(), initial_channels.size(), initial_left.size()}, &events.input);
-    REQUIRE(initial_left[1] == Catch::Approx(std::sin(two_pi * 440.0 / sample_rate) * raw_voice_gain).margin(1.0e-5));
+    REQUIRE(initial_left[1] == Catch::Approx(std::sin(two_pi * 440.0 / sample_rate)).margin(1.0e-5));
     REQUIRE(initial_right[1] == Catch::Approx(0.0f).margin(1.0e-7));
 
     params.getInfo("osc1_octave").setValueSilently(1.0f);
@@ -311,10 +310,9 @@ TEST_CASE("SimdPolySynth refreshes oscillator controls without resetting phase",
     REQUIRE(updated_left[0] == Catch::Approx(0.0f).margin(1.0e-7));
     REQUIRE(updated_left[1] == Catch::Approx(0.0f).margin(1.0e-7));
     REQUIRE(updated_right[0] ==
-            Catch::Approx(0.5 * std::sin(two_pi * 2.0 * 440.0 / sample_rate) * raw_voice_gain).margin(1.0e-5));
-    REQUIRE(
-        updated_right[1] ==
-        Catch::Approx(0.5 * std::sin(two_pi * (2.0 * 440.0 + 880.0) / sample_rate) * raw_voice_gain).margin(1.0e-5));
+            Catch::Approx(0.5 * std::sin(two_pi * 2.0 * 440.0 / sample_rate)).margin(1.0e-5));
+    REQUIRE(updated_right[1] ==
+            Catch::Approx(0.5 * std::sin(two_pi * (2.0 * 440.0 + 880.0) / sample_rate)).margin(1.0e-5));
 }
 
 TEST_CASE("SimdPolySynth changes waveform at a range boundary without resetting phase",
@@ -344,8 +342,8 @@ TEST_CASE("SimdPolySynth changes waveform at a range boundary without resetting 
     fixture.process({saw_channels.data(), saw_channels.size(), saw_left.size()});
 
     const auto increment = 440.0 / sample_rate;
-    REQUIRE(saw_left[0] == Catch::Approx(centeredSaw(2.0 * increment, increment) * raw_voice_gain).margin(1.0e-5));
-    REQUIRE(saw_left[1] == Catch::Approx(centeredSaw(3.0 * increment, increment) * raw_voice_gain).margin(1.0e-5));
+    REQUIRE(saw_left[0] == Catch::Approx(centeredSaw(2.0 * increment, increment)).margin(1.0e-5));
+    REQUIRE(saw_left[1] == Catch::Approx(centeredSaw(3.0 * increment, increment)).margin(1.0e-5));
     REQUIRE(saw_right[0] == 0.0f);
     REQUIRE(saw_right[1] == 0.0f);
 }
@@ -372,7 +370,7 @@ TEST_CASE("SimdPolySynth naively adds different oscillator waveforms",
     for (std::size_t frame = 0; frame < left.size(); ++frame) {
         const auto phase = static_cast<double>(frame) * increment;
         const auto expected = (centeredSaw(phase, increment) + centeredSquare(phase, increment)) *
-            0.70710678118654752440 * raw_voice_gain;
+            0.70710678118654752440;
         CAPTURE(frame);
         REQUIRE(left[frame] == Catch::Approx(expected).margin(1.0e-5));
         REQUIRE(right[frame] == Catch::Approx(expected).margin(1.0e-5));
@@ -407,7 +405,7 @@ TEST_CASE("SimdPolySynth routes its envelope into oscillator level at range boun
     fixture.process({routed_channels.data(), routed_channels.size(), routed_left.size()});
 
     const auto expected = std::sin(two_pi * 440.0 * 17.0 / sample_rate) * envelopeProgress(17, attack_samples) *
-        envelopeProgress(18, attack_samples) * 0.70710678118654752440 * raw_voice_gain;
+        envelopeProgress(18, attack_samples) * 0.70710678118654752440;
     REQUIRE(routed_left[0] == Catch::Approx(expected).margin(1.0e-5));
     REQUIRE(routed_right[0] == Catch::Approx(expected).margin(1.0e-5));
 }
@@ -438,13 +436,13 @@ TEST_CASE("SimdPolySynth tuning expressions retune both oscillators without rese
     fixture.process({tuned_channels.data(), tuned_channels.size(), tuned_left.size()}, &expression_events.input);
 
     REQUIRE(tuned_left[0] ==
-            Catch::Approx(std::sin(two_pi * 2.0 * 440.0 / sample_rate) * raw_voice_gain).margin(1.0e-5));
+            Catch::Approx(std::sin(two_pi * 2.0 * 440.0 / sample_rate)).margin(1.0e-5));
     REQUIRE(tuned_left[1] ==
-            Catch::Approx(std::sin(two_pi * (2.0 * 440.0 + 880.0) / sample_rate) * raw_voice_gain).margin(1.0e-5));
+            Catch::Approx(std::sin(two_pi * (2.0 * 440.0 + 880.0) / sample_rate)).margin(1.0e-5));
     REQUIRE(tuned_right[0] ==
-            Catch::Approx(std::sin(two_pi * 2.0 * 880.0 / sample_rate) * raw_voice_gain).margin(1.0e-5));
+            Catch::Approx(std::sin(two_pi * 2.0 * 880.0 / sample_rate)).margin(1.0e-5));
     REQUIRE(tuned_right[1] ==
-            Catch::Approx(std::sin(two_pi * (2.0 * 880.0 + 1760.0) / sample_rate) * raw_voice_gain).margin(1.0e-5));
+            Catch::Approx(std::sin(two_pi * (2.0 * 880.0 + 1760.0) / sample_rate)).margin(1.0e-5));
 }
 
 TEST_CASE("SimdPolySynth uses the plugin-owned parameter modulation matrix", "[dsp][simd-poly-synth][modmatrix]") {
