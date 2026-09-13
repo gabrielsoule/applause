@@ -1,6 +1,7 @@
 add_executable(ExampleSimdPolySynth_tests
     SimdAdsrTest.cpp
     SimdOscillatorTest.cpp
+    SimdPolySynthTest.cpp
 )
 
 target_include_directories(ExampleSimdPolySynth_tests PRIVATE ../src)
