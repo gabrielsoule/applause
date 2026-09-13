@@ -36,12 +36,7 @@ public:
 
     /**
      * Called on each active voice before the synthesizer prepares shared state
-     * for the next DSP range. Released voices remain active until terminated.
-     *
-     * Note expressions are current, but some event callbacks may still be pending.
-     * Implementations must tolerate new voices whose noteOn() callback has not run,
-     * and must not advance DSP time here. Resolving releases before voice allocation
-     * can repeat this hook at one sample, so it should be idempotent.
+     * for the next processing block. This is useful for updating modulation state or doing any other sub-block-rate work. Released voices remain active until terminated. 
      */
     virtual void onPreProcess() noexcept {}
 

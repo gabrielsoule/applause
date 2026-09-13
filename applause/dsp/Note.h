@@ -11,11 +11,10 @@ namespace applause {
  * The CLAP note spec is distinct to the CLAP protocol (and CLAP hosts); it can be interpreted as a
  * modern MIDI-like protocol that is, in a sense, a superset of both MIDI 1.0 and MPE.
  *
- * As such, Applause wraps and translates all incoming note events into the CLAP note format. As a developer, you can
- * design your MIDI handling with respect to the CLAP note protocol. Applause will handle the rest.
- *
- * As a bonus, you get MPE "for free"; no special MPE handling is required.
- *
+ * Applause note protocol handling isn't done yet since MIDI is a mess (MIDI 1.0, MPE, MIDI 2.0, etc).
+ * We're working on this. The final objective is a translation layer that translates everything into CLAP notes, so that
+ * plugins don't have to worry about MPE/MIDI/CLAP/etc; they can write code that consumes applause::Note objects,
+ * and everything "just works".
  */
 struct Note {
     enum Expression {
