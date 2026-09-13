@@ -162,18 +162,20 @@ elseif(APPLE)
     target_link_libraries(applause PRIVATE "-framework CoreFoundation")
 endif()
 
-# Examples
-option(APPLAUSE_BUILD_EXAMPLES "Build example plugins" ${PROJECT_IS_TOP_LEVEL})
-if(APPLAUSE_BUILD_EXAMPLES)
-    add_subdirectory(examples)
-endif()
-
 # Tests
 option(APPLAUSE_BUILD_TESTS "Build unit tests" OFF)
 if(APPLAUSE_BUILD_TESTS)
     include(CTest)
     enable_testing()
+    CPMAddPackage("gh:catchorg/Catch2@3.7.1")
+    include(${Catch2_SOURCE_DIR}/extras/Catch.cmake)
     add_subdirectory(tests)
+endif()
+
+# Examples
+option(APPLAUSE_BUILD_EXAMPLES "Build example plugins" ${PROJECT_IS_TOP_LEVEL})
+if(APPLAUSE_BUILD_EXAMPLES)
+    add_subdirectory(examples)
 endif()
 
 message(STATUS "Applause configured successfully")
