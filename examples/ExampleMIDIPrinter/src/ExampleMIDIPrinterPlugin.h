@@ -1,8 +1,8 @@
 #pragma once
 
 #include <applause/core/PluginBase.h>
-#include <applause/extensions/NotePortsExtension.h>
 #include <applause/extensions/AudioPortsExtension.h>
+#include <applause/extensions/NotePortsExtension.h>
 #include <applause/extensions/StateExtension.h>
 #include <string>
 
@@ -18,31 +18,31 @@ class ExampleMIDIPrinterPlugin : public applause::PluginBase {
 public:
     explicit ExampleMIDIPrinterPlugin(const clap_plugin_descriptor_t* descriptor, const clap_host_t* host);
     ~ExampleMIDIPrinterPlugin() override = default;
-    
+
     // Plugin lifecycle
     bool init() noexcept override;
     void destroy() noexcept override;
     bool activate(const applause::ProcessInfo& info) noexcept override;
     void deactivate() noexcept override;
-    
+
     // Audio processing
     applause::ProcessStatus process(applause::ProcessContext& context) noexcept override;
-    
+
 private:
     // Extensions
     applause::NotePortsExtension note_ports_;
     applause::AudioPortsExtension audio_ports_;
     applause::StateExtension state_;
-    
+
     void printNoteEvent(const clap_event_note_t* event, const char* event_name);
     void printNoteExpression(const clap_event_note_expression_t* event);
     void printMidiEvent(const clap_event_midi_t* event);
     void printMidi2Event(const clap_event_midi2_t* event);
     void printMidiSysexEvent(const clap_event_midi_sysex_t* event);
-    
+
     std::string decodeMidiStatus(uint8_t status);
     std::string getNoteNameFromKey(int key);
     std::string getExpressionName(int32_t expression_id);
-    
+
     uint64_t event_count_;
 };
