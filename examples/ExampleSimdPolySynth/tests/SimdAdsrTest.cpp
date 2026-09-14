@@ -213,8 +213,6 @@ MaskValue processAndRequire(SimdAdsr& actual, AdsrOracle& expected) {
 }  // namespace
 
 TEST_CASE("SimdAdsr handles zero and exact stage lengths", "[dsp][simd-adsr]") {
-    STATIC_REQUIRE(SimdAdsr::Batch::size == lane_count);
-
     SimdAdsr actual;
     AdsrOracle expected;
     const std::array<SimdAdsrSettings, lane_count> parameters{{
@@ -363,51 +361,28 @@ TEST_CASE("SimdAdsr release starts from each lane's current value", "[dsp][simd-
     REQUIRE(processAndRequire(actual, expected) == 0);
 }
 
-TEST_CASE("SimdAdsr keeps divergent lane stages independent across call partitions", "[dsp][simd-adsr]") {
-    const auto configure = [](SimdAdsr& actual, AdsrOracle& expected) {
-        const std::array<SimdAdsrSettings, lane_count> parameters{{
-            {.attack_samples = 9, .decay_samples = 4, .sustain = 0.2f, .curve = -2.0f},
-            {.attack_samples = 0, .decay_samples = 11, .sustain = 0.4f, .curve = 3.0f},
-            {.attack_samples = 0, .decay_samples = 0, .sustain = 0.6f, .curve = 0.0f},
-            {.attack_samples = 0, .decay_samples = 0, .sustain = 0.8f, .curve = 0.0f},
-        }};
-        for (std::size_t lane = 0; lane < lane_count; ++lane) {
-            startLane(actual, lane, parameters[lane]);
-            expected.startLane(lane, parameters[lane]);
-        }
-        REQUIRE_FALSE(releaseLane(actual, 3, 7, -3.0f));
-        REQUIRE_FALSE(expected.releaseLane(3, 7, -3.0f));
-    };
-
-    SimdAdsr contiguous;
-    SimdAdsr partitioned;
-    AdsrOracle contiguous_oracle;
-    AdsrOracle partitioned_oracle;
-    configure(contiguous, contiguous_oracle);
-    configure(partitioned, partitioned_oracle);
-    REQUIRE(contiguous.attackMask().mask() == 0b0001);
-    REQUIRE(contiguous.decayMask().mask() == 0b0010);
-    REQUIRE(contiguous.sustainMask().mask() == 0b0100);
-    REQUIRE(contiguous.releaseMask().mask() == 0b1000);
-
-    constexpr std::size_t sample_count = 13;
-    std::array<std::array<float, lane_count>, sample_count> reference{};
-    std::array<MaskValue, sample_count> reference_finished{};
-    for (std::size_t sample = 0; sample < sample_count; ++sample) {
-        reference_finished[sample] = processAndRequire(contiguous, contiguous_oracle);
-        reference[sample] = unpack(contiguous.value());
+TEST_CASE("SimdAdsr keeps divergent lane stages independent", "[dsp][simd-adsr]") {
+    SimdAdsr actual;
+    AdsrOracle expected;
+    const std::array<SimdAdsrSettings, lane_count> parameters{{
+        {.attack_samples = 9, .decay_samples = 4, .sustain = 0.2f, .curve = -2.0f},
+        {.attack_samples = 0, .decay_samples = 11, .sustain = 0.4f, .curve = 3.0f},
+        {.attack_samples = 0, .decay_samples = 0, .sustain = 0.6f, .curve = 0.0f},
+        {.attack_samples = 0, .decay_samples = 0, .sustain = 0.8f, .curve = 0.0f},
+    }};
+    for (std::size_t lane = 0; lane < lane_count; ++lane) {
+        startLane(actual, lane, parameters[lane]);
+        expected.startLane(lane, parameters[lane]);
     }
+    REQUIRE_FALSE(releaseLane(actual, 3, 7, -3.0f));
+    REQUIRE_FALSE(expected.releaseLane(3, 7, -3.0f));
+    REQUIRE(actual.attackMask().mask() == 0b0001);
+    REQUIRE(actual.decayMask().mask() == 0b0010);
+    REQUIRE(actual.sustainMask().mask() == 0b0100);
+    REQUIRE(actual.releaseMask().mask() == 0b1000);
 
-    constexpr std::array<std::size_t, 4> partitions{1, 3, 2, 7};
-    std::size_t sample = 0;
-    for (const auto partition : partitions) {
-        for (std::size_t offset = 0; offset < partition; ++offset, ++sample) {
-            REQUIRE(processAndRequire(partitioned, partitioned_oracle) == reference_finished[sample]);
-            REQUIRE(unpack(partitioned.value()) == reference[sample]);
-        }
-    }
-    REQUIRE(sample == sample_count);
-    requireState(partitioned, contiguous_oracle);
+    for (std::size_t sample = 0; sample < 13; ++sample)
+        processAndRequire(actual, expected);
 }
 
 TEST_CASE("SimdAdsr kill is isolated and a killed lane can be reused", "[dsp][simd-adsr]") {

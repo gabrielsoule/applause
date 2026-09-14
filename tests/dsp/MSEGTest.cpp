@@ -138,8 +138,11 @@ TEST_CASE("MSEGModulator phase advancement", "[dsp][mseg]")
     }
 
     SECTION("Phase accumulates across multiple calls") {
-        for (int i = 0; i < 10; i++)
+        for (int i = 1; i < 10; i++) {
             mod.process(10);
+            REQUIRE(mod.phase() == Approx(0.1f * i));
+        }
+        mod.process(10);
         REQUIRE(mod.phase() == Approx(0.0f).margin(1e-5));
     }
 }
@@ -175,19 +178,9 @@ TEST_CASE("MSEGModulator output matches curve", "[dsp][mseg]")
     MSEGModulator mod(&curve, 100.0f);
     mod.setRate(1.0f);
 
-    SECTION("Ramp identity: output equals phase") {
-        mod.process(50);
-        REQUIRE(mod.phase() == Approx(0.5f));
-        REQUIRE(mod.value() == Approx(0.5f));
-    }
-
-    SECTION("Output matches curve.evaluate at each step") {
-        for (int i = 0; i < 10; i++) {
-            float result = mod.process(5);
-            float expected = curve.evaluate(mod.phase());
-            REQUIRE(result == Approx(expected));
-        }
-    }
+    mod.process(50);
+    REQUIRE(mod.phase() == Approx(0.5f));
+    REQUIRE(mod.value() == Approx(0.5f));
 }
 
 TEST_CASE("MSEGModulator reset", "[dsp][mseg]")

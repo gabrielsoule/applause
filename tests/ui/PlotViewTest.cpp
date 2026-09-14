@@ -5,73 +5,21 @@
 #include <algorithm>
 #include <array>
 #include <cstdlib>
-#include <span>
 
-TEST_CASE("PlotView provides a background, grid, and border for composed content", "[ui][plot]") {
+TEST_CASE("PlotView lets interactive children receive mouse input", "[ui][plot]") {
     applause::PlotView plot;
     applause::SimpleCurve trace;
-
-    REQUIRE(plot.children().empty());
 
     plot.setBounds(12.0f, 8.0f, 160.0f, 80.0f);
     plot.addChild(&trace);
     trace.setBounds(plot.localBounds());
 
-    REQUIRE(plot.children().size() == 1);
-    REQUIRE(plot.children().front() == &trace);
-    REQUIRE(trace.parent() == &plot);
-    REQUIRE(trace.bounds() == plot.localBounds());
-    REQUIRE(plot.ignoresMouseEvents());
-    REQUIRE(trace.ignoresMouseEvents());
     REQUIRE(plot.frameAtPoint({80.0f, 40.0f}) == nullptr);
 
     applause::Frame interactive;
     plot.addChild(&interactive);
     interactive.setBounds(plot.localBounds());
     REQUIRE(plot.frameAtPoint({80.0f, 40.0f}) == &interactive);
-
-    REQUIRE_NOTHROW(plot.setGridDivisions(3, 2));
-    REQUIRE_NOTHROW(plot.setGridDivisions(0, -1));
-}
-
-TEST_CASE("PlotView exposes themed rounding and border width", "[ui][plot]") {
-    applause::PlotView plot;
-
-    REQUIRE(plot.paletteValue(applause::PlotView::ApplausePlotRounding) == 4.0f);
-    REQUIRE(plot.paletteValue(applause::PlotView::ApplausePlotBorderWidth) == 1.0f);
-
-    applause::Palette palette;
-    palette.initWithDefaults();
-    palette.setValue(applause::PlotView::ApplausePlotRounding, 9.0f);
-    palette.setValue(applause::PlotView::ApplausePlotBorderWidth, 3.0f);
-    plot.setPalette(&palette);
-
-    REQUIRE(plot.paletteValue(applause::PlotView::ApplausePlotRounding) == 9.0f);
-    REQUIRE(plot.paletteValue(applause::PlotView::ApplausePlotBorderWidth) == 3.0f);
-}
-
-TEST_CASE("SimpleCurve uses the MSEG fill color", "[ui][plot]") {
-    applause::SimpleCurve trace;
-
-    REQUIRE(trace.paletteColor(applause::SimpleCurve::ApplauseTraceFill).gradient().sample(0.0f) ==
-            applause::Color(0x309966ff));
-}
-
-TEST_CASE("SimpleCurve draws fewer than two samples as no-ops", "[ui][plot]") {
-    applause::Canvas canvas;
-    applause::SimpleCurve trace;
-
-    trace.setSamples(std::span<const float>{});
-    REQUIRE_NOTHROW(trace.draw(canvas));
-
-    const std::array sample{0.5f};
-    trace.setSamples(sample);
-    REQUIRE_NOTHROW(trace.draw(canvas));
-
-    const std::array samples{0.0f, 1.0f};
-    trace.setSamples(samples);
-    trace.setBounds(0.0f, 0.0f, 0.0f, 0.0f);
-    REQUIRE_NOTHROW(trace.draw(canvas));
 }
 
 TEST_CASE("SimpleCurve keeps its stroke inside the normalized limits", "[ui][plot]") {

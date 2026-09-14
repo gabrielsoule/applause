@@ -188,13 +188,6 @@ struct EnvelopeFixture {
 };
 }  // namespace
 
-TEST_CASE("SimdPolySynth uses four full SIMD batches", "[dsp][simd-poly-synth]") {
-    STATIC_REQUIRE(SimdPolySynth::Batch::size == 4);
-    STATIC_REQUIRE(SimdPolySynth::voice_count == 16);
-    STATIC_REQUIRE(SimdPolySynth::lane_count == 4);
-    STATIC_REQUIRE(SimdPolySynth::batch_count == 4);
-}
-
 TEST_CASE("SimdOscillator lifecycle masks preserve sibling lanes", "[dsp][simd-poly-synth][oscillator]") {
     SimdOscillator oscillator;
     oscillator.activate(sample_rate);

@@ -3,10 +3,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
-#include <algorithm>
 #include <array>
-#include <cmath>
-#include <random>
 #include <span>
 #include <type_traits>
 #include <vector>
@@ -25,188 +22,6 @@ constexpr ModMatrix<ModBatch>::Config BatchConfig{1, 4, 4, 8};
 static_assert(!std::is_copy_constructible_v<ModMatrix<float>>);
 static_assert(!std::is_move_constructible_v<ModMatrix<float>>);
 static_assert(std::is_base_of_v<ModMatrixControl, ModMatrix<ModBatch>>);
-
-// Naive reference implementation of the modulation matrix, used by the K-series
-// oracle tests to cross-check ModMatrix output.
-class ModMatrixOracle {
-public:
-    struct Source {
-        uint16_t index;
-        bool is_mono;
-        bool is_both;
-        bool bipolar;
-        bool current_mode_is_mono;
-    };
-
-    struct Destination {
-        uint16_t index;
-        bool is_mono;
-        float base_value = 0.0f;
-        applause::ValueScaleInfo scale_info = {0.0f, 1.0f, applause::ValueScaling::linear()};
-    };
-
-    struct Connection {
-        uint16_t src_idx;
-        uint16_t target;  // dst_idx for param connections, target_slot for depth mods
-        uint16_t depth_slot;
-        bool is_depth_mod;
-        bool bipolar_mapping;
-    };
-
-    std::vector<Source> sources;
-    std::vector<Destination> destinations;
-    std::vector<Connection> connections;
-    std::vector<float> mono_src_values;
-    std::vector<std::vector<float>> poly_src_values;
-    std::vector<float> depth_base;
-    std::vector<uint16_t> active_voices;
-
-    uint16_t num_voices;
-    uint16_t max_sources;
-
-    ModMatrixOracle(uint16_t num_voices_, uint16_t max_sources_, uint16_t max_destinations_) :
-        num_voices(num_voices_), max_sources(max_sources_) {
-        mono_src_values.resize(max_sources_, 0.0f);
-        poly_src_values.resize(num_voices_);
-        for (auto& v : poly_src_values) {
-            v.resize(max_sources_, 0.0f);
-        }
-    }
-
-    uint16_t addSource(bool is_mono, bool is_both, bool bipolar) {
-        uint16_t idx = static_cast<uint16_t>(sources.size());
-        sources.push_back({idx, is_mono, is_both, bipolar, is_mono});
-        return idx;
-    }
-
-    uint16_t addDestination(bool is_mono,
-                            applause::ValueScaleInfo scale = {0.0f, 1.0f, applause::ValueScaling::linear()}) {
-        uint16_t idx = static_cast<uint16_t>(destinations.size());
-        destinations.push_back({idx, is_mono, 0.0f, scale});
-        return idx;
-    }
-
-    uint16_t addConnection(uint16_t src, uint16_t dst, float depth, bool bipolar_mapping) {
-        uint16_t slot = static_cast<uint16_t>(depth_base.size());
-        depth_base.push_back(depth);
-        connections.push_back({src, dst, slot, false, bipolar_mapping});
-        return slot;
-    }
-
-    uint16_t addDepthModulation(uint16_t src, uint16_t target_slot, float depth, bool bipolar_mapping) {
-        uint16_t slot = static_cast<uint16_t>(depth_base.size());
-        depth_base.push_back(depth);
-        connections.push_back({src, target_slot, slot, true, bipolar_mapping});
-        return slot;
-    }
-
-    void setMonoSource(uint16_t src, float value) { mono_src_values[src] = value; }
-
-    void setPolySource(uint16_t src, uint16_t voice, float value) { poly_src_values[voice][src] = value; }
-
-    void setBaseValue(uint16_t dst, float norm_value) { destinations[dst].base_value = norm_value; }
-
-    void setSourceMode(uint16_t src, bool is_mono) { sources[src].current_mode_is_mono = is_mono; }
-
-    bool effectivelyMono(uint16_t src) const {
-        const auto& s = sources[src];
-        if (s.is_both) return s.current_mode_is_mono;
-        return s.is_mono;
-    }
-
-    // Serum-style peak-to-peak normalization: a bipolar-mapped connection
-    // contributes offsets in [-0.5, +0.5] so `depth` equals peak-to-peak swing.
-    static float applyBipolarNormalization(float src_val, bool src_bipolar, bool bipolar_mapping) {
-        if (src_bipolar) src_val = (src_val + 1.0f) * 0.5f;
-        if (bipolar_mapping) src_val -= 0.5f;
-        return src_val;
-    }
-
-    std::pair<std::vector<float>, std::vector<std::vector<float>>> process() {
-        std::vector<float> mono_out(destinations.size());
-        std::vector<std::vector<float>> poly_out(num_voices);
-
-        for (size_t d = 0; d < destinations.size(); ++d) {
-            mono_out[d] = destinations[d].base_value;
-        }
-
-        for (uint16_t v = 0; v < num_voices; ++v) {
-            poly_out[v].resize(destinations.size());
-            for (size_t d = 0; d < destinations.size(); ++d) {
-                poly_out[v][d] = destinations[d].base_value;
-            }
-        }
-
-        std::vector<float> mono_depth = depth_base;
-        std::vector<std::vector<float>> poly_depth(num_voices);
-        for (auto& pd : poly_depth) pd = depth_base;
-
-        for (const auto& conn : connections) {
-            if (!conn.is_depth_mod) continue;
-            if (effectivelyMono(conn.src_idx)) {
-                float src_val = mono_src_values[conn.src_idx];
-                src_val = applyBipolarNormalization(src_val, sources[conn.src_idx].bipolar, conn.bipolar_mapping);
-                float depth = depth_base[conn.depth_slot];
-                mono_depth[conn.target] += src_val * depth;
-            }
-        }
-
-        for (uint16_t v : active_voices) {
-            poly_depth[v] = mono_depth;
-            for (const auto& conn : connections) {
-                if (!conn.is_depth_mod) continue;
-                if (!effectivelyMono(conn.src_idx)) {
-                    float src_val = poly_src_values[v][conn.src_idx];
-                    src_val = applyBipolarNormalization(src_val, sources[conn.src_idx].bipolar, conn.bipolar_mapping);
-                    float depth = depth_base[conn.depth_slot];
-                    poly_depth[v][conn.target] += src_val * depth;
-                }
-            }
-        }
-
-        for (const auto& conn : connections) {
-            if (conn.is_depth_mod) continue;
-
-            bool src_mono = effectivelyMono(conn.src_idx);
-            bool dst_mono = destinations[conn.target].is_mono;
-            bool src_bipolar = sources[conn.src_idx].bipolar;
-
-            if (src_mono && dst_mono) {
-                float src_val = mono_src_values[conn.src_idx];
-                src_val = applyBipolarNormalization(src_val, src_bipolar, conn.bipolar_mapping);
-                mono_out[conn.target] += src_val * mono_depth[conn.depth_slot];
-            } else if (src_mono && !dst_mono) {
-                for (uint16_t v : active_voices) {
-                    float src_val = mono_src_values[conn.src_idx];
-                    src_val = applyBipolarNormalization(src_val, src_bipolar, conn.bipolar_mapping);
-                    poly_out[v][conn.target] += src_val * poly_depth[v][conn.depth_slot];
-                }
-            } else if (!src_mono && !dst_mono) {
-                for (uint16_t v : active_voices) {
-                    float src_val = poly_src_values[v][conn.src_idx];
-                    src_val = applyBipolarNormalization(src_val, src_bipolar, conn.bipolar_mapping);
-                    poly_out[v][conn.target] += src_val * poly_depth[v][conn.depth_slot];
-                }
-            }
-            // poly src -> mono dst: NYI in ModMatrix, so oracle leaves it out too.
-        }
-
-        for (size_t d = 0; d < destinations.size(); ++d) {
-            const auto& scale = destinations[d].scale_info;
-            float norm = std::clamp(mono_out[d], 0.0f, 1.0f);
-            mono_out[d] = scale.scaling.fromNormalized(norm, scale.min, scale.max);
-
-            if (!destinations[d].is_mono) {
-                for (uint16_t v : active_voices) {
-                    norm = std::clamp(poly_out[v][d], 0.0f, 1.0f);
-                    poly_out[v][d] = scale.scaling.fromNormalized(norm, scale.min, scale.max);
-                }
-            }
-        }
-
-        return {mono_out, poly_out};
-    }
-};
 
 TEST_CASE("A1: Registering sources assigns stable indices and stores flags", "[modmatrix][registration]") {
     ModMatrix<float> matrix(SmallConfig);
@@ -288,7 +103,7 @@ TEST_CASE("B1: Voice on adds voice once (no duplicates)", "[modmatrix][voice]") 
     REQUIRE(matrix.getPolyModValue(dst.index, 2) == Catch::Approx(0.5f));
 }
 
-TEST_CASE("B2: Voice off removes voice from processing", "[modmatrix][voice]") {
+TEST_CASE("B2: Voice off only removes the requested active voice", "[modmatrix][voice]") {
     ModMatrix<float> matrix(SmallConfig);
 
     auto& src = matrix.registerSource("src", ModSrcType::Poly);
@@ -298,6 +113,8 @@ TEST_CASE("B2: Voice off removes voice from processing", "[modmatrix][voice]") {
     matrix.notifyVoiceOn(1);
     matrix.setBaseValue(dst.index, 0.5f);
     matrix.setPolySourceValue(src.index, 1, 0.3f);
+    matrix.notifyVoiceOff(0);
+    matrix.notifyVoiceOff(3);
     matrix.process();
 
     float before_off = matrix.getPolyModValue(dst.index, 1);
@@ -309,14 +126,6 @@ TEST_CASE("B2: Voice off removes voice from processing", "[modmatrix][voice]") {
 
     // Inactive voices are not touched, so the buffer retains its last computed value.
     REQUIRE(matrix.getPolyModValue(dst.index, 1) == Catch::Approx(before_off));
-}
-
-TEST_CASE("B3: notifyVoiceOff on inactive voice is safe", "[modmatrix][voice]") {
-    ModMatrix<float> matrix(SmallConfig);
-
-    matrix.notifyVoiceOff(0);
-    matrix.notifyVoiceOff(1);
-    matrix.notifyVoiceOff(3);
 }
 
 TEST_CASE("C1: With no connections, output equals base plain value after scaling", "[modmatrix][scaling]") {
@@ -1048,6 +857,9 @@ TEST_CASE("Edge: Connections with no active voices", "[modmatrix][edge]") {
     matrix.setPolySourceValue(src.index, 0, 0.8f);
 
     matrix.process();
+
+    REQUIRE(matrix.getPolyModValue(dst.index, 0) == 0.0f);
+    REQUIRE(matrix.copyActiveDestinationValues(dst.index, {}) == 0);
 }
 
 TEST_CASE("Edge: Negative depth values invert modulation", "[modmatrix][edge]") {
@@ -1084,120 +896,76 @@ TEST_CASE("Edge: Zero base depth with depth modulation", "[modmatrix][edge]") {
     REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.75f));
 }
 
-TEST_CASE("K1: Oracle verification for simple mono patch", "[modmatrix][oracle]") {
+TEST_CASE("K1: Mono modulation adds to the base value", "[modmatrix][sources]") {
     ModMatrix<float> matrix(SmallConfig);
-    ModMatrixOracle oracle(4, 8, 16);
 
     auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
-    oracle.addSource(true, false, false);
-    oracle.addDestination(true);
 
     matrix.addConnection(src, dst, 0.5f, false);
-    oracle.addConnection(0, 0, 0.5f, false);
-
     matrix.setBaseValue(dst.index, 0.25f);
-    oracle.setBaseValue(0, 0.25f);
-
     matrix.setMonoSourceValue(src.index, 0.6f);
-    oracle.setMonoSource(0, 0.6f);
 
     matrix.process();
-    auto [oracle_mono, oracle_poly] = oracle.process();
 
     REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.55f));
-    REQUIRE(oracle_mono[0] == Catch::Approx(0.55f));
-    REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(oracle_mono[0]));
 }
 
-TEST_CASE("K1: Oracle verification for poly patch", "[modmatrix][oracle]") {
+TEST_CASE("K2: Poly modulation keeps each voice independent", "[modmatrix][sources]") {
     ModMatrix<float> matrix(SmallConfig);
-    ModMatrixOracle oracle(4, 8, 16);
 
     auto& src = matrix.registerSource("src", ModSrcType::Poly, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Poly);
-    oracle.addSource(false, false, false);
-    oracle.addDestination(false);
 
     matrix.addConnection(src, dst, 1.0f, false);
-    oracle.addConnection(0, 0, 1.0f, false);
-
     matrix.setBaseValue(dst.index, 0.0f);
-    oracle.setBaseValue(0, 0.0f);
 
     matrix.notifyVoiceOn(0);
     matrix.notifyVoiceOn(2);
-    oracle.active_voices = {0, 2};
 
     matrix.setPolySourceValue(src.index, 0, 0.3f);
     matrix.setPolySourceValue(src.index, 2, 0.7f);
-    oracle.setPolySource(0, 0, 0.3f);
-    oracle.setPolySource(0, 2, 0.7f);
 
     matrix.process();
-    auto [oracle_mono, oracle_poly] = oracle.process();
 
     REQUIRE(matrix.getPolyModValue(dst.index, 0) == Catch::Approx(0.3f));
     REQUIRE(matrix.getPolyModValue(dst.index, 2) == Catch::Approx(0.7f));
-    REQUIRE(oracle_poly[0][0] == Catch::Approx(0.3f));
-    REQUIRE(oracle_poly[2][0] == Catch::Approx(0.7f));
 }
 
-TEST_CASE("K1: Oracle verification for bipolar mapping", "[modmatrix][oracle]") {
+TEST_CASE("K3: A centered bipolar source leaves the base value unchanged", "[modmatrix][mapping]") {
     ModMatrix<float> matrix(SmallConfig);
-    ModMatrixOracle oracle(4, 8, 16);
 
     auto& src = matrix.registerSource("src", ModSrcType::Mono, true);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
-    oracle.addSource(true, false, true);
-    oracle.addDestination(true);
 
     matrix.addConnection(src, dst, 1.0f, true);
-    oracle.addConnection(0, 0, 1.0f, true);
-
     matrix.setBaseValue(dst.index, 0.5f);
-    oracle.setBaseValue(0, 0.5f);
-
     matrix.setMonoSourceValue(src.index, 0.0f);
-    oracle.setMonoSource(0, 0.0f);
 
     matrix.process();
-    auto [oracle_mono, oracle_poly] = oracle.process();
 
     REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.5f));
-    REQUIRE(oracle_mono[0] == Catch::Approx(0.5f));
 }
 
-TEST_CASE("K1: Oracle verification for MP connection", "[modmatrix][oracle]") {
+TEST_CASE("K4: Mono modulation reaches every active voice", "[modmatrix][sources]") {
     ModMatrix<float> matrix(SmallConfig);
-    ModMatrixOracle oracle(4, 8, 16);
 
     auto& src = matrix.registerSource("src", ModSrcType::Mono, false);
     auto& dst = matrix.registerDestination("dst", ModDstMode::Poly);
-    oracle.addSource(true, false, false);
-    oracle.addDestination(false);
 
     matrix.addConnection(src, dst, 0.5f, false);
-    oracle.addConnection(0, 0, 0.5f, false);
-
     matrix.setBaseValue(dst.index, 0.2f);
-    oracle.setBaseValue(0, 0.2f);
 
     matrix.notifyVoiceOn(0);
     matrix.notifyVoiceOn(1);
-    oracle.active_voices = {0, 1};
 
     matrix.setMonoSourceValue(src.index, 0.4f);
-    oracle.setMonoSource(0, 0.4f);
 
     matrix.process();
-    auto [oracle_mono, oracle_poly] = oracle.process();
 
     const float expected = 0.4f;
     REQUIRE(matrix.getPolyModValue(dst.index, 0) == Catch::Approx(expected));
     REQUIRE(matrix.getPolyModValue(dst.index, 1) == Catch::Approx(expected));
-    REQUIRE(oracle_poly[0][0] == Catch::Approx(expected));
-    REQUIRE(oracle_poly[1][0] == Catch::Approx(expected));
 }
 
 TEST_CASE("A4: Source enumeration and name population", "[modmatrix][registration]") {

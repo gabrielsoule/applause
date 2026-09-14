@@ -663,7 +663,7 @@ TEST_CASE("Synthesizer discards a same-sample note choked before preparation",
 
 TEST_CASE("Synthesizer cleans a stolen voice before preparing its replacement",
           "[dsp][synthesizer]") {
-    applause::Synthesizer<CallbackVoice, 1> synth;
+    PreProcessTestSynth synth;
     std::array<float, 1> samples{};
     std::array<float*, 1> channels{samples.data()};
 
@@ -679,9 +679,11 @@ TEST_CASE("Synthesizer cleans a stolen voice before preparing its replacement",
     synth.process({channels.data(), channels.size(), samples.size()},
                   &replacement_events.input);
 
+    const std::vector<char> expected_trace{'V', 'P', 'N', 'R', 'K', 'V', 'P', 'N', 'R'};
+    REQUIRE(synth.trace == expected_trace);
+    REQUIRE(synth.voice_snapshots.size() == 2);
+    REQUIRE(synth.voice_snapshots[1].note_id == 2);
     const auto& voice = synth.getVoices().front();
-    REQUIRE(voice.note_on_calls == 2);
-    REQUIRE(voice.immediate_note_off_calls == 1);
     REQUIRE(voice.active_);
     REQUIRE(voice.note_.note_id == 2);
 }

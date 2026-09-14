@@ -223,7 +223,9 @@ TEST_CASE("ParamsExtension registration metadata via get_info", "[params][info]"
         config.name = std::string(300, 'x');
         fresh.params.registerParam(config);
         clap_param_info_t n{};
+        std::memset(n.name, 'z', sizeof(n.name));
         REQUIRE(clapParams(fresh)->get_info(fresh.clapPlugin(), 0, &n));
+        REQUIRE(n.name[CLAP_NAME_SIZE - 1] == '\0');
         REQUIRE(std::strlen(n.name) == CLAP_NAME_SIZE - 1);
     }
 }

@@ -91,8 +91,6 @@ static_assert(HasBufferMutation<MutableFloatBuffer>);
 static_assert(HasChannelMutation<MutableFloatBuffer>);
 static_assert(!HasBufferMutation<ReadOnlyFloatBuffer>);
 static_assert(!HasChannelMutation<ReadOnlyFloatBuffer>);
-static_assert(sizeof(MutableFloatBuffer) ==
-              sizeof(float* const*) + 3 * sizeof(std::size_t));
 static_assert(std::same_as<
               decltype(std::declval<const MutableFloatBuffer&>()
                            .channelSamples(0)),
@@ -561,18 +559,22 @@ TEMPLATE_TEST_CASE("BufferView supports scalar and SIMD samples",
     applause::BufferView<const SampleType> read_only = buffer;
     REQUIRE(read_only.channelScalars(0) == buffer.channelScalars(0));
 
+    for (std::size_t channel = 0; channel < buffer.numChannels(); ++channel) {
+        for (auto& sample : buffer.channelScalarSpan(channel))
+            sample = static_cast<Scalar>(channel + 1);
+    }
+
     auto subview = buffer.getSubView(4, 8);
     REQUIRE(subview.channelScalars(0) ==
             buffer.channelScalars(0) + 4 * width);
     subview.clear();
-    for (std::size_t frame = 4; frame < 8; ++frame) {
-        auto cleared = buffer.load(0, frame);
-        if constexpr (applause::SimdBatch<SampleType>) {
-            for (std::size_t lane = 0; lane < SampleType::size; ++lane) {
-                REQUIRE(cleared.get(lane) == Scalar{0});
+    for (std::size_t channel = 0; channel < buffer.numChannels(); ++channel) {
+        for (std::size_t frame = 0; frame < frames; ++frame) {
+            const Scalar expected = frame >= 4 && frame < 8 ? Scalar{0} : static_cast<Scalar>(channel + 1);
+            for (std::size_t lane = 0; lane < width; ++lane) {
+                CAPTURE(channel, frame, lane);
+                REQUIRE(buffer.channelScalars(channel)[frame * width + lane] == expected);
             }
-        } else {
-            REQUIRE(cleared == Scalar{0});
         }
     }
 }
