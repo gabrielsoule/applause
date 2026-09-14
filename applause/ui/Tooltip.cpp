@@ -6,6 +6,8 @@
 
 #include <embedded/applause_fonts.h>
 
+#include <memory>
+
 namespace applause {
 
 APPLAUSE_THEME_IMPLEMENT_COLOR(TooltipDisplay, TooltipBackground, 0xee1e1e24);
@@ -21,6 +23,15 @@ struct TooltipBinding {
 };
 
 std::unordered_map<applause::Frame*, TooltipBinding> tooltip_bindings;
+
+// Janky little struct to make sure that when a component is destroyed, we remove the tooltip binding.
+// This should fix a rare memory address reuse bug. It's a little annoying but it does the trick... :-)
+struct TooltipRegistration {
+    explicit TooltipRegistration(applause::Frame* frame) : frame(frame) {}
+    ~TooltipRegistration() { tooltip_bindings.erase(frame); }
+
+    applause::Frame* frame;
+};
 
 }  // namespace
 
@@ -132,9 +143,10 @@ void setTooltip(applause::Frame& frame, std::string text) {
     if (binding.hooked) return;
     binding.hooked = true;
 
-    applause::Frame* frame_ptr = &frame;
+    auto registration = std::make_shared<TooltipRegistration>(&frame);
 
-    frame.onMouseEnter() += [frame_ptr](const applause::MouseEvent& e) {
+    frame.onMouseEnter() += [registration](const applause::MouseEvent& e) {
+        auto* frame_ptr = registration->frame;
         auto it = tooltip_bindings.find(frame_ptr);
         if (it == tooltip_bindings.end() || !it->second.enabled) return;
         auto* editor = frame_ptr->findParent<applause::ApplauseEditor>();
@@ -142,13 +154,15 @@ void setTooltip(applause::Frame& frame, std::string text) {
         editor->tooltipDisplay().showAt(it->second.text, e.windowPosition());
     };
 
-    frame.onMouseExit() += [frame_ptr](const applause::MouseEvent&) {
+    frame.onMouseExit() += [registration](const applause::MouseEvent&) {
+        auto* frame_ptr = registration->frame;
         auto* editor = frame_ptr->findParent<applause::ApplauseEditor>();
         if (!editor) return;
         editor->tooltipDisplay().hide();
     };
 
-    frame.onMouseDown() += [frame_ptr](const applause::MouseEvent&) {
+    frame.onMouseDown() += [registration](const applause::MouseEvent&) {
+        auto* frame_ptr = registration->frame;
         auto* editor = frame_ptr->findParent<applause::ApplauseEditor>();
         if (!editor) return;
         editor->tooltipDisplay().hide();
