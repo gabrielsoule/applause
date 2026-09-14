@@ -9,10 +9,8 @@
 
 namespace applause {
 
-/**
- * This component wraps a Slider and a ParamValueTextBox together. It also
- * connects to parameter changes via rocket signal system.
- */
+
+/// A slider attached to a parameter, with a text box for displaying the parameter name/value.
 class ParamSlider : public applause::Frame {
 public:
     ParamSlider(ParamInfo& paramInfo);

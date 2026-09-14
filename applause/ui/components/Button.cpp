@@ -42,7 +42,7 @@ APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonTextPressed, 0xffffffff);
 APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonBorder, 0xff444444);
 APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonBorderHover, 0xff5a5a60);
 APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonBorderPressed, 0xff555555);
-APPLAUSE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonGlowAmount, 0.30f);
+APPLAUSE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonGlowAmount, 0.45f);
 APPLAUSE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonRounding, 7.0f);
 APPLAUSE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonHoverRoundingMult, 1.0f);
 APPLAUSE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonBorderWidth, 1.5f);
@@ -81,7 +81,7 @@ void drawGlow(Button& button, applause::Canvas& canvas, float hover) {
         applause::Color accent = canvas.color(Button::ApplauseButtonGlow).gradient().sample(0.0f);
         applause::Point center = {button.width() * 0.5f, button.height() * 0.5f};
         canvas.setColor(applause::Brush::radial(accent.withAlpha(glow), applause::Color(0x00000000), center,
-                                              button.width() * 0.5f, button.height() * 0.5f));
+                                                button.width() * 0.5f, button.height() * 0.5f));
         canvas.rectangle(0, 0, button.width(), button.height());
     }
 }
@@ -149,7 +149,7 @@ void UiButton::drawBackground(applause::Canvas& canvas, float hover_amount) {
         applause::Color black(0xff000000);
         canvas.setColor(
             applause::Brush::vertical(sample(ApplauseButtonBackgroundTop).interpolateWith(black, kInactiveDim),
-                                    sample(ApplauseButtonBackgroundBottom).interpolateWith(black, kInactiveDim)));
+                                      sample(ApplauseButtonBackgroundBottom).interpolateWith(black, kInactiveDim)));
         canvas.roundedRectangle(0, 0, w, h, r);
         canvas.setColor(sample(ApplauseButtonBorder).interpolateWith(black, kInactiveDim));
         canvas.roundedRectangleBorder(0, 0, w, h, r, canvas.value(ApplauseButtonBorderWidth));
@@ -160,7 +160,7 @@ void UiButton::drawBackground(applause::Canvas& canvas, float hover_amount) {
         if (action_) {
             // Action pressed: invert the action gradient
             canvas.setColor(applause::Brush::vertical(sample(ApplauseActionButtonBackgroundBottom),
-                                                    sample(ApplauseActionButtonBackgroundTop)));
+                                                      sample(ApplauseActionButtonBackgroundTop)));
         } else {
             // Regular pressed: invert the shared gradient
             canvas.setColor(
@@ -169,15 +169,15 @@ void UiButton::drawBackground(applause::Canvas& canvas, float hover_amount) {
     } else {
         if (action_) {
             applause::Brush normal = applause::Brush::vertical(sample(ApplauseActionButtonBackgroundTop),
-                                                           sample(ApplauseActionButtonBackgroundBottom));
+                                                               sample(ApplauseActionButtonBackgroundBottom));
             applause::Brush hover = applause::Brush::vertical(sample(ApplauseActionButtonBackgroundTopHover),
-                                                          sample(ApplauseActionButtonBackgroundBottomHover));
+                                                              sample(ApplauseActionButtonBackgroundBottomHover));
             canvas.setColor(normal.interpolateWith(hover, hover_amount));
         } else {
             applause::Brush normal =
                 applause::Brush::vertical(sample(ApplauseButtonBackgroundTop), sample(ApplauseButtonBackgroundBottom));
             applause::Brush hover = applause::Brush::vertical(sample(ApplauseButtonBackgroundTopHover),
-                                                          sample(ApplauseButtonBackgroundBottomHover));
+                                                              sample(ApplauseButtonBackgroundBottomHover));
             canvas.setColor(normal.interpolateWith(hover, hover_amount));
         }
     }
@@ -277,7 +277,7 @@ void ToggleTextButton::drawBackground(applause::Canvas& canvas, float hover_amou
         applause::Color black(0xff000000);
         canvas.setColor(
             applause::Brush::vertical(sample(ApplauseButtonBackgroundTop).interpolateWith(black, kInactiveDim),
-                                    sample(ApplauseButtonBackgroundBottom).interpolateWith(black, kInactiveDim)));
+                                      sample(ApplauseButtonBackgroundBottom).interpolateWith(black, kInactiveDim)));
         canvas.roundedRectangle(0, 0, w, h, r);
         canvas.setColor(sample(ApplauseButtonBorder).interpolateWith(black, kInactiveDim));
         canvas.roundedRectangleBorder(0, 0, w, h, r, canvas.value(ApplauseButtonBorderWidth));
@@ -286,8 +286,8 @@ void ToggleTextButton::drawBackground(applause::Canvas& canvas, float hover_amou
 
     applause::Brush normal =
         applause::Brush::vertical(sample(ApplauseButtonBackgroundTop), sample(ApplauseButtonBackgroundBottom));
-    applause::Brush hover =
-        applause::Brush::vertical(sample(ApplauseButtonBackgroundTopHover), sample(ApplauseButtonBackgroundBottomHover));
+    applause::Brush hover = applause::Brush::vertical(sample(ApplauseButtonBackgroundTopHover),
+                                                      sample(ApplauseButtonBackgroundBottomHover));
     canvas.setColor(normal.interpolateWith(hover, hover_amount));
     canvas.roundedRectangle(0, 0, w, h, r);
 

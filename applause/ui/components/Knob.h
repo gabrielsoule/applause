@@ -8,9 +8,10 @@
 namespace applause {
 
 /**
- * A simple Knob. Spin it around by dragging the mouse, or hovering and scrolling.
+ * It's a Knob. Spin it around by dragging the mouse, or hovering and scrolling.
  *
- * The Knob doesn't do much on its own. If you want a plug-and-play Knob with a built-in label that
+ * The Knob doesn't do much on its own, unless you connect it to something.
+ * If you want a plug-and-play Knob with a built-in label that
  * attaches to a Parameter, check out ParamKnob.
  */
 class Knob : public applause::Frame {

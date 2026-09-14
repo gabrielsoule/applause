@@ -5,9 +5,7 @@
 namespace applause {
 
 /**
- * A horizontal slider with a circular thumb and track, styled like a classic JUCE slider.
- * The usable pixel range is inset by the thumb radius on both sides so the thumb
- * never extends past the component bounds.
+ * A UI slider with a circular thumb that moves along a track.
  */
 class Slider : public applause::Frame {
 public:

@@ -14,6 +14,8 @@ namespace applause {
 
 class SelectionGrid;
 
+/// A selectable cell whose selection is managed by its grid.
+/// Override drawContent() to provide custom visuals.
 class SelectionGridCell : public Button {
 public:
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseSelectionGridCellBackground);
@@ -33,8 +35,10 @@ public:
     APPLAUSE_THEME_DEFINE_VALUE(ApplauseSelectionGridCellGlowCenterAmount);
 
     [[nodiscard]] bool selected() const noexcept { return selected_; }
+    /// Returns the cell's index in its grid.
     [[nodiscard]] int index() const noexcept { return index_; }
 
+    /// Selects this cell and notifies the grid if the selection changes.
     bool toggle() override;
     void draw(applause::Canvas& canvas) override;
 
@@ -56,6 +60,7 @@ private:
     int index_ = -1;
 };
 
+/// A cell that displays a text label using the grid's content colors and padding.
 class TextSelectionGridCell final : public SelectionGridCell {
 public:
     explicit TextSelectionGridCell(std::string text = {});
@@ -71,6 +76,9 @@ private:
     applause::Text text_;
 };
 
+/// A fixed grid of equally sized cells. One cell can be selected at a time.
+/// Indices start at 0 and run left to right, then top to bottom.
+/// Supply text labels or use emplaceCell() to add your own cell visuals.
 class SelectionGrid : public applause::Frame {
 public:
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseSelectionGridBackground);
@@ -82,12 +90,14 @@ public:
     APPLAUSE_THEME_DEFINE_VALUE(ApplauseSelectionGridBorderWidth);
 
     /// Creates a fixed grid of empty cells, with cell 0 selected.
-    /// Rows and columns must be positive. Indices run left to right, then top to bottom.
+    /// Rows and columns must be positive.
     SelectionGrid(int columns, int rows);
 
     /// Creates a grid with a text label in each cell.
+    /// Labels follow index order, and the count must equal columns * rows.
     SelectionGrid(int columns, int rows, std::initializer_list<std::string_view> labels);
 
+    /// Returns the selected cell's index, starting at 0.
     [[nodiscard]] int selectedIndex() const noexcept { return selected_index_; }
 
     /// Changes the selection without calling onSelectionChanged().
@@ -104,7 +114,7 @@ public:
     const SelectionGridCell& cell(int index) const;
 
     /// Replaces a cell with your own SelectionGridCell subclass and returns a reference to it.
-    /// The grid object owns the new cell. Call this before the grid is initialized.
+    /// The grid owns the new cell. Call this before the grid is initialized.
     template <std::derived_from<SelectionGridCell> T, typename... Args>
     T& emplaceCell(int index, Args&&... args) {
         auto cell = std::make_unique<T>(std::forward<Args>(args)...);

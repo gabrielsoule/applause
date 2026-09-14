@@ -172,7 +172,7 @@ void Slider::draw(applause::Canvas& canvas) {
 
         canvas.setColor(
             applause::Brush::vertical(sample(ApplauseSliderThumbTop).interpolateWith(black, kInactiveDim),
-                                    sample(ApplauseSliderThumbBottom).interpolateWith(black, kInactiveDim)));
+                                      sample(ApplauseSliderThumbBottom).interpolateWith(black, kInactiveDim)));
         canvas.circle(thumbX, thumbY, kThumbDiameter);
 
         canvas.setColor(sample(ApplauseSliderThumbBorder).interpolateWith(black, kInactiveDim));

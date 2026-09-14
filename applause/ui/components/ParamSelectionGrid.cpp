@@ -7,8 +7,7 @@ namespace applause {
 
 ParamSelectionGrid::ParamSelectionGrid(ParamInfo& parameter, int columns, int rows) :
     parameter_(parameter), grid_(columns, rows) {
-    if (!parameter_.stepped)
-        throw std::invalid_argument("ParamSelectionGrid requires a stepped parameter");
+    if (!parameter_.stepped) throw std::invalid_argument("ParamSelectionGrid requires a stepped parameter");
     if (!std::isfinite(parameter_.minValue) || !std::isfinite(parameter_.maxValue) ||
         std::trunc(parameter_.minValue) != parameter_.minValue ||
         std::trunc(parameter_.maxValue) != parameter_.maxValue)
@@ -34,15 +33,12 @@ ParamSelectionGrid::ParamSelectionGrid(ParamInfo& parameter, int columns, int ro
         on_selection_changed_.callback(index);
     };
 
-    parameter_connection_ = parameter_.on_value_changed.connect([this](float value) {
-        grid_.setSelectedIndex(static_cast<int>(value - parameter_.minValue));
-    });
+    parameter_connection_ = parameter_.on_value_changed.connect(
+        [this](float value) { grid_.setSelectedIndex(static_cast<int>(value - parameter_.minValue)); });
 
     addChild(&grid_);
 }
 
-void ParamSelectionGrid::resized() {
-    grid_.setBounds(localBounds());
-}
+void ParamSelectionGrid::resized() { grid_.setBounds(localBounds()); }
 
 }  // namespace applause

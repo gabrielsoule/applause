@@ -14,13 +14,10 @@ APPLAUSE_THEME_IMPLEMENT_VALUE(Panel, ApplausePanelBorderWidth, 1.0f);
 APPLAUSE_THEME_IMPLEMENT_VALUE(Panel, ApplausePanelTitleHeight, 40.0f);
 APPLAUSE_THEME_IMPLEMENT_VALUE(Panel, ApplausePanelContentMargin, 4.0f);
 
-Panel::Panel() : has_title_(false) {
-    addChild(&content_);
-}
+Panel::Panel() : has_title_(false) { addChild(&content_); }
 
-Panel::Panel(const std::string& title)
-    : title_(title, applause::Font(15, applause::fonts::Barlow_Medium_ttf)),
-      has_title_(true) {
+Panel::Panel(const std::string& title) :
+    title_(title, applause::Font(15, applause::fonts::Barlow_Medium_ttf)), has_title_(true) {
     addChild(&content_);
 }
 

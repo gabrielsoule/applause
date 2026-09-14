@@ -7,9 +7,7 @@
 namespace applause {
 
 /// A reusable, context-agnostic MSEG curve editor.
-/// Draws and allows interactive editing of an MSEGCurve. Knows nothing about
-/// what the curve represents (LFO shape, envelope, etc.) — the parent component
-/// provides background grid, axis labels, playhead, and semantic meaning.
+/// Draws and allows interactive editing of an MSEGCurve.
 /// Draws with a transparent background so the parent can render behind it.
 class MSEGDisplay : public applause::Frame {
 public:
@@ -33,10 +31,17 @@ public:
     void mouseMove(const applause::MouseEvent& e) override;
     void mouseExit(const applause::MouseEvent& e) override;
 
-    void setCurve(MSEGCurve<>* curve) { curve_ = curve; redraw(); }
+    void setCurve(MSEGCurve<>* curve) {
+        curve_ = curve;
+        redraw();
+    }
     MSEGCurve<>* curve() const { return curve_; }
 
-    void setYRange(float min, float max) { y_min_ = min; y_max_ = max; redraw(); }
+    void setYRange(float min, float max) {
+        y_min_ = min;
+        y_max_ = max;
+        redraw();
+    }
     void allowAddRemovePoints(bool enabled) { point_editing_enabled_ = enabled; }
 
     applause::CallbackList<void()> on_curve_changed;
@@ -69,4 +74,4 @@ private:
     std::vector<applause::Point> samples_;
 };
 
-} // namespace applause
+}  // namespace applause

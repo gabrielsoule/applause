@@ -20,18 +20,16 @@ public:
 
     static constexpr char32_t kAcuteAccentCharacter = U'´';
     static constexpr char32_t kGraveAccentCharacter = U'`';
-    static constexpr char32_t kTildeCharacter       = U'˜';
-    static constexpr char32_t kUmlautCharacter      = U'¨';
-    static constexpr char32_t kCircumflexCharacter  = U'ˆ';
+    static constexpr char32_t kTildeCharacter = U'˜';
+    static constexpr char32_t kUmlautCharacter = U'¨';
+    static constexpr char32_t kCircumflexCharacter = U'ˆ';
 
     static bool isAlphaNumeric(char character) {
         return (character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z') ||
-               (character >= '0' && character <= '9');
+            (character >= '0' && character <= '9');
     }
 
-    static bool isVariableCharacter(char character) {
-        return isAlphaNumeric(character) || character == '_';
-    }
+    static bool isVariableCharacter(char character) { return isAlphaNumeric(character) || character == '_'; }
 
     enum ActionState {
         kNone,
@@ -39,14 +37,7 @@ public:
         kDeleting,
     };
 
-    enum class DeadKey {
-        None,
-        AcuteAccent,
-        GraveAccent,
-        Tilde,
-        Umlaut,
-        Circumflex
-    };
+    enum class DeadKey { None, AcuteAccent, GraveAccent, Tilde, Umlaut, Circumflex };
 
     // Base colors. One-to-one with Visage's original TextEditor IDs, renamed
     // into the Applause namespace so the inspector groups them under this
@@ -57,10 +48,6 @@ public:
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorDefaultText);
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorCaret);
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorSelection);
-
-    // State-variant colors. Default to the corresponding base color so visual
-    // output is identical until a consumer customizes a variant. Precedence in
-    // drawBackground / draw: disabled > focused > hover > base.
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorBackgroundFocused);
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorBorderFocused);
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorBackgroundHover);
@@ -72,7 +59,6 @@ public:
     APPLAUSE_THEME_DEFINE_VALUE(ApplauseTextEditorRounding);
     APPLAUSE_THEME_DEFINE_VALUE(ApplauseTextEditorMarginX);
     APPLAUSE_THEME_DEFINE_VALUE(ApplauseTextEditorMarginY);
-    // Previously hardcoded in drawBackground (2.0f) and drawSelection (1.0f).
     APPLAUSE_THEME_DEFINE_VALUE(ApplauseTextEditorBorderWidth);
     APPLAUSE_THEME_DEFINE_VALUE(ApplauseTextEditorCaretWidth);
 
@@ -83,8 +69,6 @@ public:
     auto& onEnterKey() { return on_enter_key_; }
     auto& onEscapeKey() { return on_escape_key_; }
 
-    // Virtual so subclasses can override individual draw phases without
-    // reimplementing all of draw(). draw() is virtual via Frame.
     virtual void drawBackground(applause::Canvas& canvas) const;
     void selectionRectangle(applause::Canvas& canvas, float x, float y, float w, float h) const;
     virtual void drawSelection(applause::Canvas& canvas) const;
@@ -170,8 +154,7 @@ public:
     }
 
     float xMargin() const {
-        if (text_.justification() & (applause::Font::kLeft | applause::Font::kRight))
-            return xMarginSize();
+        if (text_.justification() & (applause::Font::kLeft | applause::Font::kRight)) return xMarginSize();
         return 0;
     }
     float yMargin() const {
@@ -190,8 +173,8 @@ public:
 
     void setLineBreaks() {
         if (text_.multiLine() && text_.font().packedFont()) {
-            line_breaks_ = text_.font().lineBreaks(text_.text().c_str(), text_.text().length(),
-                                                   width() - 2 * xMargin());
+            line_breaks_ =
+                text_.font().lineBreaks(text_.text().c_str(), text_.text().length(), width() - 2 * xMargin());
         }
     }
 
@@ -212,8 +195,7 @@ public:
     void setMultiLine(bool multi_line) {
         text_.setMultiLine(multi_line);
         default_text_.setMultiLine(multi_line);
-        if (multi_line)
-            x_position_ = 0;
+        if (multi_line) x_position_ = 0;
     }
     void setSelectOnFocus(bool select_on_focus) { select_on_focus_ = select_on_focus; }
     void setJustification(applause::Font::Justification justification) {
@@ -258,21 +240,19 @@ public:
         text_color_id_ = id;
         text_disabled_color_id_ = id;
     }
-    void setDefaultTextColorId(visage::theme::ColorId id)        { default_text_color_id_ = id; }
-    void setCaretColorId(visage::theme::ColorId id)              { caret_color_id_ = id; }
-    void setSelectionColorId(visage::theme::ColorId id)          { selection_color_id_ = id; }
-    void setBackgroundFocusedColorId(visage::theme::ColorId id)  { background_focused_color_id_ = id; }
-    void setBorderFocusedColorId(visage::theme::ColorId id)      { border_focused_color_id_ = id; }
-    void setBackgroundHoverColorId(visage::theme::ColorId id)    { background_hover_color_id_ = id; }
-    void setBorderHoverColorId(visage::theme::ColorId id)        { border_hover_color_id_ = id; }
+    void setDefaultTextColorId(visage::theme::ColorId id) { default_text_color_id_ = id; }
+    void setCaretColorId(visage::theme::ColorId id) { caret_color_id_ = id; }
+    void setSelectionColorId(visage::theme::ColorId id) { selection_color_id_ = id; }
+    void setBackgroundFocusedColorId(visage::theme::ColorId id) { background_focused_color_id_ = id; }
+    void setBorderFocusedColorId(visage::theme::ColorId id) { border_focused_color_id_ = id; }
+    void setBackgroundHoverColorId(visage::theme::ColorId id) { background_hover_color_id_ = id; }
+    void setBorderHoverColorId(visage::theme::ColorId id) { border_hover_color_id_ = id; }
     void setBackgroundDisabledColorId(visage::theme::ColorId id) { background_disabled_color_id_ = id; }
-    void setBorderDisabledColorId(visage::theme::ColorId id)     { border_disabled_color_id_ = id; }
-    void setTextDisabledColorId(visage::theme::ColorId id)       { text_disabled_color_id_ = id; }
+    void setBorderDisabledColorId(visage::theme::ColorId id) { border_disabled_color_id_ = id; }
+    void setTextDisabledColorId(visage::theme::ColorId id) { text_disabled_color_id_ = id; }
 
 protected:
-    float xMarginSize() const {
-        return set_x_margin_ ? set_x_margin_ : paletteValue(ApplauseTextEditorMarginX);
-    }
+    float xMarginSize() const { return set_x_margin_ ? set_x_margin_ : paletteValue(ApplauseTextEditorMarginX); }
     void addUndoPosition() { undo_history_.emplace_back(text_.text(), caret_position_); }
 
     // Resolve the background / border / text ColorIds for the current state
@@ -280,20 +260,18 @@ protected:
     // drawBackground and draw stay consistent and subclasses can override the
     // policy by overriding the draw helpers.
     visage::theme::ColorId resolvedBackgroundColorId() const {
-        if (!active_)            return background_disabled_color_id_;
-        if (hasKeyboardFocus())  return background_focused_color_id_;
-        if (hovered_)            return background_hover_color_id_;
+        if (!active_) return background_disabled_color_id_;
+        if (hasKeyboardFocus()) return background_focused_color_id_;
+        if (hovered_) return background_hover_color_id_;
         return background_color_id_;
     }
     visage::theme::ColorId resolvedBorderColorId() const {
-        if (!active_)            return border_disabled_color_id_;
-        if (hasKeyboardFocus())  return border_focused_color_id_;
-        if (hovered_)            return border_hover_color_id_;
+        if (!active_) return border_disabled_color_id_;
+        if (hasKeyboardFocus()) return border_focused_color_id_;
+        if (hovered_) return border_hover_color_id_;
         return border_color_id_;
     }
-    visage::theme::ColorId resolvedTextColorId() const {
-        return active_ ? text_color_id_ : text_disabled_color_id_;
-    }
+    visage::theme::ColorId resolvedTextColorId() const { return active_ ? text_color_id_ : text_disabled_color_id_; }
 
     applause::CallbackList<void()> on_text_change_;
     applause::CallbackList<void()> on_enter_key_;
@@ -315,19 +293,19 @@ protected:
     bool hovered_ = false;
     bool active_ = true;
 
-    visage::theme::ColorId background_color_id_           = ApplauseTextEditorBackground;
-    visage::theme::ColorId border_color_id_               = ApplauseTextEditorBorder;
-    visage::theme::ColorId text_color_id_                 = ApplauseTextEditorText;
-    visage::theme::ColorId default_text_color_id_         = ApplauseTextEditorDefaultText;
-    visage::theme::ColorId caret_color_id_                = ApplauseTextEditorCaret;
-    visage::theme::ColorId selection_color_id_            = ApplauseTextEditorSelection;
-    visage::theme::ColorId background_focused_color_id_   = ApplauseTextEditorBackgroundFocused;
-    visage::theme::ColorId border_focused_color_id_       = ApplauseTextEditorBorderFocused;
-    visage::theme::ColorId background_hover_color_id_     = ApplauseTextEditorBackgroundHover;
-    visage::theme::ColorId border_hover_color_id_         = ApplauseTextEditorBorderHover;
-    visage::theme::ColorId background_disabled_color_id_  = ApplauseTextEditorBackgroundDisabled;
-    visage::theme::ColorId border_disabled_color_id_      = ApplauseTextEditorBorderDisabled;
-    visage::theme::ColorId text_disabled_color_id_        = ApplauseTextEditorTextDisabled;
+    visage::theme::ColorId background_color_id_ = ApplauseTextEditorBackground;
+    visage::theme::ColorId border_color_id_ = ApplauseTextEditorBorder;
+    visage::theme::ColorId text_color_id_ = ApplauseTextEditorText;
+    visage::theme::ColorId default_text_color_id_ = ApplauseTextEditorDefaultText;
+    visage::theme::ColorId caret_color_id_ = ApplauseTextEditorCaret;
+    visage::theme::ColorId selection_color_id_ = ApplauseTextEditorSelection;
+    visage::theme::ColorId background_focused_color_id_ = ApplauseTextEditorBackgroundFocused;
+    visage::theme::ColorId border_focused_color_id_ = ApplauseTextEditorBorderFocused;
+    visage::theme::ColorId background_hover_color_id_ = ApplauseTextEditorBackgroundHover;
+    visage::theme::ColorId border_hover_color_id_ = ApplauseTextEditorBorderHover;
+    visage::theme::ColorId background_disabled_color_id_ = ApplauseTextEditorBackgroundDisabled;
+    visage::theme::ColorId border_disabled_color_id_ = ApplauseTextEditorBorderDisabled;
+    visage::theme::ColorId text_disabled_color_id_ = ApplauseTextEditorTextDisabled;
 
     float background_rounding_ = 1.0f;
     float set_x_margin_ = 0.0f;

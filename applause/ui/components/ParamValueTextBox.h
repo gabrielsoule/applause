@@ -13,8 +13,6 @@ namespace applause {
 
 /**
  * A text box component that displays and allows editing of a parameter value.
- * Features adaptive precision formatting and validates input using
- * ParamInfo::parseText.
  */
 class ParamValueTextBox : public applause::Frame {
 public:

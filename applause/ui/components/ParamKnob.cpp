@@ -35,9 +35,8 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo, const ModDestination* dst) :
     knob_.setValue(param_info_.getNormalized());
 
     // Connect knob value changes to parameter
-    knob_.onValueChanged.add([this](float value) {
-        this->param_info_.setValueNotifyingHost(this->param_info_.fromNormalized(value));
-    });
+    knob_.onValueChanged.add(
+        [this](float value) { this->param_info_.setValueNotifyingHost(this->param_info_.fromNormalized(value)); });
 
     // Connect gesture events
     knob_.onDragStarted.add([this]() { this->param_info_.beginGesture(); });

@@ -24,29 +24,22 @@ static constexpr float kMaxCurvature = 32.0f;
 
 MSEGDisplay::MSEGDisplay(MSEGCurve<>* curve) : curve_(curve) {}
 
-float MSEGDisplay::curveXToScreen(float cx) const {
-    return cx * width();
-}
+float MSEGDisplay::curveXToScreen(float cx) const { return cx * width(); }
 
 float MSEGDisplay::curveYToScreen(float cy) const {
-    if (y_max_ <= y_min_)
-        return height() * 0.5f;
+    if (y_max_ <= y_min_) return height() * 0.5f;
     return height() * (1.0f - (cy - y_min_) / (y_max_ - y_min_));
 }
 
-float MSEGDisplay::screenXToCurve(float sx) const {
-    return width() > 0.0f ? sx / width() : 0.0f;
-}
+float MSEGDisplay::screenXToCurve(float sx) const { return width() > 0.0f ? sx / width() : 0.0f; }
 
 float MSEGDisplay::screenYToCurve(float sy) const {
-    if (height() <= 0.0f || y_max_ <= y_min_)
-        return y_min_;
+    if (height() <= 0.0f || y_max_ <= y_min_) return y_min_;
     return y_min_ + (1.0f - sy / height()) * (y_max_ - y_min_);
 }
 
 int MSEGDisplay::hitTestPoint(float sx, float sy) const {
-    if (!curve_)
-        return -1;
+    if (!curve_) return -1;
     float hit_radius = paletteValue(MSEGDisplayPointRadius) * 1.5f;
     float hit_r2 = hit_radius * hit_radius;
     for (int i = 0; i < curve_->num_points; i++) {
@@ -54,15 +47,13 @@ int MSEGDisplay::hitTestPoint(float sx, float sy) const {
         float py = curveYToScreen(curve_->points[i].second);
         float dx = sx - px;
         float dy = sy - py;
-        if (dx * dx + dy * dy <= hit_r2)
-            return i;
+        if (dx * dx + dy * dy <= hit_r2) return i;
     }
     return -1;
 }
 
 int MSEGDisplay::hitTestMidpoint(float sx, float sy) const {
-    if (!curve_ || curve_->num_points < 2)
-        return -1;
+    if (!curve_ || curve_->num_points < 2) return -1;
     float hit_radius = paletteValue(MSEGDisplayMidpointRadius) * 1.5f;
     float hit_r2 = hit_radius * hit_radius;
     for (int s = 0; s < curve_->num_points - 1; s++) {
@@ -72,15 +63,13 @@ int MSEGDisplay::hitTestMidpoint(float sx, float sy) const {
         float py = curveYToScreen(mid_y);
         float dx = sx - px;
         float dy = sy - py;
-        if (dx * dx + dy * dy <= hit_r2)
-            return s;
+        if (dx * dx + dy * dy <= hit_r2) return s;
     }
     return -1;
 }
 
 void MSEGDisplay::draw(applause::Canvas& canvas) {
-    if (!curve_ || curve_->num_points < 2)
-        return;
+    if (!curve_ || curve_->num_points < 2) return;
 
     int n = curve_->num_points;
     float line_width = canvas.value(MSEGDisplayLineWidth);
@@ -93,7 +82,7 @@ void MSEGDisplay::draw(applause::Canvas& canvas) {
     for (int s = 0; s < n - 1; s++) {
         float x0 = curve_->points[s].first;
         float x1 = curve_->points[s + 1].first;
-        int start = (s == 0) ? 0 : 1; // avoid duplicating shared endpoints
+        int start = (s == 0) ? 0 : 1;  // avoid duplicating shared endpoints
         for (int i = start; i <= kSamplesPerSegment; i++) {
             float phase = x0 + (x1 - x0) * (static_cast<float>(i) / kSamplesPerSegment);
             float y = curve_->evaluate(phase);
@@ -101,14 +90,12 @@ void MSEGDisplay::draw(applause::Canvas& canvas) {
         }
     }
 
-    if (samples_.empty())
-        return;
+    if (samples_.empty()) return;
 
     // Fill under the curve
     applause::Path fill_path;
     fill_path.moveTo(samples_[0].x, samples_[0].y);
-    for (size_t i = 1; i < samples_.size(); i++)
-        fill_path.lineTo(samples_[i].x, samples_[i].y);
+    for (size_t i = 1; i < samples_.size(); i++) fill_path.lineTo(samples_[i].x, samples_[i].y);
     fill_path.lineTo(samples_.back().x, static_cast<float>(height()));
     fill_path.lineTo(samples_[0].x, static_cast<float>(height()));
     fill_path.close();
@@ -173,18 +160,15 @@ void MSEGDisplay::mouseExit(const applause::MouseEvent& e) {
 }
 
 void MSEGDisplay::mouseDown(const applause::MouseEvent& e) {
-    if (!curve_)
-        return;
+    if (!curve_) return;
 
     int point_hit = hitTestPoint(e.position.x, e.position.y);
 
     if (point_editing_enabled_ && e.repeatClickCount() == 2) {
         if (point_hit >= 0) {
             // Remove point (keep at least 2)
-            if (curve_->num_points <= 2)
-                return;
-            for (int i = point_hit; i < curve_->num_points - 1; i++)
-                curve_->points[i] = curve_->points[i + 1];
+            if (curve_->num_points <= 2) return;
+            for (int i = point_hit; i < curve_->num_points - 1; i++) curve_->points[i] = curve_->points[i + 1];
             int merged_seg = std::max(0, point_hit - 1);
             curve_->curvature_power[merged_seg] = 0.0f;
             for (int i = point_hit; i < curve_->num_points - 2; i++)
@@ -195,8 +179,7 @@ void MSEGDisplay::mouseDown(const applause::MouseEvent& e) {
             redraw();
         } else {
             // Add point
-            if (curve_->num_points >= 64)
-                return;
+            if (curve_->num_points >= 64) return;
             float new_x = std::clamp(screenXToCurve(e.position.x), 0.0f, 1.0f);
             float new_y = std::clamp(screenYToCurve(e.position.y), y_min_, y_max_);
 
@@ -210,14 +193,12 @@ void MSEGDisplay::mouseDown(const applause::MouseEvent& e) {
             }
 
             // Shift points and curvature right
-            for (int i = curve_->num_points; i > insert_idx; i--)
-                curve_->points[i] = curve_->points[i - 1];
+            for (int i = curve_->num_points; i > insert_idx; i--) curve_->points[i] = curve_->points[i - 1];
             curve_->points[insert_idx] = {new_x, new_y};
 
             for (int i = curve_->num_points - 1; i > insert_idx; i--)
                 curve_->curvature_power[i] = curve_->curvature_power[i - 1];
-            if (insert_idx > 0)
-                curve_->curvature_power[insert_idx - 1] = 0.0f;
+            if (insert_idx > 0) curve_->curvature_power[insert_idx - 1] = 0.0f;
             curve_->curvature_power[insert_idx] = 0.0f;
 
             curve_->num_points++;
@@ -235,13 +216,11 @@ void MSEGDisplay::mouseDown(const applause::MouseEvent& e) {
 
     // Click on midpoint handle: start curvature drag
     int mid_hit = hitTestMidpoint(e.position.x, e.position.y);
-    if (mid_hit >= 0)
-        dragged_segment_ = mid_hit;
+    if (mid_hit >= 0) dragged_segment_ = mid_hit;
 }
 
 void MSEGDisplay::mouseDrag(const applause::MouseEvent& e) {
-    if (!curve_)
-        return;
+    if (!curve_) return;
 
     if (dragged_point_ >= 0) {
         float cx = screenXToCurve(e.position.x);
@@ -270,8 +249,7 @@ void MSEGDisplay::mouseDrag(const applause::MouseEvent& e) {
         float y0 = curve_->points[dragged_segment_].second;
         float y1 = curve_->points[dragged_segment_ + 1].second;
         float dy = y1 - y0;
-        if (std::abs(dy) < kPointEpsilon)
-            return; // flat segment; curvature has no visible effect
+        if (std::abs(dy) < kPointEpsilon) return;  // flat segment; curvature has no visible effect
 
         float desired_y = std::clamp(screenYToCurve(e.position.y), y_min_, y_max_);
         float u = (desired_y - y0) / dy;
@@ -291,4 +269,4 @@ void MSEGDisplay::mouseUp(const applause::MouseEvent& e) {
     redraw();
 }
 
-} // namespace applause
+}  // namespace applause

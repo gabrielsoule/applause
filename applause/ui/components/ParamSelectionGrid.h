@@ -9,6 +9,7 @@
 
 namespace applause {
 
+/// A two dimensional grid of selectable cells, attached to a parameter.
 class ParamSelectionGrid : public applause::Frame {
 public:
     /// Connects a grid to a stepped parameter with whole-number bounds.

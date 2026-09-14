@@ -25,9 +25,7 @@ void SimpleCurve::setSamples(std::span<const float> samples) {
 }
 
 void SimpleCurve::draw(applause::Canvas& canvas) {
-    if (source_data_.numPoints() < 2 || width() <= 0.0f || height() <= 0.0f ||
-        canvas.totallyClamped())
-        return;
+    if (source_data_.numPoints() < 2 || width() <= 0.0f || height() <= 0.0f || canvas.totallyClamped()) return;
 
     const float line_width = std::max(0.0f, canvas.value(ApplauseTraceLineWidth));
     // Visage's graph coordinates include one native pixel of edge antialiasing.

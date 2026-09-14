@@ -114,8 +114,7 @@ void TextSelectionGridCell::drawContent(applause::Canvas& canvas, float hover_am
 }
 
 SelectionGrid::SelectionGrid(int columns, int rows) : columns_(columns), rows_(rows) {
-    if (columns <= 0 || rows <= 0)
-        throw std::invalid_argument("SelectionGrid rows and columns must be positive");
+    if (columns <= 0 || rows <= 0) throw std::invalid_argument("SelectionGrid rows and columns must be positive");
 
     const auto column_count = static_cast<std::size_t>(columns);
     const auto row_count = static_cast<std::size_t>(rows);
@@ -220,8 +219,7 @@ void SelectionGrid::resized() {
     if (columns_ > 1) gap = std::min(gap, content_width / static_cast<float>(columns_ - 1));
     if (rows_ > 1) gap = std::min(gap, content_height / static_cast<float>(rows_ - 1));
 
-    const float cell_width =
-        std::max(0.0f, content_width - gap * static_cast<float>(columns_ - 1)) / columns_;
+    const float cell_width = std::max(0.0f, content_width - gap * static_cast<float>(columns_ - 1)) / columns_;
     const float cell_height = std::max(0.0f, content_height - gap * static_cast<float>(rows_ - 1)) / rows_;
 
     for (int row = 0; row < rows_; ++row) {
