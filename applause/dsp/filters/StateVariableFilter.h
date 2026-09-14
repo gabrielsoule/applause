@@ -1,8 +1,8 @@
 #pragma once
 
-#include <applause/util/SampleType.h>
-#include <applause/util/DebugHelpers.h>
 #include <algorithm>
+#include <applause/util/DebugHelpers.h>
+#include <applause/util/SampleType.h>
 #include <array>
 #include <cmath>
 #include <complex>
@@ -18,15 +18,16 @@ enum class StateVariableFilterType {
 };
 
 /**
- * A second order digital state variable filter, digitized via trapezoidal integration.
- * This filter is stable under rapid parameter
- * modulation, unlike the second order biquad, and it is stable for all valid
- * cutoff and resonance values, unlike the Chamberlin digital SVF.
+ * A second-order digital state variable filter using trapezoidal integration.
+ * This topology is well suited to rapid cutoff and resonance modulation and avoids
+ * the high-cutoff stability restrictions of the Chamberlin digital SVF.
  * Call init() before processing or querying frequency-dependent behavior.
+ *
+ * Frequency-response descriptions assume fixed parameters and a positive cutoff.
  *
  * @tparam S The sample type to be used in the filter (scalar or SIMD batch)
  * @tparam Type The filter type (low, band, high, etc)
- * @tparam UnityGain If true, normalizes output to prevent gain boost at resonance
+ * @tparam UnityGain If true, scales output by the inverse nominal peak gain; unavailable for MultiMode
  * @tparam MaxChannels The number of independent channels of filter state
  */
 template <Sample S, StateVariableFilterType Type, bool UnityGain = false, size_t MaxChannels = 2>
@@ -39,14 +40,14 @@ public:
     static constexpr size_t max_channel_count = MaxChannels;
 
     static_assert(!(UnityGain && Type == StateVariableFilterType::MultiMode),
-                  "UnityGain is not supported for MultiMode: a blended response has no single peak gain");
+                  "UnityGain is not implemented for MultiMode");
     static_assert(MaxChannels >= 1, "The filter needs at least one channel of state");
 
-    StateVariableFilter() {
-        reset();
-    }
+    StateVariableFilter() { reset(); }
 
-    /** Sets the sample rate, updates coefficients, and clears the filter state. */
+    /**
+     * Sets the sample rate, clamps the existing cutoff if needed, updates coefficients, and clears the filter state.
+     */
     void init(double sample_rate) {
         ASSERT(sample_rate > 0.0, "Sample rate must be positive");
 
@@ -64,11 +65,21 @@ public:
         s2_.fill(SampleType(0.0));
     }
 
+    /**
+     * Sets the filter's natural-frequency parameter in Hz. For lowpass/highpass filters,
+     * this is the -3 dB frequency at Butterworth Q = 1/sqrt(2). For bandpass filters,
+     * it is the center frequency.
+     *
+     * If should_update is false, call update() or another coefficient-updating setter
+     * before processing samples. This allows multiple parameter changes to share one update invocation.
+     *
+     * @tparam should_update true if you want to update the filter coefficients immediately
+     * @param frequency the desired cutoff in Hz, in [0, 0.4999 * sample_rate) (per lane for SIMD types)
+     */
     template <bool should_update = true>
     void setCutoffFrequency(SampleType frequency) {
         if constexpr (SimdBatch<SampleType>) {
-            ASSERT(xsimd::all(frequency >= SampleType(0.0))
-                       && xsimd::all(frequency < SampleType(nyquist_limit_)),
+            ASSERT(xsimd::all(frequency >= SampleType(0.0)) && xsimd::all(frequency < SampleType(nyquist_limit_)),
                    "Frequency must be non-negative and below Nyquist");
         } else {
             ASSERT(frequency >= SampleType(0.0) && frequency < nyquist_limit_,
@@ -81,12 +92,25 @@ public:
         using std::tan;
         using xsimd::tan;
         g_ = tan(cutoff_ * pi_over_sr);
-        if constexpr (should_update)
-            update();
+        if constexpr (should_update) update();
     }
 
+    /**
+     * Sets the resonance (Q). For lowpass/highpass responses, Q = 1/sqrt(2) (about 0.7071)
+     * gives a Butterworth response with a maximally flat passband. Lower Q adds damping
+     * with no resonant peak; higher Q reduces damping and produces a sharper resonant peak.
+     *
+     * Damping has a separate threshold: Q < 0.5 is overdamped, Q = 0.5 is critically damped,
+     * and Q > 0.5 is underdamped. The Butterworth response is therefore underdamped.
+     *
+     * If should_update is false, call update() or another coefficient-updating setter
+     * before processing samples.
+     *
+     * @tparam should_update true if you want to update the filter coefficients immediately
+     * @param q the desired positive Q value (per lane for SIMD types)
+     */
     template <bool should_update = true>
-    void setQValue(SampleType q) {
+    void setResonance(SampleType q) {
         if constexpr (SimdBatch<SampleType>) {
             ASSERT(xsimd::all(q > SampleType(0.0)), "Q must be positive");
         } else {
@@ -94,17 +118,15 @@ public:
         }
         q_ = q;
         k_ = static_cast<SampleType>(1.0) / q;
-        if constexpr (should_update)
-            update();
+        if constexpr (should_update) update();
     }
 
     /**
-     * Sets the filter response for MultiMode filters: 0 is lowpass, 0.5 is
-     * bandpass, 1 is highpass, blending with constant power in between.
-     * Does not touch the filter coefficients, so no update() is needed.
+     * Sets the response for MultiMode filters: 0 is lowpass, 0.5 is bandpass with a
+     * sqrt(2) gain boost, and 1 is highpass.
      */
     void setMode(SampleType mode)
-        requires (Type == StateVariableFilterType::MultiMode)
+        requires(Type == StateVariableFilterType::MultiMode)
     {
         if constexpr (SimdBatch<SampleType>) {
             ASSERT(xsimd::all(mode >= SampleType(0.0)) && xsimd::all(mode <= SampleType(1.0)),
@@ -117,8 +139,7 @@ public:
         const auto bp = SampleType(1.0) - applause::abs(SampleType(2.0) * mode - SampleType(1.0));
         const auto hp = SampleType(2.0) * applause::max(mode, SampleType(0.5)) - SampleType(1.0);
 
-        // sin() shaping gives a constant-power crossfade; the bandpass tap is
-        // quieter than the other two by design, so compensate by sqrt(2).
+        // At Butterworth Q, the fixed sqrt(2) bandpass boost gives all three pure modes unit peak gain.
         using std::sin;
         using xsimd::sin;
         const auto half_pi = SampleType(ScalarType(M_PI_2));
@@ -128,12 +149,18 @@ public:
     }
 
     /**
-     * Returns the peak gain of the filter (maximum amplitude response).
-     * For LP/HP filters, resonance creates a peak only when Q > 1/sqrt(2).
-     * For BP filters, peak gain equals Q.
+     * Returns the nominal peak amplitude gain before UnityGain normalization.
+     * For lowpass/highpass filters, this is 1 when Q <= 1/sqrt(2) and greater than 1 otherwise.
+     * For bandpass filters, it equals Q.
+     *
+     * These values describe the actual unnormalized peak gain for a positive cutoff.
+     * At zero cutoff, this function still returns the nominal Q-based value.
+     *
+     * Available only for lowpass, bandpass, and highpass filters.
      */
     [[nodiscard]] SampleType getPeakGain() const noexcept
-        requires (Type != StateVariableFilterType::MultiMode) {
+        requires(Type != StateVariableFilterType::MultiMode)
+    {
         constexpr ScalarType inv_sqrt_two = ScalarType(0.70710678118654752440);
 
         if constexpr (filter_type == StateVariableFilterType::Lowpass ||
@@ -144,8 +171,7 @@ public:
                 const auto has_resonance = q_ > SampleType(inv_sqrt_two);
                 const auto k2 = k_ * k_;
                 const auto safe_k2 = xsimd::select(has_resonance, k2, SampleType(1.0));
-                const auto peak = SampleType(2.0)
-                                / (safe_k2 * sqrt(SampleType(4.0) / safe_k2 - SampleType(1.0)));
+                const auto peak = SampleType(2.0) / (safe_k2 * sqrt(SampleType(4.0) / safe_k2 - SampleType(1.0)));
                 return xsimd::select(has_resonance, peak, SampleType(1.0));
             } else {
                 if (q_ > inv_sqrt_two) {
@@ -161,26 +187,32 @@ public:
         }
     }
 
-    [[nodiscard]] SampleType getCutoffFrequency() const noexcept {
-        return cutoff_;
-    }
+    [[nodiscard]] SampleType getCutoffFrequency() const noexcept { return cutoff_; }
 
-    [[nodiscard]] SampleType getResonance() const noexcept {
-        return q_;
-    }
+    [[nodiscard]] SampleType getResonance() const noexcept { return q_; }
 
+    /**
+     * Returns the resonant peak frequency in Hz for lowpass/highpass filters with Q > 1/sqrt(2),
+     * or the cutoff frequency for bandpass filters.
+     *
+     * For lowpass/highpass filters with Q <= 1/sqrt(2), returns the cutoff frequency as a fallback.
+     * The actual response maximum is at DC for lowpass and Nyquist for highpass.
+     *
+     * Available only for lowpass, bandpass, and highpass filters.
+     */
     [[nodiscard]] SampleType getPeakFrequency() const noexcept
-        requires (Type != StateVariableFilterType::MultiMode) {
+        requires(Type != StateVariableFilterType::MultiMode)
+    {
         constexpr ScalarType inv_sqrt_two = ScalarType(0.70710678118654752440);
 
         if constexpr (filter_type == StateVariableFilterType::Bandpass) {
             return cutoff_;
         }
 
-        using std::sqrt;
         using std::atan;
-        using xsimd::sqrt;
+        using std::sqrt;
         using xsimd::atan;
+        using xsimd::sqrt;
         const auto sr_over_pi = SampleType(static_cast<ScalarType>(sample_rate_ / M_PI));
 
         if constexpr (SimdBatch<SampleType>) {
@@ -214,17 +246,25 @@ public:
     }
 
     /**
-     * Sets the filter frequency based on peak frequency rather than cutoff,
-     * i.e. a cutoff is calculated such that its peak frequency, with respect to the current
-     * resonance value, is equal to this function's input. For bandpass filters,
-     * peak frequency is equal to cutoff frequency.
+     * Calculates the cutoff from the requested peak frequency in Hz and the current Q.
+     * For bandpass filters, the cutoff is set directly to the requested frequency.
+     *
+     * Lowpass/highpass filters require Q > 1/sqrt(2).
+     * Bandpass filters accept any positive Q.
+     *
+     * If should_update is false, call update() before processing.
+     *
+     * This function is available only for lowpass, bandpass, and highpass filters.
+     *
+     * @tparam should_update true if you want to update the filter coefficients immediately
+     * @param frequency the desired peak frequency in Hz, in [0, 0.4999 * sample_rate) (per lane for SIMD types)
      */
     template <bool should_update = true>
     void setPeakFrequency(SampleType frequency)
-        requires (Type != StateVariableFilterType::MultiMode) {
+        requires(Type != StateVariableFilterType::MultiMode)
+    {
         if constexpr (SimdBatch<SampleType>) {
-            ASSERT(xsimd::all(frequency >= SampleType(0.0))
-                       && xsimd::all(frequency < SampleType(nyquist_limit_)),
+            ASSERT(xsimd::all(frequency >= SampleType(0.0)) && xsimd::all(frequency < SampleType(nyquist_limit_)),
                    "Frequency must be non-negative and below Nyquist");
         } else {
             ASSERT(frequency >= SampleType(0.0) && frequency < nyquist_limit_,
@@ -236,18 +276,17 @@ public:
         } else {
             if constexpr (SimdBatch<SampleType>) {
                 ASSERT(xsimd::all(q_ > SampleType(ScalarType(0.70710678118654752440))),
-                       "Q must be > sqrt(0.5) for peak frequency mode");
+                       "Q must be > 1/sqrt(2) for peak frequency mode");
             } else {
-                ASSERT(q_ > ScalarType(0.70710678118654752440),
-                       "Q must be > sqrt(0.5) for peak frequency mode");
+                ASSERT(q_ > ScalarType(0.70710678118654752440), "Q must be > 1/sqrt(2) for peak frequency mode");
             }
 
+            using std::atan;
             using std::sqrt;
             using std::tan;
-            using std::atan;
+            using xsimd::atan;
             using xsimd::sqrt;
             using xsimd::tan;
-            using xsimd::atan;
 
             const auto q2 = q_ * q_;
             const auto factor = sqrt(SampleType(1.0) - SampleType(0.5) / q2);
@@ -278,8 +317,7 @@ public:
         using xsimd::tan;
         g_ = tan(cutoff_ * pi_over_sr);
 
-        if constexpr (should_update)
-            update();
+        if constexpr (should_update) update();
     }
 
     void update() {
@@ -307,9 +345,7 @@ public:
     }
 
     /** Processes a block of samples on channel 0. In-place processing (input == output) is allowed. */
-    void process(const S* input, S* output, size_t num_frames) noexcept {
-        process(0, input, output, num_frames);
-    }
+    void process(const S* input, S* output, size_t num_frames) noexcept { process(0, input, output, num_frames); }
 
     /** Processes a block of samples on the given channel. All channels share the same coefficients. */
     void process(size_t channel, const S* input, S* output, size_t num_frames) noexcept {
@@ -327,11 +363,13 @@ public:
     }
 
     /**
-     * Returns the phase delay of the filter at the given frequency, in samples.
+     * Returns phase delay in samples using -arg(H) / omega, with omega in radians per sample.
+     * Uses principal phase without unwrapping; the result can be negative or discontinuous.
+     * Phase is undefined where the response magnitude is zero.
      *
-     * This function currently doesn't implement SIMD acceleration, even
-     * if the filter is templated with respect to a SIMD sample type.
+     * SIMD inputs are evaluated one lane at a time using scalar arithmetic.
      *
+     * @param frequency the frequency in Hz
      */
     [[nodiscard]] SampleType getPhaseDelayInSamples(SampleType frequency) const noexcept {
         if constexpr (SimdBatch<SampleType>) {
@@ -353,8 +391,8 @@ public:
                 mix_.hp.store_aligned(hp_arr);
 
                 for (size_t i = 0; i < SampleType::size; ++i) {
-                    result_arr[i] = computePhaseDelayScalar(freq_arr[i], g_arr[i], k_arr[i],
-                                                            lp_arr[i], bp_arr[i], hp_arr[i]);
+                    result_arr[i] =
+                        computePhaseDelayScalar(freq_arr[i], g_arr[i], k_arr[i], lp_arr[i], bp_arr[i], hp_arr[i]);
                 }
             } else {
                 for (size_t i = 0; i < SampleType::size; ++i) {
@@ -372,13 +410,8 @@ public:
     }
 
 private:
-    [[nodiscard]] __attribute__((always_inline)) SampleType
-    processSampleInternal(SampleType x, SampleType& s1, SampleType& s2) noexcept {
-        // Simper's "tick parallel": both integrator increments (t1, t2) come
-        // straight off the input and the previous state through premultiplied
-        // coefficients, so the loop-carried dependency chain is ~3 FLOPs
-        // instead of the serial form's ~8; the extra multiplies run on FP
-        // units the recurrence leaves idle.
+    [[nodiscard]] __attribute__((always_inline)) SampleType processSampleInternal(SampleType x, SampleType& s1,
+                                                                                  SampleType& s2) noexcept {
         const auto t0 = x - s2;
         const auto t1 = gt1_ * t0 - gk1_ * s1;
         const auto t2 = gt2_ * t0 + gt1_ * s1;
@@ -411,14 +444,12 @@ private:
     }
 
     /**
-     * Computes phase delay for a single set of scalar parameters using complex arithmetic.
+     * Computes phase delay for a single set of scalar parameters.
      * This evaluates the filter's z-domain transfer function at the given frequency.
      */
-    [[nodiscard]] ScalarType computePhaseDelayScalar(ScalarType freq, ScalarType g, ScalarType k,
-                                                     ScalarType lp = 0, ScalarType bp = 0,
-                                                     ScalarType hp = 0) const noexcept {
-        if (freq <= ScalarType(0))
-            return ScalarType(0);
+    [[nodiscard]] ScalarType computePhaseDelayScalar(ScalarType freq, ScalarType g, ScalarType k, ScalarType lp = 0,
+                                                     ScalarType bp = 0, ScalarType hp = 0) const noexcept {
+        if (freq <= ScalarType(0)) return ScalarType(0);
 
         const ScalarType omega = ScalarType(2.0 * M_PI) * freq / ScalarType(sample_rate_);
         const std::complex<ScalarType> j(0, 1);
@@ -437,20 +468,15 @@ private:
             const auto z_minus_one = z - ScalarType(1);
             num = z_minus_one * z_minus_one;
         } else if constexpr (filter_type == StateVariableFilterType::MultiMode) {
-            // The blend shares the denominator, so its response is exactly the
-            // mix-weighted sum of the three numerators.
             const auto one_plus_z = ScalarType(1) + z;
             const auto z_minus_one = z - ScalarType(1);
-            num = lp * (g2 * one_plus_z * one_plus_z)
-                + bp * (g * (z * z - ScalarType(1)))
-                + hp * (z_minus_one * z_minus_one);
+            num = lp * (g2 * one_plus_z * one_plus_z) + bp * (g * (z * z - ScalarType(1))) +
+                hp * (z_minus_one * z_minus_one);
         }
 
         const auto z_minus_one = z - ScalarType(1);
         const auto z_plus_one = z + ScalarType(1);
-        const auto den = z_minus_one * z_minus_one
-                       + g2 * z_plus_one * z_plus_one
-                       + gk * (z * z - ScalarType(1));
+        const auto den = z_minus_one * z_minus_one + g2 * z_plus_one * z_plus_one + gk * (z * z - ScalarType(1));
 
         const auto H = num / den;
         const auto phase = std::arg(H);
@@ -463,18 +489,13 @@ private:
     SampleType k_ = SampleType(1.0) / q_;
 
     SampleType g_ = SampleType(0.0);
-
-    // Premultiplied "tick parallel" coefficients: gt0 = 1/(1 + g(g+k)),
-    // gk0 = (g+k)*gt0, gt1 = g*gt0, gk1 = g*gk0, gt2 = g^2*gt0.
-    // Defaults match update() evaluated at g = 0.
     SampleType gt0_ = SampleType(1.0);
     SampleType gk0_ = k_;
     SampleType gt1_ = SampleType(0.0);
     SampleType gk1_ = SampleType(0.0);
     SampleType gt2_ = SampleType(0.0);
 
-    // Per-channel signal state; the parameters and coefficients around it are
-    // shared by all channels.
+    // Per-channel signal state
     std::array<SampleType, MaxChannels> s1_;
     std::array<SampleType, MaxChannels> s2_;
     SampleType one_over_peak_gain_ = SampleType(1.0);
@@ -485,8 +506,7 @@ private:
         SampleType hp = SampleType(0.0);
     };
     struct Empty {};
-    [[no_unique_address]] std::conditional_t<Type == StateVariableFilterType::MultiMode,
-                                             MultiModeMix, Empty> mix_;
+    [[no_unique_address]] std::conditional_t<Type == StateVariableFilterType::MultiMode, MultiModeMix, Empty> mix_;
 
     double sample_rate_ = -1;
     ScalarType nyquist_limit_ = -1;
@@ -504,4 +524,4 @@ using SVFBandpass = StateVariableFilter<S, StateVariableFilterType::Bandpass, fa
 template <Sample S = float, size_t MaxChannels = 2>
 using SVFMultiMode = StateVariableFilter<S, StateVariableFilterType::MultiMode, false, MaxChannels>;
 
-} // namespace applause
+}  // namespace applause

@@ -51,7 +51,7 @@ template <typename Filter>
 Filter configureFilter(Filter filter, double rate, typename Filter::SampleType cutoff, typename Filter::SampleType q) {
     filter.init(rate);
     filter.setCutoffFrequency(cutoff);
-    filter.setQValue(q);
+    filter.setResonance(q);
     return filter;
 }
 
@@ -347,12 +347,12 @@ TEMPLATE_TEST_CASE("StateVariableFilter SIMD lanes support independent rapid mod
             inputs[lane] = Scalar(std::sin(0.031 * double(sample + lane * 13)));
 
             scalar_filters[lane].setCutoffFrequency(cutoffs[lane]);
-            scalar_filters[lane].setQValue(qs[lane]);
+            scalar_filters[lane].setResonance(qs[lane]);
             scalar_filters[lane].setMode(modes[lane]);
         }
 
         simd_filter.setCutoffFrequency(S::load_aligned(cutoffs.data()));
-        simd_filter.setQValue(S::load_aligned(qs.data()));
+        simd_filter.setResonance(S::load_aligned(qs.data()));
         simd_filter.setMode(S::load_aligned(modes.data()));
         const S output = simd_filter.processSample(S::load_aligned(inputs.data()));
 
@@ -488,9 +488,9 @@ TEMPLATE_TEST_CASE("StateVariableFilter eager and deferred coefficient updates a
     auto eager = configureFilter(applause::SVFLowpass<S>{}, sample_rate, initial_cutoff, initial_q);
     auto deferred = eager;
     eager.setCutoffFrequency(new_cutoff);
-    eager.setQValue(new_q);
+    eager.setResonance(new_q);
     deferred.template setCutoffFrequency<false>(new_cutoff);
-    deferred.template setQValue<false>(new_q);
+    deferred.template setResonance<false>(new_q);
     deferred.update();
 
     requireClose(eager.getCutoffFrequency(), new_cutoff, 0.0);
