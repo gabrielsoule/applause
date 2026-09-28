@@ -221,13 +221,16 @@ void UiButton::draw(applause::Canvas& canvas) {
 
 void IconButton::draw(applause::Canvas& canvas) {
     float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
-    shadow_.setFillBrush(canvas.color(Button::ApplauseButtonShadow));
+    const auto shadow_color = canvas.color(Button::ApplauseButtonShadow);
+    shadow_.setFillBrush(shadow_color);
+    shadow_.setStrokeBrush(shadow_color);
 
-    if (isActive())
-        icon_.setFillBrush(canvas.blendedColor(ToggleButton::ApplauseToggleButtonOff,
-                                               ToggleButton::ApplauseToggleButtonOffHover, hover_amount));
-    else
-        icon_.setFillBrush(canvas.color(ToggleButton::ApplauseToggleButtonDisabled));
+    const auto icon_color = isActive()
+        ? canvas.blendedColor(ToggleButton::ApplauseToggleButtonOff,
+                              ToggleButton::ApplauseToggleButtonOffHover, hover_amount)
+        : canvas.color(ToggleButton::ApplauseToggleButtonDisabled);
+    icon_.setFillBrush(icon_color);
+    icon_.setStrokeBrush(icon_color);
 
     drawGlow(*this, canvas, hover_amount);
     if (hover_amount_.isAnimating()) redraw();
@@ -267,12 +270,15 @@ bool ToggleButton::toggle() {
 
 void ToggleIconButton::draw(applause::Canvas& canvas) {
     float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
-    shadow_.setFillBrush(canvas.color(Button::ApplauseButtonShadow));
+    const auto shadow_color = canvas.color(Button::ApplauseButtonShadow);
+    shadow_.setFillBrush(shadow_color);
+    shadow_.setStrokeBrush(shadow_color);
 
-    if (toggled())
-        icon_.setFillBrush(canvas.blendedColor(ApplauseToggleButtonOn, ApplauseToggleButtonOnHover, hover_amount));
-    else
-        icon_.setFillBrush(canvas.blendedColor(ApplauseToggleButtonOff, ApplauseToggleButtonOffHover, hover_amount));
+    const auto icon_color = toggled()
+        ? canvas.blendedColor(ApplauseToggleButtonOn, ApplauseToggleButtonOnHover, hover_amount)
+        : canvas.blendedColor(ApplauseToggleButtonOff, ApplauseToggleButtonOffHover, hover_amount);
+    icon_.setFillBrush(icon_color);
+    icon_.setStrokeBrush(icon_color);
 
     drawGlow(*this, canvas, hover_amount);
     if (hover_amount_.isAnimating()) redraw();
