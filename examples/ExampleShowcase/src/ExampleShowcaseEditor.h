@@ -4,6 +4,11 @@
 #include <applause/extensions/ParamsExtension.h>
 #include <applause/ui/ApplauseEditor.h>
 #include <applause/ui/components/Button.h>
+#include <applause/ui/components/Checkbox.h>
+#include <applause/ui/components/ParamCheckbox.h>
+#include <applause/ui/components/ParamRadioGroup.h>
+#include <applause/ui/components/RadioButton.h>
+#include <applause/ui/components/RadioGroup.h>
 #include <applause/ui/components/SelectionGrid.h>
 #include <applause/ui/components/GenericParameterUI.h>
 #include <applause/ui/components/Panel.h>
@@ -14,6 +19,7 @@
 #include <applause/ui/components/modulation/MSEGDisplay.h>
 #include <applause/ui/components/modulation/ModMatrixComponent.h>
 #include <memory>
+#include <array>
 
 class ExampleShowcaseEditor : public applause::ApplauseEditor {
 public:
@@ -28,8 +34,8 @@ private:
     applause::Panel buttons_panel_{"Buttons"};
     applause::Panel sliders_panel_{"Sliders"};
     applause::Panel params_panel_{"Parameters"};
-    applause::Panel selection_grids_panel_{"Selection Grids"};
-    applause::Panel plots_panel_{"TraceView / PlotView"};
+    applause::Panel selection_grids_panel_{"Selection & Radios"};
+    applause::Panel plots_panel_{"Graphs and Plots"};
     applause::Panel mseg_panel_{"MSEG"};
     applause::Panel mod_matrix_panel_{"Mod Matrix"};
     applause::MSEGCurve<> demo_curve_;
@@ -68,6 +74,15 @@ private:
     std::unique_ptr<applause::UiButton> small_button_;
     std::unique_ptr<applause::ToggleTextButton> small_toggle_button_;
 
+    applause::Checkbox checkbox_{"Checkbox"};
+    applause::Checkbox inactive_checkbox_{"Inactive"};
+    applause::Checkbox small_checkbox_{"Small"};
+    std::unique_ptr<applause::ParamCheckbox> enabled_checkbox_;
+    applause::RadioGroup demo_radio_group_;
+    applause::RadioButton first_radio_{"First"};
+    applause::RadioButton second_radio_{"Second"};
+    applause::RadioButton inactive_radio_{"Inactive"};
+
     // Sliders
     applause::Slider normal_slider_;
     applause::Slider bipolar_slider_;
@@ -76,6 +91,9 @@ private:
     // Selection grids
     std::unique_ptr<applause::ParamSelectionGrid> filter_mode_grid_;
     applause::SelectionGrid waveform_grid_{2, 3};
+    applause::RadioGroup filter_radio_group_;
+    std::array<std::unique_ptr<applause::RadioButton>, 6> filter_radios_;
+    applause::ParamRadioGroup filter_radio_binding_;
 
     void onLoadFileClicked();
 };

@@ -199,6 +199,24 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
         [](applause::Button* button, bool on) { LOG_INFO("Small toggle state: {}", on ? "ON" : "OFF"); };
     buttons_panel_.content().addChild(small_toggle_button_.get());
 
+    checkbox_.setToggled(true);
+    buttons_panel_.content().addChild(checkbox_);
+    inactive_checkbox_.setActive(false);
+    buttons_panel_.content().addChild(inactive_checkbox_);
+    buttons_panel_.content().addChild(small_checkbox_);
+    if (getParamsExtension()) {
+        enabled_checkbox_ = std::make_unique<applause::ParamCheckbox>(getParamsExtension()->getInfo("demo_enabled"));
+        buttons_panel_.content().addChild(enabled_checkbox_.get());
+    }
+
+    demo_radio_group_.addButton(first_radio_, 0);
+    demo_radio_group_.addButton(second_radio_, 1);
+    demo_radio_group_.addButton(inactive_radio_, 2);
+    inactive_radio_.setActive(false);
+    buttons_panel_.content().addChild(first_radio_);
+    buttons_panel_.content().addChild(second_radio_);
+    buttons_panel_.content().addChild(inactive_radio_);
+
     // --- Sliders Panel (right column) ---
     addChild(&sliders_panel_);
 
@@ -220,6 +238,15 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
         filter_mode_grid_ = std::make_unique<applause::ParamSelectionGrid>(
             getParamsExtension()->getInfo("filter_mode"), 3, 2);
         selection_grids_panel_.content().addChild(filter_mode_grid_.get());
+
+        auto& filter_mode = getParamsExtension()->getInfo("filter_mode");
+        for (int index = 0; index < static_cast<int>(filter_radios_.size()); ++index) {
+            auto radio = std::make_unique<applause::RadioButton>(filter_mode.valueToText(filter_mode.minValue + index));
+            filter_radio_group_.addButton(*radio, index);
+            selection_grids_panel_.content().addChild(radio.get());
+            filter_radios_[index] = std::move(radio);
+        }
+        filter_radio_binding_.attach(filter_mode, filter_radio_group_);
     }
 
     waveform_grid_.emplaceCell<WaveformCell>(0, WaveformCell::Waveform::Sine);
@@ -239,6 +266,11 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
     if (load_file_button_) applause::setTooltip(*load_file_button_, "Open a file dialog");
     applause::setTooltip(normal_slider_, "A unipolar slider");
     applause::setTooltip(bipolar_slider_, "A bipolar slider centered at zero");
+    applause::setTooltip(checkbox_, "An independent two-state checkbox");
+    if (enabled_checkbox_)
+        applause::setTooltip(*enabled_checkbox_, "Connected to Demo Enabled in the parameter list");
+    for (auto& radio : filter_radios_)
+        if (radio) applause::setTooltip(*radio, "Shares Filter Mode with the knob, grid, and parameter list");
 
     // --- MSEG Panel ---
     addChild(&mseg_panel_);
@@ -376,13 +408,26 @@ void ExampleShowcaseEditor::resized() {
         if (small_button_) small_button_->setBounds(btn_pad, small_y, small_bw, small_bh);
         if (small_toggle_button_)
             small_toggle_button_->setBounds(btn_pad + small_bw + kGap, small_y, small_bw, small_bh);
+
+        const float checkbox_y = small_y + small_bh + row_gap;
+        checkbox_.setBounds(btn_pad, checkbox_y, bw, 24.0f);
+        if (enabled_checkbox_)
+            enabled_checkbox_->setBounds(btn_pad + bw + kGap, checkbox_y, bw, 24.0f);
+        inactive_checkbox_.setBounds(btn_pad, checkbox_y + 28.0f, bw, 24.0f);
+        small_checkbox_.setBounds(btn_pad + bw + kGap, checkbox_y + 31.0f, bw, 18.0f);
+
+        const float radio_y = checkbox_y + 60.0f;
+        const float radio_w = (bc.width() - 2 * btn_pad) / 3.0f;
+        first_radio_.setBounds(btn_pad, radio_y, radio_w, 24.0f);
+        second_radio_.setBounds(btn_pad + radio_w, radio_y, radio_w, 24.0f);
+        inactive_radio_.setBounds(btn_pad + 2 * radio_w, radio_y, radio_w, 24.0f);
     }
 
     // --- Column 3 (right): MSEG, Selection Grids, Mod Matrix, Plots ---
     float col3_x = col2_x + col2_w + kGap;
     float col3_w = width() - col3_x - kPadding;
 
-    float mseg_h = (col_h - kGap) * 0.45f;
+    float mseg_h = (col_h - kGap) * 0.5f;
     static constexpr float kSelectionGridsPanelWidth = 260.0f;
     float mseg_w = col3_w - kSelectionGridsPanelWidth - kGap;
     mseg_panel_.setBounds(col3_x, kPadding, mseg_w, mseg_h);
@@ -399,7 +444,16 @@ void ExampleShowcaseEditor::resized() {
         if (filter_mode_grid_)
             filter_mode_grid_->setBounds(0, 0, cc.width(), kTextGridHeight);
 
-        float waveform_y = kTextGridHeight + kGridGap;
+        constexpr float kRadioHeight = 24.0f;
+        const float radio_y = kTextGridHeight + kGridGap;
+        for (int index = 0; index < static_cast<int>(filter_radios_.size()); ++index) {
+            if (filter_radios_[index])
+                filter_radios_[index]->setBounds((index % 2) * cc.width() * 0.5f,
+                                                radio_y + (index / 2) * kRadioHeight,
+                                                cc.width() * 0.5f, kRadioHeight);
+        }
+
+        float waveform_y = radio_y + 3 * kRadioHeight + kGridGap;
         float waveform_h = cc.height() - waveform_y;
         float waveform_w = std::min(cc.width(), waveform_h * 2.0f / 3.0f);
         waveform_grid_.setBounds((cc.width() - waveform_w) * 0.5f, waveform_y, waveform_w, waveform_h);

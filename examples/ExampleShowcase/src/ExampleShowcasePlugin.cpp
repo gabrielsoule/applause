@@ -11,7 +11,7 @@ ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* des
     note_ports_(),
     params_(),
     mod_matrix_({.num_voices = 8, .max_sources = 16, .max_destinations = 32, .max_connections = 32}),
-    gui_ext_([this]() { return std::make_unique<ExampleShowcaseEditor>(&params_, &mod_matrix_); }, 1350, 600) {
+    gui_ext_([this]() { return std::make_unique<ExampleShowcaseEditor>(&params_, &mod_matrix_); }, 1350, 760) {
     LOG_INFO("ExampleShowcase constructor");
 
     // Configure extensions
@@ -45,6 +45,12 @@ ExampleShowcasePlugin::ExampleShowcasePlugin(const clap_plugin_descriptor_t* des
                                                 .default_value = 0.0f,
                                                 .choices = {"Low-pass", "Band-pass", "High-pass", "Notch", "Peak",
                                                             "All-pass"}});
+
+    params_.registerParam(applause::ParamConfig{.string_id = "demo_enabled",
+                                                .name = "Demo Enabled",
+                                                .short_name = "Demo Enabled",
+                                                .default_value = 1.0f,
+                                                .choices = {"Off", "On"}});
 
     // Additional parameters to demonstrate scrolling in GenericParameterUI
     params_.registerParam(applause::ParamConfig{.string_id = "volume",

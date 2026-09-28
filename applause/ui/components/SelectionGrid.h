@@ -1,6 +1,7 @@
 #pragma once
 
 #include <applause/ui/components/Button.h>
+#include <applause/ui/components/RadioGroup.h>
 
 #include <concepts>
 #include <initializer_list>
@@ -12,11 +13,12 @@
 
 namespace applause {
 
+class ParamSelectionGrid;
 class SelectionGrid;
 
 /// A selectable cell whose selection is managed by its grid.
 /// Override drawContent() to provide custom visuals.
-class SelectionGridCell : public Button {
+class SelectionGridCell : public ToggleButton {
 public:
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseSelectionGridCellBackground);
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseSelectionGridCellBackgroundHover);
@@ -34,12 +36,10 @@ public:
     APPLAUSE_THEME_DEFINE_VALUE(ApplauseSelectionGridCellContentPadding);
     APPLAUSE_THEME_DEFINE_VALUE(ApplauseSelectionGridCellGlowCenterAmount);
 
-    [[nodiscard]] bool selected() const noexcept { return selected_; }
+    [[nodiscard]] bool selected() const noexcept { return toggled(); }
     /// Returns the cell's index in its grid.
     [[nodiscard]] int index() const noexcept { return index_; }
 
-    /// Selects this cell and notifies the grid if the selection changes.
-    bool toggle() override;
     void draw(applause::Canvas& canvas) override;
 
 protected:
@@ -51,12 +51,8 @@ protected:
 private:
     friend class SelectionGrid;
 
-    void setSelected(bool selected);
     void setIndex(int index) noexcept { index_ = index; }
-    void setGrid(SelectionGrid* grid) noexcept { grid_ = grid; }
 
-    SelectionGrid* grid_ = nullptr;
-    bool selected_ = false;
     int index_ = -1;
 };
 
@@ -98,7 +94,7 @@ public:
     SelectionGrid(int columns, int rows, std::initializer_list<std::string_view> labels);
 
     /// Returns the selected cell's index, starting at 0.
-    [[nodiscard]] int selectedIndex() const noexcept { return selected_index_; }
+    [[nodiscard]] int selectedIndex() const noexcept { return group_.selectedId(); }
 
     /// Changes the selection without calling onSelectionChanged().
     void setSelectedIndex(int index);
@@ -127,6 +123,8 @@ public:
     void resized() override;
 
 private:
+    friend class ParamSelectionGrid;
+
     void validateIndex(int index) const;
     void configureCell(SelectionGridCell& cell, int index);
     void replaceCell(int index, std::unique_ptr<SelectionGridCell> cell);
@@ -135,8 +133,8 @@ private:
     int columns_;
     int rows_;
     std::vector<std::unique_ptr<SelectionGridCell>> cells_;
+    RadioGroup group_;
     applause::CallbackList<void(int)> on_selection_changed_;
-    int selected_index_ = 0;
 };
 
 }  // namespace applause

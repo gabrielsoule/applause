@@ -221,6 +221,29 @@ TEST_CASE("SelectionGrid cells use child-frame mouse activation", "[ui][selectio
     REQUIRE(changes == std::vector<int>{3});
 }
 
+TEST_CASE("SelectionGrid cell setters preserve a single authoritative selection", "[ui][selection-grid]") {
+    applause::SelectionGrid grid(3, 1);
+    std::vector<int> changes;
+    grid.onSelectionChanged() += [&](int index) { changes.push_back(index); };
+
+    grid.cell(1).setToggled(true);
+    REQUIRE(grid.selectedIndex() == 1);
+    REQUIRE_FALSE(grid.cell(0).selected());
+    REQUIRE(grid.cell(1).selected());
+    REQUIRE(changes.empty());
+
+    grid.cell(1).setToggled(false);
+    grid.cell(1).setToggledAndNotify(false);
+    REQUIRE(grid.selectedIndex() == 1);
+    REQUIRE(grid.cell(1).selected());
+    REQUIRE(changes.empty());
+
+    grid.cell(2).setToggledAndNotify(true);
+    REQUIRE(grid.selectedIndex() == 2);
+    REQUIRE_FALSE(grid.cell(1).selected());
+    REQUIRE(changes == std::vector<int>{2});
+}
+
 TEST_CASE("ParamSelectionGrid validates parameter semantics", "[ui][selection-grid][params]") {
     SECTION("parameter must be stepped") {
         TestPlugin plugin;
@@ -318,4 +341,42 @@ TEST_CASE("ParamSelectionGrid sends one complete gesture and follows parameter c
     REQUIRE(grid.selectedIndex() == 1);
     REQUIRE(parameter.getValue() == 0.0f);
     REQUIRE(changes == std::vector<int>{2});
+}
+
+TEST_CASE("ParamSelectionGrid replacement keeps its parameter binding and selected index",
+          "[ui][selection-grid][params]") {
+    TestPlugin plugin;
+    plugin.params.registerParam(choiceParam("mode", -1.0f, 1.0f, 0.0f));
+    auto& parameter = plugin.params.getInfo("mode");
+    applause::ParamMessageQueue queue;
+    plugin.params.setMessageQueue(&queue);
+    applause::ParamSelectionGrid grid(parameter, 3, 1);
+    grid.setBounds(0.0f, 0.0f, 150.0f, 50.0f);
+    auto& replacement = grid.emplaceCell<CustomCell>(1, 42);
+    REQUIRE(replacement.selected());
+    REQUIRE(grid.selectedIndex() == 1);
+    applause::ParamMessageQueue::Message message{};
+    REQUIRE_FALSE(queue.toAudio().try_dequeue(message));
+
+    parameter.setValueSilently(1.0f);
+    parameter.on_value_changed(1.0f);
+    REQUIRE(grid.selectedIndex() == 2);
+    REQUIRE_FALSE(replacement.selected());
+    REQUIRE_FALSE(queue.toAudio().try_dequeue(message));
+
+    grid.onSelectionChanged() += [&](int index) {
+        REQUIRE(index == 1);
+        REQUIRE(parameter.getValue() == 0.0f);
+    };
+    click(replacement);
+    REQUIRE(grid.selectedIndex() == 1);
+    REQUIRE(parameter.getValue() == 0.0f);
+    REQUIRE(queue.toAudio().try_dequeue(message));
+    REQUIRE(message.type == applause::ParamMessageQueue::BEGIN_GESTURE);
+    REQUIRE(queue.toAudio().try_dequeue(message));
+    REQUIRE(message.type == applause::ParamMessageQueue::PARAM_VALUE);
+    REQUIRE(message.value == 0.0f);
+    REQUIRE(queue.toAudio().try_dequeue(message));
+    REQUIRE(message.type == applause::ParamMessageQueue::END_GESTURE);
+    REQUIRE_FALSE(queue.toAudio().try_dequeue(message));
 }

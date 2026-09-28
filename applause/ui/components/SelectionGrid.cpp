@@ -31,17 +31,6 @@ APPLAUSE_THEME_IMPLEMENT_VALUE(SelectionGrid, ApplauseSelectionGridPadding, 4.0f
 APPLAUSE_THEME_IMPLEMENT_VALUE(SelectionGrid, ApplauseSelectionGridRounding, 8.0f);
 APPLAUSE_THEME_IMPLEMENT_VALUE(SelectionGrid, ApplauseSelectionGridBorderWidth, 1.0f);
 
-bool SelectionGridCell::toggle() {
-    if (grid_) grid_->setSelectedIndexAndNotify(index_);
-    return selected_;
-}
-
-void SelectionGridCell::setSelected(bool selected) {
-    if (selected_ == selected) return;
-    selected_ = selected;
-    redraw();
-}
-
 void SelectionGridCell::draw(applause::Canvas& canvas) {
     const float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
     const float rounding = canvas.value(ApplauseSelectionGridCellRounding);
@@ -52,7 +41,7 @@ void SelectionGridCell::draw(applause::Canvas& canvas) {
 
     canvas.roundedRectangle(0.0f, 0.0f, width(), height(), rounding);
 
-    if (selected_) {
+    if (selected()) {
         applause::Color glow = canvas.color(ApplauseSelectionGridCellGlowSelected).gradient().sample(0.0f);
         applause::Color center_glow =
             glow.withAlpha(glow.alpha() * canvas.value(ApplauseSelectionGridCellGlowCenterAmount));
@@ -61,12 +50,12 @@ void SelectionGridCell::draw(applause::Canvas& canvas) {
         canvas.roundedRectangle(0.0f, 0.0f, width(), height(), rounding);
     }
 
-    if (selected_ && !isPressed() && hover_amount > 0.0f) {
+    if (selected() && !isPressed() && hover_amount > 0.0f) {
         canvas.setColor(canvas.color(ApplauseSelectionGridCellBackgroundHover).withMultipliedAlpha(hover_amount));
         canvas.roundedRectangle(0.0f, 0.0f, width(), height(), rounding);
     }
 
-    canvas.setColor(selected_ ? ApplauseSelectionGridCellBorderSelected : ApplauseSelectionGridCellBorder);
+    canvas.setColor(selected() ? ApplauseSelectionGridCellBorderSelected : ApplauseSelectionGridCellBorder);
     canvas.roundedRectangleBorder(0.0f, 0.0f, width(), height(), rounding,
                                   canvas.value(ApplauseSelectionGridCellBorderWidth));
 
@@ -123,9 +112,11 @@ SelectionGrid::SelectionGrid(int columns, int rows) : columns_(columns), rows_(r
         throw std::invalid_argument("SelectionGrid dimensions are too large");
 
     cells_.reserve(column_count * row_count);
+    group_.onSelectionChanged() += [this](int index) { on_selection_changed_.callback(index); };
     for (std::size_t i = 0; i < column_count * row_count; ++i) {
         auto cell = std::make_unique<SelectionGridCell>();
         configureCell(*cell, static_cast<int>(i));
+        group_.addButton(*cell, static_cast<int>(i));
         addChild(cell.get());
         cells_.push_back(std::move(cell));
     }
@@ -157,25 +148,16 @@ const SelectionGridCell& SelectionGrid::cell(int index) const {
 
 void SelectionGrid::setSelectedIndex(int index) {
     validateIndex(index);
-    if (selected_index_ == index) return;
-
-    cells_[selected_index_]->setSelected(false);
-    selected_index_ = index;
-    cells_[selected_index_]->setSelected(true);
+    group_.setSelectedId(index);
 }
 
 void SelectionGrid::setSelectedIndexAndNotify(int index) {
     validateIndex(index);
-    if (selected_index_ == index) return;
-
-    setSelectedIndex(index);
-    on_selection_changed_.callback(index);
+    group_.setSelectedIdAndNotify(index);
 }
 
 void SelectionGrid::configureCell(SelectionGridCell& cell, int index) {
-    cell.setGrid(this);
     cell.setIndex(index);
-    cell.setSelected(index == selected_index_);
     cell.setName("Cell " + std::to_string(index));
 }
 
@@ -185,6 +167,7 @@ void SelectionGrid::replaceCell(int index, std::unique_ptr<SelectionGridCell> ce
     if (initialized()) throw std::logic_error("SelectionGrid cells must be replaced before initialization");
 
     configureCell(*cell, index);
+    group_.replaceButton(index, *cell);
     removeAllChildren();
     cells_[index] = std::move(cell);
     rebuildChildren();

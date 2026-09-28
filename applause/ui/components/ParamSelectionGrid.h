@@ -1,8 +1,7 @@
 #pragma once
 
-#include <applause/extensions/ParamsExtension.h>
+#include <applause/ui/components/ParamRadioGroup.h>
 #include <applause/ui/components/SelectionGrid.h>
-#include <applause/util/thirdparty/rocket.hpp>
 
 #include <concepts>
 #include <utility>
@@ -36,9 +35,8 @@ public:
     void resized() override;
 
 private:
-    ParamInfo& parameter_;
     SelectionGrid grid_;
-    rocket::scoped_connection parameter_connection_;
+    ParamRadioGroup binding_;
     applause::CallbackList<void(int)> on_selection_changed_;
 };
 

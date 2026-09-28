@@ -9,6 +9,7 @@
 #include <functional>
 
 namespace applause {
+class RadioGroup;
 class Button : public applause::Frame {
 public:
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonShadow);
@@ -76,11 +77,6 @@ public:
     bool isActive() const { return active_; }
     bool isPressed() const { return pressed_; }
 
-    void setUndoSetupFunction(std::function<void()> undo_setup_function) {
-        undo_setup_function_ = std::move(undo_setup_function);
-    }
-
-    std::function<void()> undoSetupFunction() { return undo_setup_function_; }
     bool wasAltClicked() const { return alt_clicked_; }
 
 protected:
@@ -88,7 +84,6 @@ protected:
 
 private:
     applause::CallbackList<void(Button*, bool)> on_toggle_;
-    std::function<void()> undo_setup_function_ = nullptr;
 
     bool active_ = true;
     bool toggle_on_mouse_down_ = false;
@@ -212,8 +207,6 @@ private:
     applause::Dimension shadow_radius_;
 };
 
-class ButtonChangeAction;
-
 class ToggleButton : public Button {
 public:
     APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleButtonDisabled);
@@ -226,42 +219,39 @@ public:
 
     explicit ToggleButton(const std::string& name) : Button(name) {}
 
+    ~ToggleButton() override;
+
+    // Group membership refers to this button's stable identity.
+    ToggleButton(const ToggleButton&) = delete;
+    ToggleButton& operator=(const ToggleButton&) = delete;
+    ToggleButton(ToggleButton&&) = delete;
+    ToggleButton& operator=(ToggleButton&&) = delete;
+
     bool toggle() override;
 
-    void setToggled(bool toggled) override {
-        toggled_ = toggled;
-        toggleValueChanged();
-        redraw();
-    }
+    void setToggled(bool toggled) override;
 
     virtual void toggleValueChanged() {}
 
-    void setToggledAndNotify(bool toggled) override {
-        toggled_ = toggled;
-        redraw();
-        notify(toggled);
-    }
+    void setToggledAndNotify(bool toggled) override;
 
     bool toggled() const { return toggled_; }
-    void setUndoable(bool undoable) { undoable_ = undoable; }
+
+protected:
+    /// Called after a real state change. Notifying changes include user activation and notifying setters.
+    virtual void toggleStateChanged(bool notify) {}
+    virtual bool allowsRadioGroup() const { return true; }
 
 private:
+    friend class RadioGroup;
+
+    void dispatchToggleStateChanged(bool notify);
+    void changeToggleState(bool toggled, bool notify);
+
+    RadioGroup* radio_group_ = nullptr;
     bool toggled_ = false;
-    bool undoable_ = true;
 
     APPLAUSE_LEAK_CHECKER(ToggleButton)
-};
-
-class ButtonChangeAction : public applause::UndoableAction {
-public:
-    ButtonChangeAction(ToggleButton* button, bool toggled_on) : button_(button), toggled_on_(toggled_on) {}
-
-    void undo() override { button_->setToggledAndNotify(!toggled_on_); }
-    void redo() override { button_->setToggledAndNotify(toggled_on_); }
-
-private:
-    ToggleButton* button_ = nullptr;
-    bool toggled_on_ = false;
 };
 
 class ToggleIconButton : public ToggleButton {

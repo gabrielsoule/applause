@@ -21,6 +21,8 @@
 
 #include "Button.h"
 
+#include "RadioGroup.h"
+
 #include <applause/ui/ApplauseUI.h>
 
 #include <applause/ui/ApplauseEditor.h>
@@ -231,15 +233,35 @@ void IconButton::draw(applause::Canvas& canvas) {
     if (hover_amount_.isAnimating()) redraw();
 }
 
-bool ToggleButton::toggle() {
-    toggled_ = !toggled_;
+ToggleButton::~ToggleButton() {
+    if (radio_group_) radio_group_->buttonDestroyed(*this);
+}
 
-    if (undoable_) {
-        auto change_action = std::make_unique<ButtonChangeAction>(this, toggled_);
-        if (undoSetupFunction()) change_action->setSetupFunction(undoSetupFunction());
-        addUndoableAction(std::move(change_action));
-    }
+void ToggleButton::dispatchToggleStateChanged(bool notify) {
+    redraw();
     toggleValueChanged();
+    toggleStateChanged(notify);
+}
+
+void ToggleButton::changeToggleState(bool toggled, bool notify) {
+    if (radio_group_) {
+        radio_group_->setButtonState(*this, toggled, notify);
+        return;
+    }
+    if (toggled_ == toggled) return;
+    toggled_ = toggled;
+    dispatchToggleStateChanged(notify);
+}
+
+void ToggleButton::setToggled(bool toggled) { changeToggleState(toggled, false); }
+
+void ToggleButton::setToggledAndNotify(bool toggled) {
+    changeToggleState(toggled, true);
+    notify(toggled_);
+}
+
+bool ToggleButton::toggle() {
+    changeToggleState(!toggled_, true);
     return toggled_;
 }
 
