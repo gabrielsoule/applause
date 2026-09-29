@@ -312,11 +312,16 @@ void ToggleTextButton::drawBackground(applause::Canvas& canvas, float hover_amou
         return;
     }
 
-    applause::Brush normal =
-        applause::Brush::vertical(sample(ApplauseButtonBackgroundTop), sample(ApplauseButtonBackgroundBottom));
-    applause::Brush hover = applause::Brush::vertical(sample(ApplauseButtonBackgroundTopHover),
-                                                      sample(ApplauseButtonBackgroundBottomHover));
-    canvas.setColor(normal.interpolateWith(hover, hover_amount));
+    if (isPressed()) {
+        canvas.setColor(
+            applause::Brush::vertical(sample(ApplauseButtonBackgroundBottom), sample(ApplauseButtonBackgroundTop)));
+    } else {
+        applause::Brush normal =
+            applause::Brush::vertical(sample(ApplauseButtonBackgroundTop), sample(ApplauseButtonBackgroundBottom));
+        applause::Brush hover = applause::Brush::vertical(sample(ApplauseButtonBackgroundTopHover),
+                                                          sample(ApplauseButtonBackgroundBottomHover));
+        canvas.setColor(normal.interpolateWith(hover, hover_amount));
+    }
     canvas.roundedRectangle(0, 0, w, h, r);
 
     if (toggled()) {
@@ -330,11 +335,14 @@ void ToggleTextButton::drawBackground(applause::Canvas& canvas, float hover_amou
 
     if (toggled())
         canvas.setBlendedColor(ApplauseToggleTextButtonBorderOn, ApplauseToggleTextButtonBorderOnHover, hover_amount);
+    else if (isPressed())
+        canvas.setColor(ApplauseButtonBorderPressed);
     else
         canvas.setBlendedColor(ApplauseButtonBorder, ApplauseButtonBorderHover, hover_amount);
 
     float border_width = hover_amount * canvas.value(ApplauseButtonBorderWidthHover) +
         (1.0f - hover_amount) * canvas.value(ApplauseButtonBorderWidth);
+    if (isPressed()) border_width = canvas.value(ApplauseButtonBorderWidthPressed);
     canvas.roundedRectangleBorder(0, 0, w, h, r, border_width);
 }
 
@@ -347,6 +355,8 @@ void ToggleTextButton::draw(applause::Canvas& canvas) {
         canvas.setColor(text_color.interpolateWith(applause::Color(0xff000000), 0.5f));
     } else if (toggled())
         canvas.setBlendedColor(ApplauseToggleTextButtonTextOn, ApplauseToggleTextButtonTextOnHover, hover_amount);
+    else if (isPressed())
+        canvas.setColor(ApplauseButtonTextPressed);
     else
         canvas.setBlendedColor(ApplauseButtonText, ApplauseButtonTextHover, hover_amount);
 
