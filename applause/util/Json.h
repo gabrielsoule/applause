@@ -1,6 +1,6 @@
 #pragma once
 
-#include <nlohmann/json.hpp>
+#include <applause/util/thirdparty/json.hpp>
 
 namespace applause {
 

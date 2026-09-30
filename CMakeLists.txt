@@ -39,18 +39,6 @@ CPMAddPackage(
     OPTIONS "CLAP_HELPERS_BUILD_TESTS OFF"
 )
 
-# nlohmann/json for state serialization
-CPMAddPackage(
-    NAME nlohmann_json
-    VERSION 3.12.0
-    GITHUB_REPOSITORY nlohmann/json
-    OPTIONS "JSON_BuildTests OFF"
-)
-# 3.12.0's from_json(std::filesystem::path) uses std::u8string_view, which
-# breaks in TUs compiled with -fno-char8_t (clap-wrapper's VST3/AUv2 targets).
-# We don't serialize paths to JSON, so disable that overload globally.
-target_compile_definitions(nlohmann_json INTERFACE JSON_HAS_FILESYSTEM=0)
-
 # xsimd (header-only SIMD library)
 CPMAddPackage(
     NAME xsimd
@@ -137,9 +125,13 @@ target_link_libraries(applause
         nfd
         VisageEmbeddedFonts
         ApplauseEmbeddedFonts
-        nlohmann_json::nlohmann_json
         xsimd
 )
+
+# nlohmann/json 3.12.0's from_json(std::filesystem::path) uses
+# std::u8string_view, which breaks in TUs compiled with -fno-char8_t (clap-wrapper's VST3/AUv2 targets).
+# We don't serialize paths to JSON, so disable that overload globally.
+target_compile_definitions(applause PUBLIC JSON_HAS_FILESYSTEM=0)
 
 # Inspector utility (debug-only) reads bgfx::Stats directly, so we include it here
 target_link_libraries(applause PRIVATE bgfx)
