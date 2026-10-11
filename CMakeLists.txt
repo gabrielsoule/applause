@@ -35,7 +35,7 @@ CPMAddPackage(
     NAME clap-helpers
     GITHUB_REPOSITORY free-audio/clap-helpers
     # clap-helpers publishes no release tags, so pin to a commit SHA.
-    GIT_TAG 629ae7526740e3d0ee4d64c230df183ecdb2ff5a
+    GIT_TAG 55a5dd5d1db9c87b32f407e387f64676d27e10b1
     OPTIONS "CLAP_HELPERS_BUILD_TESTS OFF"
 )
 
@@ -64,7 +64,7 @@ if(APPLE)
     CPMAddPackage(
         NAME clap-wrapper
         GITHUB_REPOSITORY free-audio/clap-wrapper
-        GIT_TAG v0.15.1
+        GIT_TAG v0.16.0
         OPTIONS
             "CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}"
             "CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE"
@@ -74,7 +74,7 @@ else()
     CPMAddPackage(
         NAME clap-wrapper
         GITHUB_REPOSITORY free-audio/clap-wrapper
-        GIT_TAG v0.15.1
+        GIT_TAG v0.16.0
         OPTIONS
             "CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE"
             "CLAP_WRAPPER_BUILD_TESTS OFF"
@@ -91,7 +91,7 @@ include(make_clapfirst)
 CPMAddPackage(
     NAME nativefiledialog_extended
     GITHUB_REPOSITORY btzy/nativefiledialog-extended
-    GIT_TAG v1.3.0
+    GIT_TAG v1.4.1
     OPTIONS
         "BUILD_SHARED_LIBS OFF"
         "NFD_BUILD_TESTS OFF"
@@ -159,7 +159,7 @@ option(APPLAUSE_BUILD_TESTS "Build unit tests" OFF)
 if(APPLAUSE_BUILD_TESTS)
     include(CTest)
     enable_testing()
-    CPMAddPackage("gh:catchorg/Catch2@3.7.1")
+    CPMAddPackage("gh:catchorg/Catch2@3.16.0")
     include(${Catch2_SOURCE_DIR}/extras/Catch.cmake)
     add_subdirectory(tests)
 endif()
