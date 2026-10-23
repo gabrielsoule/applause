@@ -49,15 +49,8 @@ CPMAddPackage(
         "BUILD_BENCHMARK OFF"
 )
 
-# Visage, with commit pinning since Visage still occasionally pushes breaking changes...
-CPMAddPackage(
-    NAME visage
-    GITHUB_REPOSITORY vitalaudio/visage
-    GIT_TAG 2ae3a867a91d790f301ec72cd01cb6c0cf80c633
-        OPTIONS
-        "VISAGE_BUILD_EXAMPLES OFF"
-        "VISAGE_BUILD_TESTS OFF"
-)
+# Visage, vendored verbatim from VitalAudio/visage at 7654e32a84f95aacf9d15390272a47d2952d9565
+add_subdirectory(external/visage)
 
 # CLAP Wrapper
 if(APPLE)
