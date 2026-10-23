@@ -26,22 +26,20 @@
 #include <iostream>
 
 namespace applause {
-  inline void debugLogString(const char* file, unsigned int line, const String& log_message) {
+inline void debugLogString(const char* file, unsigned int line, const String& log_message) {
     std::cerr << file << " (" << line << ") " << log_message.toUtf8();
-    if (log_message.isEmpty() || log_message[log_message.size() - 1] != '\n')
-      std::cerr << std::endl;
-  }
+    if (log_message.isEmpty() || log_message[log_message.size() - 1] != '\n') std::cerr << std::endl;
+}
 
-  void debugLogArgs(const char* file, unsigned int line, const char* format, va_list arg_list) {
+void debugLogArgs(const char* file, unsigned int line, const char* format, va_list arg_list) {
     static constexpr int kSize = 500;
     char buffer[kSize];
     std::vsnprintf(buffer, sizeof(buffer), format, arg_list);
     debugLogString(file, line, buffer);
-  }
+}
 
-  void debugAssert(bool condition, const char* file, unsigned int line) {
-    if (condition)
-      return;
+void debugAssert(bool condition, const char* file, unsigned int line) {
+    if (condition) return;
 
     debugLogString(file, line, "Assertion failed");
 #if defined(__clang__)
@@ -49,9 +47,7 @@ namespace applause {
 #else
     __builtin_trap();
 #endif
-  }
-
-  void forceCrash() {
-    __builtin_trap();
-  }
 }
+
+void forceCrash() { __builtin_trap(); }
+}  // namespace applause

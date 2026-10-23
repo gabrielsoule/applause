@@ -30,138 +30,138 @@ using namespace applause;
 #if !APPLAUSE_EMSCRIPTEN
 
 TEST_CASE("Thread basic lifecycle", "[utils]") {
-  Thread thread("test_thread");
+    Thread thread("test_thread");
 
-  REQUIRE(thread.name() == "test_thread");
-  REQUIRE_FALSE(thread.running());
-  REQUIRE(thread.completed());
-  REQUIRE(thread.shouldRun());
+    REQUIRE(thread.name() == "test_thread");
+    REQUIRE_FALSE(thread.running());
+    REQUIRE(thread.completed());
+    REQUIRE(thread.shouldRun());
 
-  std::atomic<bool> task_executed { false };
-  thread.setThreadTask([&task_executed] { task_executed = true; });
+    std::atomic<bool> task_executed{false};
+    thread.setThreadTask([&task_executed] { task_executed = true; });
 
-  thread.start();
-  REQUIRE(thread.waitForEnd(1000));
-  REQUIRE_FALSE(thread.running());
-  REQUIRE(thread.completed());
-  REQUIRE(task_executed);
-  thread.stop();
+    thread.start();
+    REQUIRE(thread.waitForEnd(1000));
+    REQUIRE_FALSE(thread.running());
+    REQUIRE(thread.completed());
+    REQUIRE(task_executed);
+    thread.stop();
 }
 
 TEST_CASE("Thread without task", "[utils]") {
-  Thread thread;
+    Thread thread;
 
-  thread.start();
-  REQUIRE(thread.running());
+    thread.start();
+    REQUIRE(thread.running());
 
-  REQUIRE(thread.waitForEnd(100));
-  REQUIRE_FALSE(thread.running());
-  REQUIRE(thread.completed());
+    REQUIRE(thread.waitForEnd(100));
+    REQUIRE_FALSE(thread.running());
+    REQUIRE(thread.completed());
 }
 
 TEST_CASE("Thread stop before completion", "[utils]") {
-  Thread thread;
-  std::atomic<bool> should_continue { true };
-  std::atomic<int> counter { 0 };
+    Thread thread;
+    std::atomic<bool> should_continue{true};
+    std::atomic<int> counter{0};
 
-  thread.setThreadTask([&should_continue, &counter, &thread] {
-    while (thread.shouldRun() && should_continue) {
-      counter++;
-      Thread::sleep(10);
-    }
-  });
+    thread.setThreadTask([&should_continue, &counter, &thread] {
+        while (thread.shouldRun() && should_continue) {
+            counter++;
+            Thread::sleep(10);
+        }
+    });
 
-  thread.start();
-  Thread::sleep(50);
+    thread.start();
+    Thread::sleep(50);
 
-  should_continue = false;
-  thread.stop();
+    should_continue = false;
+    thread.stop();
 
-  REQUIRE_FALSE(thread.running());
-  REQUIRE(counter > 0);
+    REQUIRE_FALSE(thread.running());
+    REQUIRE(counter > 0);
 }
 
 TEST_CASE("Multiple thread instances", "[utils]") {
-  Thread thread1("thread1");
-  Thread thread2("thread2");
+    Thread thread1("thread1");
+    Thread thread2("thread2");
 
-  std::atomic<int> shared_counter { 0 };
+    std::atomic<int> shared_counter{0};
 
-  thread1.setThreadTask([&shared_counter] {
-    for (int i = 0; i < 100; ++i) {
-      shared_counter++;
-      Thread::yield();
-    }
-  });
+    thread1.setThreadTask([&shared_counter] {
+        for (int i = 0; i < 100; ++i) {
+            shared_counter++;
+            Thread::yield();
+        }
+    });
 
-  thread2.setThreadTask([&shared_counter] {
-    for (int i = 0; i < 100; ++i) {
-      shared_counter++;
-      Thread::yield();
-    }
-  });
+    thread2.setThreadTask([&shared_counter] {
+        for (int i = 0; i < 100; ++i) {
+            shared_counter++;
+            Thread::yield();
+        }
+    });
 
-  thread1.start();
-  thread2.start();
+    thread1.start();
+    thread2.start();
 
-  REQUIRE(thread1.waitForEnd(3000));
-  REQUIRE(thread2.waitForEnd(3000));
+    REQUIRE(thread1.waitForEnd(3000));
+    REQUIRE(thread2.waitForEnd(3000));
 
-  REQUIRE(shared_counter == 200);
+    REQUIRE(shared_counter == 200);
 }
 
 TEST_CASE("Thread restart after completion", "[utils]") {
-  Thread thread;
-  std::atomic<int> execution_count { 0 };
+    Thread thread;
+    std::atomic<int> execution_count{0};
 
-  thread.setThreadTask([&execution_count] { execution_count++; });
+    thread.setThreadTask([&execution_count] { execution_count++; });
 
-  thread.start();
-  REQUIRE(thread.waitForEnd(1000));
-  REQUIRE(execution_count == 1);
+    thread.start();
+    REQUIRE(thread.waitForEnd(1000));
+    REQUIRE(execution_count == 1);
 
-  thread.start();
-  REQUIRE(thread.waitForEnd(1000));
-  REQUIRE(execution_count == 2);
+    thread.start();
+    REQUIRE(thread.waitForEnd(1000));
+    REQUIRE(execution_count == 2);
 }
 
 TEST_CASE("Thread task modification", "[utils]") {
-  Thread thread;
-  std::atomic<bool> first_task_executed { false };
-  std::atomic<bool> second_task_executed { false };
+    Thread thread;
+    std::atomic<bool> first_task_executed{false};
+    std::atomic<bool> second_task_executed{false};
 
-  thread.setThreadTask([&first_task_executed] { first_task_executed = true; });
+    thread.setThreadTask([&first_task_executed] { first_task_executed = true; });
 
-  thread.start();
-  REQUIRE(thread.waitForEnd(1000));
-  REQUIRE(first_task_executed);
-  REQUIRE_FALSE(second_task_executed);
+    thread.start();
+    REQUIRE(thread.waitForEnd(1000));
+    REQUIRE(first_task_executed);
+    REQUIRE_FALSE(second_task_executed);
 
-  thread.setThreadTask([&second_task_executed] { second_task_executed = true; });
+    thread.setThreadTask([&second_task_executed] { second_task_executed = true; });
 
-  thread.start();
-  REQUIRE(thread.waitForEnd(1000));
-  REQUIRE(second_task_executed);
+    thread.start();
+    REQUIRE(thread.waitForEnd(1000));
+    REQUIRE(second_task_executed);
 }
 
 #endif
 
 TEST_CASE("Main thread detection", "[utils]") {
-  REQUIRE_FALSE(Thread::main_thread_set_);
+    REQUIRE_FALSE(Thread::main_thread_set_);
 
-  Thread::setAsMainThread();
-  REQUIRE(Thread::main_thread_set_);
-  REQUIRE(Thread::isMainThread());
+    Thread::setAsMainThread();
+    REQUIRE(Thread::main_thread_set_);
+    REQUIRE(Thread::isMainThread());
 
 #if !APPLAUSE_EMSCRIPTEN
-  Thread thread;
-  std::atomic<bool> is_main_in_thread { true };
+    Thread thread;
+    std::atomic<bool> is_main_in_thread{true};
 
-  thread.setThreadTask([&is_main_in_thread] { is_main_in_thread = Thread::isMainThread(); });
+    thread.setThreadTask([&is_main_in_thread] { is_main_in_thread = Thread::isMainThread(); });
 
-  thread.start();
-  thread.waitForEnd(1000);
+    thread.start();
+    thread.waitForEnd(1000);
 
-  REQUIRE_FALSE(is_main_in_thread);
+    REQUIRE_FALSE(is_main_in_thread);
 #endif
 }

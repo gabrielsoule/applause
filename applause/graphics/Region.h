@@ -25,60 +25,57 @@
 #include <applause/util/Space.h>
 
 namespace applause {
-  class Palette;
-  class Shader;
+class Palette;
+class Shader;
 
-  class Region {
-  public:
+class Region {
+public:
     friend class Canvas;
 
     Region() = default;
 
-    SubmitBatch* submitBatchAtPosition(int position) const {
-      return shape_batcher_.batchAtIndex(position);
-    }
+    SubmitBatch* submitBatchAtPosition(int position) const { return shape_batcher_.batchAtIndex(position); }
     int numSubmitBatches() const { return shape_batcher_.numBatches(); }
     bool isEmpty() const { return shape_batcher_.isEmpty(); }
     const std::vector<Region*>& subRegions() const { return sub_regions_; }
     int numRegions() const { return sub_regions_.size(); }
 
     void addRegion(Region* region) {
-      APPLAUSE_ASSERT(region->parent_ == nullptr);
-      sub_regions_.push_back(region);
-      region->parent_ = this;
+        APPLAUSE_ASSERT(region->parent_ == nullptr);
+        sub_regions_.push_back(region);
+        region->parent_ = this;
 
-      if (canvas_)
-        region->setCanvas(canvas_);
+        if (canvas_) region->setCanvas(canvas_);
 
-      region->setLayerIndex(layer_index_);
+        region->setLayerIndex(layer_index_);
     }
 
     void removeRegion(Region* region);
     void setCanvas(Canvas* canvas);
 
     void setBounds(int x, int y, int width, int height) {
-      invalidate();
-      x_ = x;
-      y_ = y;
-      width_ = width;
-      height_ = height;
-      setupIntermediateRegion();
-      invalidate();
+        invalidate();
+        x_ = x;
+        y_ = y;
+        width_ = width;
+        height_ = height;
+        setupIntermediateRegion();
+        invalidate();
     }
 
     void setVisible(bool visible) {
-      visible_ = visible;
-      invalidate();
+        visible_ = visible;
+        invalidate();
     }
     bool isVisible() const { return visible_; }
     void setOnTop(bool on_top) {
-      on_top_ = on_top;
-      invalidate();
+        on_top_ = on_top;
+        invalidate();
     }
     bool isOnTop() const { return on_top_; }
     bool overlaps(const Region* other) const {
-      return x_ < other->x_ + other->width_ && x_ + width_ > other->x_ &&
-             y_ < other->y_ + other->height_ && y_ + height_ > other->y_;
+        return x_ < other->x_ + other->width_ && x_ + width_ > other->x_ && y_ < other->y_ + other->height_ &&
+            y_ + height_ > other->y_;
     }
 
     int x() const { return x_; }
@@ -91,18 +88,15 @@ namespace applause {
     int backdropCountChildren() const { return backdrop_count_children_; }
     int computeBackdropCount(int current = 0);
     bool shouldDraw(int backdrop_count) {
-      if (backdrop_count_ == backdrop_count)
-        return true;
-      if (intermediate_region_)
-        return backdrop_count_ < backdrop_count && backdrop_count_children_ >= backdrop_count;
-      return false;
+        if (backdrop_count_ == backdrop_count) return true;
+        if (intermediate_region_) return backdrop_count_ < backdrop_count && backdrop_count_children_ >= backdrop_count;
+        return false;
     }
 
     void invalidateRect(IBounds rect);
 
     void invalidate() {
-      if (width_ > 0 && height_ > 0)
-        invalidateRect({ 0, 0, width_, height_ });
+        if (width_ > 0 && height_ > 0) invalidateRect({0, 0, width_, height_});
     }
 
     Layer* layer() const;
@@ -112,8 +106,8 @@ namespace applause {
     void setNeedsLayer(bool needs_layer);
 
     void setPostEffect(PostEffect* post_effect) {
-      post_effect_ = post_effect;
-      setupIntermediateRegion();
+        post_effect_ = post_effect;
+        setupIntermediateRegion();
     }
     PostEffect* postEffect() const { return post_effect_; }
 
@@ -124,33 +118,32 @@ namespace applause {
     Region* intermediateRegion() const { return intermediate_region_.get(); }
 
     const PackedBrush* addBrush(GradientAtlas* atlas, const Brush& brush) {
-      brushes_.push_back(std::make_unique<PackedBrush>(atlas, brush));
-      return brushes_.back().get();
+        brushes_.push_back(std::make_unique<PackedBrush>(atlas, brush));
+        return brushes_.back().get();
     }
 
-    const PackedBrush* addBrush(GradientAtlas* atlas, const Gradient& gradient,
-                                const GradientPosition& position) {
-      brushes_.push_back(std::make_unique<PackedBrush>(atlas, gradient, position));
-      return brushes_.back().get();
+    const PackedBrush* addBrush(GradientAtlas* atlas, const Gradient& gradient, const GradientPosition& position) {
+        brushes_.push_back(std::make_unique<PackedBrush>(atlas, gradient, position));
+        return brushes_.back().get();
     }
 
     Region* parent() const { return parent_; }
 
-  private:
+private:
     void setLayerIndex(int layer_index);
     void incrementLayer() { setLayerIndex(layer_index_ + 1); }
     void decrementLayer() { setLayerIndex(layer_index_ - 1); }
 
     Text* addText(const String& string, const Font& font, Font::Justification justification) {
-      text_store_.push_back(std::make_unique<Text>(string, font, justification));
-      return text_store_.back().get();
+        text_store_.push_back(std::make_unique<Text>(string, font, justification));
+        return text_store_.back().get();
     }
 
     void clearSubRegions() { sub_regions_.clear(); }
 
     void clearAll() {
-      clear();
-      clearSubRegions();
+        clear();
+        clearSubRegions();
     }
 
     int x_ = 0;
@@ -174,5 +167,5 @@ namespace applause {
     std::vector<std::unique_ptr<Text>> text_store_;
     std::vector<Region*> sub_regions_;
     std::unique_ptr<Region> intermediate_region_;
-  };
-}
+};
+}  // namespace applause

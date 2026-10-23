@@ -30,19 +30,19 @@
 #include <vector>
 
 namespace bgfx {
-  struct VertexLayout;
-  struct TextureHandle;
-  struct ShaderHandle;
-  struct ProgramHandle;
-  struct UniformHandle;
-  struct IndexBufferHandle;
-  struct FrameBufferHandle;
-  struct TransientIndexBuffer;
-  struct TransientVertexBuffer;
-}
+struct VertexLayout;
+struct TextureHandle;
+struct ShaderHandle;
+struct ProgramHandle;
+struct UniformHandle;
+struct IndexBufferHandle;
+struct FrameBufferHandle;
+struct TransientIndexBuffer;
+struct TransientVertexBuffer;
+}  // namespace bgfx
 
 namespace applause {
-  enum class BlendMode {
+enum class BlendMode {
     Opaque,
     Composite,
     Alpha,
@@ -51,38 +51,38 @@ namespace applause {
     Mult,
     MaskAdd,
     MaskRemove,
-  };
+};
 
-  static constexpr float kHdrColorRange = 4.0f;
-  static constexpr float kHdrColorMultiplier = 1.0f / kHdrColorRange;
-  static constexpr int kVerticesPerQuad = 4;
-  static constexpr int kIndicesPerQuad = 6;
+static constexpr float kHdrColorRange = 4.0f;
+static constexpr float kHdrColorMultiplier = 1.0f / kHdrColorRange;
+static constexpr int kVerticesPerQuad = 4;
+static constexpr int kIndicesPerQuad = 6;
 
-  bool preprocessWebGlShader(std::string& result, const std::string& code,
-                             const std::string& utils_source, const std::string& varying_source);
+bool preprocessWebGlShader(std::string& result, const std::string& code, const std::string& utils_source,
+                           const std::string& varying_source);
 
-  const uint16_t kQuadTriangles[] = {
+const uint16_t kQuadTriangles[] = {
     0, 1, 2, 2, 1, 3,
-  };
+};
 
-  struct PackedAtlasData;
+struct PackedAtlasData;
 
-  struct PackedRect {
+struct PackedRect {
     int x;
     int y;
     int w;
     int h;
-  };
+};
 
-  struct TextureRect {
+struct TextureRect {
     int left;
     int top;
     int right;
     int bottom;
-  };
+};
 
-  class AtlasPacker {
-  public:
+class AtlasPacker {
+public:
     AtlasPacker();
     ~AtlasPacker();
 
@@ -94,97 +94,94 @@ namespace applause {
 
     bool packed() const { return packed_; }
 
-  private:
+private:
     std::unique_ptr<PackedAtlasData> data_;
     bool packed_ = false;
     int padding_ = 1;
     int rect_index_ = 0;
-  };
+};
 
-  template<typename T = int>
-  class PackedAtlasMap {
-  public:
+template <typename T = int>
+class PackedAtlasMap {
+public:
     static constexpr int kDefaultWidth = 64;
 
     PackedAtlasMap() = default;
 
     bool addRect(T id, int width, int height) {
-      APPLAUSE_ASSERT(lookup_.count(id) == 0);
+        APPLAUSE_ASSERT(lookup_.count(id) == 0);
 
-      int index = packed_rects_.size();
-      lookup_[id] = index;
-      packed_rects_.push_back({ 0, 0, std::max(0, width), std::max(0, height) });
-      return packer_.addRect(packed_rects_.back());
+        int index = packed_rects_.size();
+        lookup_[id] = index;
+        packed_rects_.push_back({0, 0, std::max(0, width), std::max(0, height)});
+        return packer_.addRect(packed_rects_.back());
     }
 
     bool hasId(T id) const { return lookup_.count(id) > 0; }
 
     void removeRect(T id) {
-      APPLAUSE_ASSERT(lookup_.count(id) > 0);
-      lookup_.erase(id);
+        APPLAUSE_ASSERT(lookup_.count(id) > 0);
+        lookup_.erase(id);
     }
 
     void pack(int start_width = kDefaultWidth, int start_height = kDefaultWidth) {
-      static constexpr int kMaxDimension = 1 << 14;
+        static constexpr int kMaxDimension = 1 << 14;
 
-      checkRemovedRects();
-      if (packed_rects_.size() == 1) {
-        width_ = std::max(1, packed_rects_[0].w + packer_.padding());
-        height_ = std::max(1, packed_rects_[0].h + packer_.padding());
-        if (!packer_.pack(packed_rects_, width_, height_))
-          APPLAUSE_ASSERT(false);
-      }
-      else if (!packed_rects_.empty()) {
-        width_ = std::max(kDefaultWidth, start_width);
-        height_ = std::max(kDefaultWidth, start_height);
+        checkRemovedRects();
+        if (packed_rects_.size() == 1) {
+            width_ = std::max(1, packed_rects_[0].w + packer_.padding());
+            height_ = std::max(1, packed_rects_[0].h + packer_.padding());
+            if (!packer_.pack(packed_rects_, width_, height_)) APPLAUSE_ASSERT(false);
+        } else if (!packed_rects_.empty()) {
+            width_ = std::max(kDefaultWidth, start_width);
+            height_ = std::max(kDefaultWidth, start_height);
 
-        while (width_ < kMaxDimension * 2 || height_ < kMaxDimension * 2) {
-          width_ = fixed_width_ ? fixed_width_ : std::min(kMaxDimension, width_);
-          height_ = std::min(kMaxDimension, height_);
-          if (packer_.pack(packed_rects_, width_, height_))
-            return;
+            while (width_ < kMaxDimension * 2 || height_ < kMaxDimension * 2) {
+                width_ = fixed_width_ ? fixed_width_ : std::min(kMaxDimension, width_);
+                height_ = std::min(kMaxDimension, height_);
+                if (packer_.pack(packed_rects_, width_, height_)) return;
 
-          width_ *= 2;
-          height_ *= 2;
+                width_ *= 2;
+                height_ *= 2;
+            }
+            APPLAUSE_ASSERT(false);
         }
-        APPLAUSE_ASSERT(false);
-      }
     }
 
     void clear() {
-      lookup_.clear();
-      packer_.clear();
-      packed_rects_.clear();
+        lookup_.clear();
+        packer_.clear();
+        packed_rects_.clear();
     }
 
     void setPadding(int padding) { packer_.setPadding(padding); }
     int padding() const { return packer_.padding(); }
 
     const PackedRect& rectAtIndex(int index) const {
-      APPLAUSE_ASSERT(index >= 0 && index < packed_rects_.size());
-      return packed_rects_[index];
+        APPLAUSE_ASSERT(index >= 0 && index < packed_rects_.size());
+        return packed_rects_[index];
     }
 
     TextureRect texturePositionsForIndex(int rect_index, bool bottom_left_origin = false) const {
-      const PackedRect& packed_rect = rectAtIndex(rect_index);
-      TextureRect result = { packed_rect.x, packed_rect.y, packed_rect.x + packed_rect.w,
-                             packed_rect.y + packed_rect.h };
+        const PackedRect& packed_rect = rectAtIndex(rect_index);
+        TextureRect result = {packed_rect.x, packed_rect.y, packed_rect.x + packed_rect.w,
+                              packed_rect.y + packed_rect.h};
 
-      if (bottom_left_origin) {
-        result.top = height_ - result.top;
-        result.bottom = height_ - result.bottom;
-      }
-      return result;
+        if (bottom_left_origin) {
+            result.top = height_ - result.top;
+            result.bottom = height_ - result.bottom;
+        }
+        return result;
     }
 
     const PackedRect& rectForId(T id) const {
-      APPLAUSE_ASSERT(lookup_.count(id) > 0);
-      return rectAtIndex(lookup_.at(id));
+        APPLAUSE_ASSERT(lookup_.count(id) > 0);
+        return rectAtIndex(lookup_.at(id));
     }
 
     TextureRect texturePositionsForId(T id, bool bottom_left_origin = false) const {
-      APPLAUSE_ASSERT(lookup_.count(id) > 0);
-      return texturePositionsForIndex(lookup_.at(id), bottom_left_origin);
+        APPLAUSE_ASSERT(lookup_.count(id) > 0);
+        return texturePositionsForIndex(lookup_.at(id), bottom_left_origin);
     }
 
     void fixWidth(int width) { fixed_width_ = width; }
@@ -193,18 +190,17 @@ namespace applause {
     bool packed() const { return packer_.packed(); }
     int numRects() const { return packed_rects_.size(); }
 
-  private:
+private:
     void checkRemovedRects() {
-      if (packed_rects_.size() == lookup_.size())
-        return;
+        if (packed_rects_.size() == lookup_.size()) return;
 
-      std::vector<PackedRect> old_rects = std::move(packed_rects_);
-      packed_rects_.reserve(lookup_.size());
-      for (auto& packed : lookup_) {
-        int index = packed_rects_.size();
-        packed_rects_.push_back(old_rects[packed.second]);
-        packed.second = index;
-      }
+        std::vector<PackedRect> old_rects = std::move(packed_rects_);
+        packed_rects_.reserve(lookup_.size());
+        for (auto& packed : lookup_) {
+            int index = packed_rects_.size();
+            packed_rects_.push_back(old_rects[packed.second]);
+            packed.second = index;
+        }
     }
 
     int fixed_width_ = 0;
@@ -213,18 +209,18 @@ namespace applause {
     std::vector<PackedRect> packed_rects_;
     AtlasPacker packer_;
     std::map<T, int> lookup_;
-  };
+};
 
-  struct UvVertex {
+struct UvVertex {
     float x;
     float y;
     float u;
     float v;
 
     static bgfx::VertexLayout& layout();
-  };
+};
 
-  struct PathVertex {
+struct PathVertex {
     float index;
     float direction;
     float x1;
@@ -235,16 +231,16 @@ namespace applause {
     float y3;
 
     static bgfx::VertexLayout& layout();
-  };
+};
 
-  struct GradientTexturePosition {
+struct GradientTexturePosition {
     float from_x;
     float from_y;
     float to_x;
     float to_y;
-  };
+};
 
-  struct GradientVertexPosition {
+struct GradientVertexPosition {
     float from_x;
     float from_y;
     float to_x;
@@ -256,9 +252,9 @@ namespace applause {
 
     float* position1() { return &from_x; }
     float* position2() { return &coefficient1; }
-  };
+};
 
-  struct ShapeVertex {
+struct ShapeVertex {
     float x;
     float y;
     float garbage1;
@@ -279,9 +275,9 @@ namespace applause {
     float value2;
 
     static bgfx::VertexLayout& layout();
-  };
+};
 
-  struct ComplexShapeVertex {
+struct ComplexShapeVertex {
     float x;
     float y;
     float garbage1;
@@ -306,9 +302,9 @@ namespace applause {
     float value6;
 
     static bgfx::VertexLayout& layout();
-  };
+};
 
-  struct TextureVertex {
+struct TextureVertex {
     float x;
     float y;
     float dimension_x;
@@ -325,9 +321,9 @@ namespace applause {
     float clamp_bottom;
 
     static bgfx::VertexLayout& layout();
-  };
+};
 
-  struct PostEffectVertex {
+struct PostEffectVertex {
     float x;
     float y;
     float dimension_x;
@@ -344,5 +340,5 @@ namespace applause {
     float clamp_bottom;
 
     static bgfx::VertexLayout& layout();
-  };
-}
+};
+}  // namespace applause

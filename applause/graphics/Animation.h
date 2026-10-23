@@ -27,14 +27,14 @@
 #include <limits>
 
 namespace applause {
-  template<typename T>
-  class Animation {
-  public:
+template <typename T>
+class Animation {
+public:
     enum EasingFunction {
-      kLinear,
-      kEaseIn,
-      kEaseOut,
-      kEaseInOut,
+        kLinear,
+        kEaseIn,
+        kEaseOut,
+        kEaseInOut,
     };
 
     static constexpr int kSlowTime = 240;
@@ -44,38 +44,40 @@ namespace applause {
     static T interpolate(const T& from, const T& to, float t) { return from + (to - from) * t; }
 
     static float sin1(float phase) {
-      phase = 0.5f - phase;
-      const float phase2 = phase * phase;
-      const float phase4 = phase2 * phase2;
-      const float coefficient4 = phase4 * 12.228473185021549602f - phase2 * 38.12119956657129365f +
-                                 67.04364396354298358f;
-      const float stage = coefficient4 * phase4 - phase2 * 64.834670562974805234f + 25.13273028802431777f;
-      return stage * phase * (0.25f - phase2);
+        phase = 0.5f - phase;
+        const float phase2 = phase * phase;
+        const float phase4 = phase2 * phase2;
+        const float coefficient4 =
+            phase4 * 12.228473185021549602f - phase2 * 38.12119956657129365f + 67.04364396354298358f;
+        const float stage = coefficient4 * phase4 - phase2 * 64.834670562974805234f + 25.13273028802431777f;
+        return stage * phase * (0.25f - phase2);
     }
 
     static T ease(const T& from, const T& to, float t, EasingFunction easing) {
-      switch (easing) {
-      case kEaseIn: return interpolate(from, to, 1.0f - sin1(0.25f * (1.0f - t)));
-      case kEaseOut: return interpolate(from, to, sin1(0.25f * t));
-      case kEaseInOut: return interpolate(from, to, sin1(0.5f * t - 0.25f) * 0.5f + 0.5f);
-      case kLinear:
-      default: return interpolate(from, to, t);
-      }
+        switch (easing) {
+        case kEaseIn:
+            return interpolate(from, to, 1.0f - sin1(0.25f * (1.0f - t)));
+        case kEaseOut:
+            return interpolate(from, to, sin1(0.25f * t));
+        case kEaseInOut:
+            return interpolate(from, to, sin1(0.5f * t - 0.25f) * 0.5f + 0.5f);
+        case kLinear:
+        default:
+            return interpolate(from, to, t);
+        }
     }
 
-    Animation() : Animation(kRegularTime, kEaseIn, kEaseOut) { }
+    Animation() : Animation(kRegularTime, kEaseIn, kEaseOut) {}
 
     explicit Animation(int milliseconds, EasingFunction forward_easing = kLinear,
                        EasingFunction backward_easing = kLinear) :
-        source_(), target_(), time_(milliseconds), forward_easing_(forward_easing),
-        backward_easing_(backward_easing) { }
+        source_(), target_(), time_(milliseconds), forward_easing_(forward_easing), backward_easing_(backward_easing) {}
 
     void target(bool targeting, bool jump = false) {
-      last_ms_ = time::milliseconds();
+        last_ms_ = time::milliseconds();
 
-      targeting_ = targeting;
-      if (jump)
-        t_ = targeting ? 1.0f : 0.0f;
+        targeting_ = targeting;
+        if (jump) t_ = targeting ? 1.0f : 0.0f;
     }
     bool isTargeting() const { return targeting_; }
     bool isAnimating() const { return targeting_ ? t_ < 1.0f : t_ > 0.0f; }
@@ -86,40 +88,38 @@ namespace applause {
     void setAnimationTime(int milliseconds) { time_ = milliseconds; }
 
     T value() const {
-      if (t_ <= 0.0f)
-        return source_;
+        if (t_ <= 0.0f) return source_;
 
-      float t = t_;
-      EasingFunction easing = forward_easing_;
-      const T* from = &source_;
-      const T* to = &target_;
+        float t = t_;
+        EasingFunction easing = forward_easing_;
+        const T* from = &source_;
+        const T* to = &target_;
 
-      if (!targeting_) {
-        easing = backward_easing_;
-        from = &target_;
-        to = &source_;
-        t = 1.0f - t_;
-      }
+        if (!targeting_) {
+            easing = backward_easing_;
+            from = &target_;
+            to = &source_;
+            t = 1.0f - t_;
+        }
 
-      return ease(*from, *to, t, easing);
+        return ease(*from, *to, t, easing);
     }
 
     T update() {
-      long long ms = time::milliseconds();
-      float delta = 1.0f;
-      if (time_ > std::numeric_limits<float>::epsilon())
-        delta = (ms - last_ms_) / time_;
-      last_ms_ = ms;
+        long long ms = time::milliseconds();
+        float delta = 1.0f;
+        if (time_ > std::numeric_limits<float>::epsilon()) delta = (ms - last_ms_) / time_;
+        last_ms_ = ms;
 
-      if (targeting_)
-        t_ = std::min(t_ + delta, 1.0f);
-      else
-        t_ = std::max(t_ - delta, 0.0f);
+        if (targeting_)
+            t_ = std::min(t_ + delta, 1.0f);
+        else
+            t_ = std::max(t_ - delta, 0.0f);
 
-      return value();
+        return value();
     }
 
-  private:
+private:
     T source_;
     T target_;
     T time_ = kRegularTime;
@@ -130,5 +130,5 @@ namespace applause {
 
     bool targeting_ = false;
     float t_ = 0.0f;
-  };
-}
+};
+}  // namespace applause

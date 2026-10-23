@@ -22,14 +22,14 @@
 #pragma once
 
 #include <applause/graphics/Screenshot.h>
-#include <applause/util/ThreadUtils.h>
 #include <applause/graphics/WindowlessContext.h>
+#include <applause/util/ThreadUtils.h>
 
 namespace applause {
-  class GraphicsCallbackHandler;
+class GraphicsCallbackHandler;
 
-  class Renderer : public Thread {
-  public:
+class Renderer : public Thread {
+public:
     static Renderer& instance();
 
     Renderer();
@@ -47,7 +47,7 @@ namespace applause {
     bool swapChainSupported() const { return swap_chain_supported_; }
     bool initialized() const { return initialized_; }
 
-  private:
+private:
     void startRenderThread();
     void render();
     void run() override;
@@ -60,5 +60,5 @@ namespace applause {
     std::string error_message_;
     std::atomic<bool> render_thread_started_ = false;
     std::unique_ptr<GraphicsCallbackHandler> callback_handler_;
-  };
-}
+};
+}  // namespace applause

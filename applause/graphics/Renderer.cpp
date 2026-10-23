@@ -27,38 +27,38 @@
 #include <bgfx/platform.h>
 
 namespace applause {
-  class GraphicsCallbackHandler : public bgfx::CallbackI {
+class GraphicsCallbackHandler : public bgfx::CallbackI {
     void fatal(const char* file_path, uint16_t line, bgfx::Fatal::Enum _code, const char* error) override {
-      APPLAUSE_LOG(String(file_path) + String(" (") + line + String(") "));
-      APPLAUSE_LOG(error);
-      APPLAUSE_LOG("Graphics fatal error");
-      APPLAUSE_ASSERT(false);
+        APPLAUSE_LOG(String(file_path) + String(" (") + line + String(") "));
+        APPLAUSE_LOG(error);
+        APPLAUSE_LOG("Graphics fatal error");
+        APPLAUSE_ASSERT(false);
     }
 
     void traceVargs(const char* file_path, uint16_t line, const char* format, va_list arg_list) override {
 #if APPLAUSE_GRAPHICS_DEBUG_LOGGING
-      applause::debugLogArgs(file_path, line, format, arg_list);
+        applause::debugLogArgs(file_path, line, format, arg_list);
 #endif
     }
 
-    void profilerBegin(const char*, uint32_t, const char*, uint16_t) override { }
-    void profilerBeginLiteral(const char*, uint32_t, const char*, uint16_t) override { }
-    void profilerEnd() override { }
+    void profilerBegin(const char*, uint32_t, const char*, uint16_t) override {}
+    void profilerBeginLiteral(const char*, uint32_t, const char*, uint16_t) override {}
+    void profilerEnd() override {}
     uint32_t cacheReadSize(uint64_t) override { return 0; }
     bool cacheRead(uint64_t, void*, uint32_t) override { return false; }
-    void cacheWrite(uint64_t, const void*, uint32_t) override { }
+    void cacheWrite(uint64_t, const void*, uint32_t) override {}
 
-    void screenShot(const char* file_path, uint32_t width, uint32_t height, uint32_t pitch,
-                    const void* data, uint32_t size, bool y_flip) override {
-      Renderer::instance().setScreenshotData(static_cast<const uint8_t*>(data), width, height, pitch, true);
+    void screenShot(const char* file_path, uint32_t width, uint32_t height, uint32_t pitch, const void* data,
+                    uint32_t size, bool y_flip) override {
+        Renderer::instance().setScreenshotData(static_cast<const uint8_t*>(data), width, height, pitch, true);
     }
 
-    void captureBegin(uint32_t, uint32_t, uint32_t, bgfx::TextureFormat::Enum, bool) override { }
-    void captureEnd() override { }
-    void captureFrame(const void*, uint32_t) override { }
-  };
+    void captureBegin(uint32_t, uint32_t, uint32_t, bgfx::TextureFormat::Enum, bool) override {}
+    void captureEnd() override {}
+    void captureFrame(const void*, uint32_t) override {}
+};
 
-  static constexpr uint32_t resetFlags() {
+static constexpr uint32_t resetFlags() {
 #if APPLAUSE_WINDOWS
     return BGFX_RESET_FLIP_AFTER_RENDER;
 #elif APPLAUSE_MAC
@@ -68,42 +68,35 @@ namespace applause {
 #else
     return 0;
 #endif
-  }
+}
 
-  Renderer& Renderer::instance() {
+Renderer& Renderer::instance() {
     static Renderer renderer;
     return renderer;
-  }
+}
 
-  Renderer::Renderer() : Thread("Renderer Thread") { }
+Renderer::Renderer() : Thread("Renderer Thread") {}
 
-  Renderer::~Renderer() {
-    stop();
-  }
+Renderer::~Renderer() { stop(); }
 
-  void Renderer::startRenderThread() {
+void Renderer::startRenderThread() {
 #if APPLAUSE_BACKGROUND_GRAPHICS_THREAD
     start();
-    while (!render_thread_started_.load())
-      yield();
+    while (!render_thread_started_.load()) yield();
 #endif
-  }
+}
 
-  void Renderer::run() {
-    render();
-  }
+void Renderer::run() { render(); }
 
-  void Renderer::render() {
+void Renderer::render() {
     static constexpr int kRenderTimeout = 100;
     render_thread_started_ = bgfx::renderFrame() == bgfx::RenderFrame::NoContext;
 
-    while (shouldRun())
-      bgfx::renderFrame(kRenderTimeout);
-  }
+    while (shouldRun()) bgfx::renderFrame(kRenderTimeout);
+}
 
-  void Renderer::initialize(void* model_window, void* display) {
-    if (initialized_)
-      return;
+void Renderer::initialize(void* model_window, void* display) {
+    if (initialized_) return;
 
     callback_handler_ = std::make_unique<GraphicsCallbackHandler>();
     initialized_ = true;
@@ -126,8 +119,7 @@ namespace applause {
     bgfx_init.type = bgfx::RendererType::Direct3D11;
 #if USE_DIRECTX12
     for (int i = 0; i < num_supported; ++i) {
-      if (supported_renderers[i] == bgfx::RendererType::Direct3D12)
-        bgfx_init.type = bgfx::RendererType::Direct3D12;
+        if (supported_renderers[i] == bgfx::RendererType::Direct3D12) bgfx_init.type = bgfx::RendererType::Direct3D12;
     }
 #endif
 #elif APPLAUSE_MAC
@@ -142,27 +134,26 @@ namespace applause {
 
     bgfx_init.resolution.reset = resetFlags();
 
-    for (int i = 0; i < num_supported && !supported_; ++i)
-      supported_ = supported_renderers[i] == bgfx_init.type;
+    for (int i = 0; i < num_supported && !supported_; ++i) supported_ = supported_renderers[i] == bgfx_init.type;
 
     if (!supported_) {
-      APPLAUSE_ASSERT(false);
-      std::string renderer_name = bgfx::getRendererName(bgfx_init.type);
-      error_message_ = renderer_name + " is required and not supported on this computer.";
+        APPLAUSE_ASSERT(false);
+        std::string renderer_name = bgfx::getRendererName(bgfx_init.type);
+        error_message_ = renderer_name + " is required and not supported on this computer.";
     }
 
     bgfx::init(bgfx_init);
     APPLAUSE_ASSERT(bgfx::getRendererType() == bgfx_init.type);
     swap_chain_supported_ = bgfx::getCaps()->supported & BGFX_CAPS_SWAP_CHAIN;
-  }
+}
 
-  void Renderer::resetResolution(int width, int height) {
+void Renderer::resetResolution(int width, int height) {
 #if APPLAUSE_MAC
     bgfx::reset(width, height, resetFlags());
 #endif
-  }
-
-  void Renderer::setScreenshotData(const uint8_t* data, int width, int height, int pitch, bool blue_red) {
-    screenshot_ = Screenshot(data, width, height, pitch, blue_red);
-  }
 }
+
+void Renderer::setScreenshotData(const uint8_t* data, int width, int height, int pitch, bool blue_red) {
+    screenshot_ = Screenshot(data, width, height, pitch, blue_red);
+}
+}  // namespace applause

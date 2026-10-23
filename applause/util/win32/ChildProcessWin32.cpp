@@ -30,8 +30,7 @@
 #include <windows.h>
 
 namespace applause {
-  bool spawnChildProcess(const std::string& command, const std::string& arguments,
-                         std::string& output, int timeout_ms) {
+bool spawnChildProcess(const std::string& command, const std::string& arguments, std::string& output, int timeout_ms) {
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
 
@@ -44,13 +43,12 @@ namespace applause {
     sa.bInheritHandle = TRUE;
     sa.lpSecurityDescriptor = nullptr;
 
-    if (!CreatePipe(&std_out_read, &std_out_write, &sa, 0))
-      return false;
+    if (!CreatePipe(&std_out_read, &std_out_write, &sa, 0)) return false;
 
     if (!SetHandleInformation(std_out_read, HANDLE_FLAG_INHERIT, 0)) {
-      CloseHandle(std_out_read);
-      CloseHandle(std_out_write);
-      return false;
+        CloseHandle(std_out_read);
+        CloseHandle(std_out_write);
+        return false;
     }
 
     ZeroMemory(&si, sizeof(si));
@@ -63,78 +61,72 @@ namespace applause {
     std::string full_command = command + " " + arguments;
     std::vector<char> command_buffer(full_command.begin(), full_command.end());
     command_buffer.push_back('\0');
-    if (!CreateProcess(nullptr, command_buffer.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW,
-                       nullptr, nullptr, &si, &pi)) {
-      DWORD error_code = GetLastError();
-      char message_buffer[256];
-      FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, error_code,
-                     0, message_buffer, sizeof(message_buffer), NULL);
-      output = message_buffer;
+    if (!CreateProcess(nullptr, command_buffer.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si,
+                       &pi)) {
+        DWORD error_code = GetLastError();
+        char message_buffer[256];
+        FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, error_code, 0, message_buffer,
+                       sizeof(message_buffer), NULL);
+        output = message_buffer;
 
-      CloseHandle(std_out_read);
-      CloseHandle(std_out_write);
-      return false;
+        CloseHandle(std_out_read);
+        CloseHandle(std_out_write);
+        return false;
     }
 
     CloseHandle(std_out_write);
 
     std::ostringstream stream;
-    CHAR buffer[4096] {};
+    CHAR buffer[4096]{};
     DWORD bytes_read = 0;
     DWORD bytes_available = 0;
     size_t total_output_size = 0;
 
     auto read_available_output = [&] {
-      if (total_output_size >= kMaxOutputSize)
-        return false;
+        if (total_output_size >= kMaxOutputSize) return false;
 
-      if (PeekNamedPipe(std_out_read, nullptr, 0, nullptr, &bytes_available, nullptr) &&
-          bytes_available > 0) {
-        DWORD bytes_to_read = std::min<DWORD>(bytes_available, sizeof(buffer) - 1);
-        if (ReadFile(std_out_read, buffer, bytes_to_read, &bytes_read, nullptr) && bytes_read > 0) {
-          bytes_read = std::min<DWORD>(bytes_read, kMaxOutputSize - total_output_size);
-          buffer[bytes_read] = '\0';
-          stream << buffer;
-          total_output_size += bytes_read;
-          return true;
+        if (PeekNamedPipe(std_out_read, nullptr, 0, nullptr, &bytes_available, nullptr) && bytes_available > 0) {
+            DWORD bytes_to_read = std::min<DWORD>(bytes_available, sizeof(buffer) - 1);
+            if (ReadFile(std_out_read, buffer, bytes_to_read, &bytes_read, nullptr) && bytes_read > 0) {
+                bytes_read = std::min<DWORD>(bytes_read, kMaxOutputSize - total_output_size);
+                buffer[bytes_read] = '\0';
+                stream << buffer;
+                total_output_size += bytes_read;
+                return true;
+            }
         }
-      }
-      return false;
+        return false;
     };
 
     DWORD wait_result = WAIT_TIMEOUT;
     auto start_time = GetTickCount64();
 
     while (wait_result == WAIT_TIMEOUT) {
-      wait_result = WaitForSingleObject(pi.hProcess, 0);
+        wait_result = WaitForSingleObject(pi.hProcess, 0);
 
-      if (read_available_output() && total_output_size >= kMaxOutputSize)
-        break;
+        if (read_available_output() && total_output_size >= kMaxOutputSize) break;
 
-      if (GetTickCount64() - start_time >= (DWORD)timeout_ms) {
-        wait_result = WAIT_TIMEOUT;
-        break;
-      }
+        if (GetTickCount64() - start_time >= (DWORD)timeout_ms) {
+            wait_result = WAIT_TIMEOUT;
+            break;
+        }
 
-      if (wait_result == WAIT_TIMEOUT)
-        Sleep(1);
+        if (wait_result == WAIT_TIMEOUT) Sleep(1);
     }
 
-    while (read_available_output())
-      ;
+    while (read_available_output());
 
     DWORD exit_code = 0;
     bool success = true;
 
     if (wait_result == WAIT_TIMEOUT) {
-      TerminateProcess(pi.hProcess, 1);
-      WaitForSingleObject(pi.hProcess, INFINITE);
-      success = false;
-    }
-    else if (wait_result == WAIT_OBJECT_0)
-      success = GetExitCodeProcess(pi.hProcess, &exit_code) && exit_code == 0;
+        TerminateProcess(pi.hProcess, 1);
+        WaitForSingleObject(pi.hProcess, INFINITE);
+        success = false;
+    } else if (wait_result == WAIT_OBJECT_0)
+        success = GetExitCodeProcess(pi.hProcess, &exit_code) && exit_code == 0;
     else
-      success = false;
+        success = false;
 
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
@@ -142,5 +134,5 @@ namespace applause {
     output = stream.str();
 
     return success;
-  }
 }
+}  // namespace applause

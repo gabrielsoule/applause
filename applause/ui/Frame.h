@@ -21,21 +21,21 @@
 
 #pragma once
 
-#include <applause/ui/Events.h>
-#include <applause/ui/Layout.h>
-#include <applause/ui/UndoHistory.h>
 #include <applause/graphics/Canvas.h>
 #include <applause/graphics/Palette.h>
 #include <applause/graphics/Theme.h>
+#include <applause/ui/Events.h>
+#include <applause/ui/Layout.h>
+#include <applause/ui/UndoHistory.h>
 #include <applause/util/Space.h>
 
 #include <string>
 #include <vector>
 
 namespace applause {
-  class Frame;
+class Frame;
 
-  struct FrameEventHandler {
+struct FrameEventHandler {
     std::function<void(Frame*)> request_redraw = nullptr;
     std::function<void(Frame*)> request_keyboard_focus = nullptr;
     std::function<void(Frame*)> remove_from_hierarchy = nullptr;
@@ -44,18 +44,17 @@ namespace applause {
     std::function<void(bool)> set_cursor_visible = nullptr;
     std::function<std::string()> read_clipboard_text = nullptr;
     std::function<void(std::string)> set_clipboard_text = nullptr;
-  };
+};
 
-  class Frame {
-  public:
+class Frame {
+public:
     Frame() = default;
-    explicit Frame(std::string name) : name_(std::move(name)) { }
+    explicit Frame(std::string name) : name_(std::move(name)) {}
     virtual ~Frame() {
-      notifyRemoveFromHierarchy();
-      if (parent_)
-        parent_->eraseChild(this);
+        notifyRemoveFromHierarchy();
+        if (parent_) parent_->eraseChild(this);
 
-      removeAllChildren();
+        removeAllChildren();
     }
 
     auto& onDraw() { return on_draw_; }
@@ -79,67 +78,63 @@ namespace applause {
     auto& onTextInput() { return on_text_input_; }
 
     virtual void init() { initChildren(); }
-    virtual void draw(Canvas& canvas) { }
+    virtual void draw(Canvas& canvas) {}
     virtual void destroy() { destroyChildren(); }
 
-    virtual void resized() { }
-    virtual void dpiChanged() { }
-    virtual void visibilityChanged() { }
-    virtual void hierarchyChanged() { }
-    virtual void focusChanged(bool is_focused, bool was_clicked) { }
+    virtual void resized() {}
+    virtual void dpiChanged() {}
+    virtual void visibilityChanged() {}
+    virtual void hierarchyChanged() {}
+    virtual void focusChanged(bool is_focused, bool was_clicked) {}
 
-    virtual void mouseEnter(const MouseEvent& e) { }
-    virtual void mouseExit(const MouseEvent& e) { }
-    virtual void mouseDown(const MouseEvent& e) { }
-    virtual void mouseUp(const MouseEvent& e) { }
-    virtual void mouseMove(const MouseEvent& e) { }
-    virtual void mouseDrag(const MouseEvent& e) { }
+    virtual void mouseEnter(const MouseEvent& e) {}
+    virtual void mouseExit(const MouseEvent& e) {}
+    virtual void mouseDown(const MouseEvent& e) {}
+    virtual void mouseUp(const MouseEvent& e) {}
+    virtual void mouseMove(const MouseEvent& e) {}
+    virtual void mouseDrag(const MouseEvent& e) {}
     virtual bool mouseWheel(const MouseEvent& e) { return false; }
     virtual bool keyPress(const KeyEvent& e) { return false; }
     virtual bool keyRelease(const KeyEvent& e) { return false; }
 
     virtual bool receivesTextInput() { return false; }
-    virtual void textInput(const std::string& text) { }
+    virtual void textInput(const std::string& text) {}
 
     virtual HitTestResult hitTest(const Point& position) const { return HitTestResult::Client; }
 
     virtual bool receivesDragDropFiles() { return false; }
     virtual std::string dragDropFileExtensionRegex() { return ".*"; }
     virtual bool receivesMultipleDragDropFiles() { return false; }
-    virtual void dragFilesEnter(const std::vector<std::string>& paths) { }
-    virtual void dragFilesExit() { }
-    virtual void dropFiles(const std::vector<std::string>& paths) { }
+    virtual void dragFilesEnter(const std::vector<std::string>& paths) {}
+    virtual void dragFilesExit() {}
+    virtual void dropFiles(const std::vector<std::string>& paths) {}
     virtual bool isDragDropSource() { return false; }
     virtual std::string startDragDropSource() { return ""; }
-    virtual void cleanupDragDropSource() { }
+    virtual void cleanupDragDropSource() {}
 
     void setPalette(Palette* palette) {
-      palette_ = palette;
-      for (Frame* child : children_)
-        child->setPalette(palette);
+        palette_ = palette;
+        for (Frame* child : children_) child->setPalette(palette);
     }
 
     Palette* palette() const { return palette_; }
 
     void setPaletteOverride(theme::OverrideId override_id, bool recursive = true) {
-      palette_override_ = override_id;
-      if (recursive) {
-        for (Frame* child : children_)
-          child->setPaletteOverride(override_id, true);
-      }
+        palette_override_ = override_id;
+        if (recursive) {
+            for (Frame* child : children_) child->setPaletteOverride(override_id, true);
+        }
     }
     theme::OverrideId paletteOverride() const { return palette_override_; }
 
     bool initialized() const { return initialized_; }
     void redraw() {
-      if (isVisible() && isDrawing() && !redrawing_)
-        redrawing_ = requestRedraw();
+        if (isVisible() && isDrawing() && !redrawing_) redrawing_ = requestRedraw();
     }
 
     void redrawAll() {
-      redraw();
-      for (Frame* child : children_)
-        child->redrawAll();
+        redraw();
+        for (Frame* child : children_) child->redrawAll();
     }
 
     Region* region() { return &region_; }
@@ -153,41 +148,39 @@ namespace applause {
     void removeBackdropEffect();
 
     void setBlurRadius(float blur_radius) {
-      if (blur_radius <= 0.0f) {
-        if (blur_effect_ && post_effect_ == blur_effect_.get())
-          removePostEffect();
+        if (blur_radius <= 0.0f) {
+            if (blur_effect_ && post_effect_ == blur_effect_.get()) removePostEffect();
 
-        blur_effect_ = nullptr;
-        return;
-      }
+            blur_effect_ = nullptr;
+            return;
+        }
 
-      if (blur_effect_ == nullptr) {
-        blur_effect_ = std::make_unique<BlurPostEffect>();
-        setPostEffect(blur_effect_.get());
-      }
+        if (blur_effect_ == nullptr) {
+            blur_effect_ = std::make_unique<BlurPostEffect>();
+            setPostEffect(blur_effect_.get());
+        }
 
-      blur_effect_->setBlurRadius(blur_radius);
-      redraw();
+        blur_effect_->setBlurRadius(blur_radius);
+        redraw();
     }
 
     void setAlphaTransparency(float alpha) {
-      if (alpha_transparency_ == alpha)
-        return;
+        if (alpha_transparency_ == alpha) return;
 
-      alpha_transparency_ = alpha;
-      redraw();
+        alpha_transparency_ = alpha;
+        redraw();
     }
 
     void removeAlphaTransparency() { setAlphaTransparency(1.0f); }
 
     void setCached(bool cached) {
-      cached_ = cached;
-      redraw();
+        cached_ = cached;
+        redraw();
     }
 
     void setMasked(bool masked) {
-      masked_ = masked;
-      redraw();
+        masked_ = masked;
+        redraw();
     }
 
     const std::string& name() const { return name_; }
@@ -208,35 +201,32 @@ namespace applause {
     void removeAllChildren();
     int indexOfChild(const Frame* child) const;
     void setParent(Frame* parent) {
-      APPLAUSE_ASSERT(parent != this);
+        APPLAUSE_ASSERT(parent != this);
 
-      parent_ = parent;
-      if (parent && parent->palette())
-        setPalette(parent->palette());
+        parent_ = parent;
+        if (parent && parent->palette()) setPalette(parent->palette());
     }
     Frame* parent() const { return parent_; }
     const std::vector<Frame*>& children() const { return children_; }
 
     void setEventHandler(FrameEventHandler* handler) {
-      event_handler_ = handler;
-      redrawing_ = false;
-      for (Frame* child : children_)
-        child->setEventHandler(handler);
+        event_handler_ = handler;
+        redrawing_ = false;
+        for (Frame* child : children_) child->setEventHandler(handler);
     }
     FrameEventHandler* eventHandler() const { return event_handler_; }
 
-    template<typename T>
+    template <typename T>
     T* findParent() const {
-      Frame* frame = parent_;
-      while (frame) {
-        T* casted = dynamic_cast<T*>(frame);
-        if (casted)
-          return casted;
+        Frame* frame = parent_;
+        while (frame) {
+            T* casted = dynamic_cast<T*>(frame);
+            if (casted) return casted;
 
-        frame = frame->parent_;
-      }
+            frame = frame->parent_;
+        }
 
-      return nullptr;
+        return nullptr;
     }
 
     bool containsPoint(Point point) const { return bounds_.contains(point); }
@@ -244,25 +234,20 @@ namespace applause {
     Frame* topParentFrame();
 
     void setBounds(Bounds bounds);
-    void setBounds(float x, float y, float width, float height) {
-      setBounds({ x, y, width, height });
-    }
+    void setBounds(float x, float y, float width, float height) { setBounds({x, y, width, height}); }
     void setNativeBounds(IBounds native_bounds);
-    void setNativeBounds(int x, int y, int width, int height) {
-      setNativeBounds({ x, y, width, height });
-    }
+    void setNativeBounds(int x, int y, int width, int height) { setNativeBounds({x, y, width, height}); }
     IBounds computeLayoutBoundingBox(IBounds bounds) const;
     void computeLayout();
     void computeLayout(Frame* child);
     const Bounds& bounds() const { return bounds_; }
     void setTopLeft(float x, float y) { setBounds(x, y, width(), height()); }
-    Point topLeft() const { return { bounds_.x(), bounds_.y() }; }
+    Point topLeft() const { return {bounds_.x(), bounds_.y()}; }
 
     bool hasLayout() const { return layout_ != nullptr; }
     Layout& layout() {
-      if (layout_ == nullptr)
-        layout_ = std::make_unique<Layout>();
-      return *layout_;
+        if (layout_ == nullptr) layout_ = std::make_unique<Layout>();
+        return *layout_;
     }
     void clearLayout() { layout_ = nullptr; }
     void setFlexLayout(bool flex) { layout().setFlex(flex); }
@@ -279,11 +264,9 @@ namespace applause {
     int nativeHeight() const { return native_bounds_.height(); }
     int nativeRight() const { return native_bounds_.right(); }
     int nativeBottom() const { return native_bounds_.bottom(); }
-    virtual float aspectRatio() const {
-      return bounds_.width() * 1.0f / std::max(0.01f, bounds_.height());
-    }
-    Bounds localBounds() const { return { 0.0f, 0.0f, width(), height() }; }
-    IBounds nativeLocalBounds() const { return { 0, 0, nativeWidth(), nativeHeight() }; }
+    virtual float aspectRatio() const { return bounds_.width() * 1.0f / std::max(0.01f, bounds_.height()); }
+    Bounds localBounds() const { return {0.0f, 0.0f, width(), height()}; }
+    IBounds nativeLocalBounds() const { return {0, 0, nativeWidth(), nativeHeight()}; }
     Point positionInWindow() const;
     Bounds relativeBounds(const Frame* other) const;
 
@@ -294,8 +277,8 @@ namespace applause {
     void setReceiveChildMouseEvents(bool receive) { receive_child_mouse_events_ = receive; }
     bool ignoresMouseEvents() const { return ignores_mouse_events_; }
     void setIgnoresMouseEvents(bool ignore, bool pass_to_children) {
-      ignores_mouse_events_ = ignore;
-      pass_mouse_events_to_children_ = pass_to_children;
+        ignores_mouse_events_ = ignore;
+        pass_mouse_events_to_children_ = pass_to_children;
     }
 
     bool hasKeyboardFocus() const { return keyboard_focus_; }
@@ -306,65 +289,56 @@ namespace applause {
     void drawToRegion(Canvas& canvas);
 
     void setDpiScale(float dpi_scale) {
-      bool changed = dpi_scale_ != dpi_scale;
-      dpi_scale_ = dpi_scale;
+        bool changed = dpi_scale_ != dpi_scale;
+        dpi_scale_ = dpi_scale;
 
-      if (changed) {
-        on_dpi_change_.callback();
-        redraw();
-      }
+        if (changed) {
+            on_dpi_change_.callback();
+            redraw();
+        }
 
-      for (Frame* child : children_)
-        child->setDpiScale(dpi_scale);
+        for (Frame* child : children_) child->setDpiScale(dpi_scale);
     }
 
     float dpiScale() const { return dpi_scale_; }
 
     bool requestRedraw() {
-      if (event_handler_ && event_handler_->request_redraw) {
-        event_handler_->request_redraw(this);
-        return true;
-      }
-      return false;
+        if (event_handler_ && event_handler_->request_redraw) {
+            event_handler_->request_redraw(this);
+            return true;
+        }
+        return false;
     }
 
     void requestKeyboardFocus() {
-      if (event_handler_ && event_handler_->request_keyboard_focus)
-        event_handler_->request_keyboard_focus(this);
+        if (event_handler_ && event_handler_->request_keyboard_focus) event_handler_->request_keyboard_focus(this);
     }
 
     void notifyRemoveFromHierarchy() {
-      for (Frame* child : children_)
-        child->notifyRemoveFromHierarchy();
+        for (Frame* child : children_) child->notifyRemoveFromHierarchy();
 
-      if (event_handler_ && event_handler_->remove_from_hierarchy)
-        event_handler_->remove_from_hierarchy(this);
+        if (event_handler_ && event_handler_->remove_from_hierarchy) event_handler_->remove_from_hierarchy(this);
     }
 
     void setMouseRelativeMode(bool visible) {
-      if (event_handler_ && event_handler_->set_mouse_relative_mode)
-        event_handler_->set_mouse_relative_mode(visible);
+        if (event_handler_ && event_handler_->set_mouse_relative_mode) event_handler_->set_mouse_relative_mode(visible);
     }
 
     void setCursorStyle(MouseCursor style) {
-      if (event_handler_ && event_handler_->set_cursor_style)
-        event_handler_->set_cursor_style(style);
+        if (event_handler_ && event_handler_->set_cursor_style) event_handler_->set_cursor_style(style);
     }
 
     void setCursorVisible(bool visible) {
-      if (event_handler_ && event_handler_->set_cursor_visible)
-        event_handler_->set_cursor_visible(visible);
+        if (event_handler_ && event_handler_->set_cursor_visible) event_handler_->set_cursor_visible(visible);
     }
 
     std::string readClipboardText() {
-      if (event_handler_ && event_handler_->read_clipboard_text)
-        return event_handler_->read_clipboard_text();
-      return "";
+        if (event_handler_ && event_handler_->read_clipboard_text) return event_handler_->read_clipboard_text();
+        return "";
     }
 
     void setClipboardText(const std::string& text) {
-      if (event_handler_ && event_handler_->set_clipboard_text)
-        event_handler_->set_clipboard_text(text);
+        if (event_handler_ && event_handler_->set_clipboard_text) event_handler_->set_clipboard_text(text);
     }
 
     void processMouseEnter(const MouseEvent& e) { propagateMouseEvent(e, &Frame::onMouseEnter); }
@@ -375,8 +349,8 @@ namespace applause {
     void processMouseDrag(const MouseEvent& e) { propagateMouseEvent(e, &Frame::onMouseDrag); }
     bool processMouseWheel(const MouseEvent& e) { return on_mouse_wheel_.callback(e); }
     void processFocusChanged(bool is_focused, bool was_clicked) {
-      keyboard_focus_ = is_focused && accepts_keystrokes_;
-      on_focus_change_.callback(is_focused, was_clicked);
+        keyboard_focus_ = is_focused && accepts_keystrokes_;
+        on_focus_change_.callback(is_focused, was_clicked);
     }
 
     bool processKeyPress(const KeyEvent& e) { return on_key_press_.callback(e); }
@@ -392,15 +366,14 @@ namespace applause {
     bool canUndo() const;
     bool canRedo() const;
 
-  private:
+private:
     void propagateMouseEvent(const MouseEvent& e, void (Frame::*handler)(const MouseEvent&)) {
-      (this->*handler)(e);
-      auto frame = parent_;
-      while (frame) {
-        if (frame->receiveChildMouseEvents())
-          (frame->*handler)(e);
-        frame = frame->parent_;
-      }
+        (this->*handler)(e);
+        auto frame = parent_;
+        while (frame) {
+            if (frame->receiveChildMouseEvents()) (frame->*handler)(e);
+            frame = frame->parent_;
+        }
     }
 
     void onMouseEnter(const MouseEvent& e) { on_mouse_enter_.callback(e); }
@@ -411,9 +384,8 @@ namespace applause {
     void onMouseDrag(const MouseEvent& e) { on_mouse_drag_.callback(e); }
 
     void notifyHierarchyChanged() {
-      for (Frame* child : children_)
-        child->notifyHierarchyChanged();
-      on_hierarchy_change_.callback();
+        for (Frame* child : children_) child->notifyHierarchyChanged();
+        on_hierarchy_change_.callback();
     }
 
     void initChildren();
@@ -421,34 +393,33 @@ namespace applause {
     void eraseChild(Frame* child);
 
     bool requiresLayer() const {
-      return post_effect_ || backdrop_effect_ || cached_ || masked_ || alpha_transparency_ != 1.0f;
+        return post_effect_ || backdrop_effect_ || cached_ || masked_ || alpha_transparency_ != 1.0f;
     }
 
     std::string name_;
     Bounds bounds_;
     IBounds native_bounds_;
 
-    CallbackList<void(Canvas&)> on_draw_ { [this](Canvas& e) -> void { draw(e); } };
-    CallbackList<void()> on_resize_ { [this] { resized(); } };
+    CallbackList<void(Canvas&)> on_draw_{[this](Canvas& e) -> void { draw(e); }};
+    CallbackList<void()> on_resize_{[this] { resized(); }};
     CallbackList<void(const Frame*)> on_child_bounds_changed_;
     CallbackList<void(const Frame*)> on_child_added_;
     CallbackList<void(const Frame*)> on_child_removed_;
-    CallbackList<void()> on_dpi_change_ { [this] { dpiChanged(); } };
-    CallbackList<void()> on_visibility_change_ { [this] { visibilityChanged(); } };
-    CallbackList<void()> on_hierarchy_change_ { [this] { hierarchyChanged(); } };
-    CallbackList<void(bool, bool)> on_focus_change_ { [this](bool is_focused, bool was_clicked) {
-      focusChanged(is_focused, was_clicked);
-    } };
-    CallbackList<void(const MouseEvent&)> on_mouse_enter_ { [this](auto& e) { mouseEnter(e); } };
-    CallbackList<void(const MouseEvent&)> on_mouse_exit_ { [this](auto& e) { mouseExit(e); } };
-    CallbackList<void(const MouseEvent&)> on_mouse_down_ { [this](auto& e) { mouseDown(e); } };
-    CallbackList<void(const MouseEvent&)> on_mouse_up_ { [this](auto& e) { mouseUp(e); } };
-    CallbackList<void(const MouseEvent&)> on_mouse_move_ { [this](auto& e) { mouseMove(e); } };
-    CallbackList<void(const MouseEvent&)> on_mouse_drag_ { [this](auto& e) { mouseDrag(e); } };
-    CallbackList<bool(const MouseEvent&)> on_mouse_wheel_ { [this](auto& e) { return mouseWheel(e); } };
-    CallbackList<bool(const KeyEvent&)> on_key_press_ { [this](auto& e) { return keyPress(e); } };
-    CallbackList<bool(const KeyEvent&)> on_key_release_ { [this](auto& e) { return keyRelease(e); } };
-    CallbackList<void(const std::string&)> on_text_input_ { [this](auto& text) { textInput(text); } };
+    CallbackList<void()> on_dpi_change_{[this] { dpiChanged(); }};
+    CallbackList<void()> on_visibility_change_{[this] { visibilityChanged(); }};
+    CallbackList<void()> on_hierarchy_change_{[this] { hierarchyChanged(); }};
+    CallbackList<void(bool, bool)> on_focus_change_{
+        [this](bool is_focused, bool was_clicked) { focusChanged(is_focused, was_clicked); }};
+    CallbackList<void(const MouseEvent&)> on_mouse_enter_{[this](auto& e) { mouseEnter(e); }};
+    CallbackList<void(const MouseEvent&)> on_mouse_exit_{[this](auto& e) { mouseExit(e); }};
+    CallbackList<void(const MouseEvent&)> on_mouse_down_{[this](auto& e) { mouseDown(e); }};
+    CallbackList<void(const MouseEvent&)> on_mouse_up_{[this](auto& e) { mouseUp(e); }};
+    CallbackList<void(const MouseEvent&)> on_mouse_move_{[this](auto& e) { mouseMove(e); }};
+    CallbackList<void(const MouseEvent&)> on_mouse_drag_{[this](auto& e) { mouseDrag(e); }};
+    CallbackList<bool(const MouseEvent&)> on_mouse_wheel_{[this](auto& e) { return mouseWheel(e); }};
+    CallbackList<bool(const KeyEvent&)> on_key_press_{[this](auto& e) { return keyPress(e); }};
+    CallbackList<bool(const KeyEvent&)> on_key_release_{[this](auto& e) { return keyRelease(e); }};
+    CallbackList<void(const std::string&)> on_text_input_{[this](auto& text) { textInput(text); }};
 
     bool on_top_ = false;
     bool visible_ = true;
@@ -478,5 +449,5 @@ namespace applause {
     std::unique_ptr<Layout> layout_;
     bool drawing_ = true;
     bool redrawing_ = false;
-  };
-}
+};
+}  // namespace applause

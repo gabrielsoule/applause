@@ -28,96 +28,96 @@
 #include <atomic>
 #include <map>
 #include <thread>
+
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
 
 namespace applause {
-  enum DecoratorOperation {
+enum DecoratorOperation {
     kMoveWindow = 1 << 0,
     kResizeLeft = 1 << 1,
     kResizeTop = 1 << 2,
     kResizeRight = 1 << 3,
     kResizeBottom = 1 << 4,
-  };
+};
 
-  class X11Connection {
-  public:
+class X11Connection {
+public:
     static constexpr int kDndVersion = 5;
     static constexpr int kNumDndActions = 2;
     static constexpr int kNumDndTypes = 1;
 
     static int xErrorHandler(Display* display, XErrorEvent* error_event) {
-      APPLAUSE_LOG(String("X11 Error: ") + static_cast<int>(error_event->error_code));
-      return 0;
+        APPLAUSE_LOG(String("X11 Error: ") + static_cast<int>(error_event->error_code));
+        return 0;
     }
 
     static X11Connection* globalInstance() {
-      static X11Connection connection;
-      return &connection;
+        static X11Connection connection;
+        return &connection;
     }
 
     class DisplayLock {
     public:
-      explicit DisplayLock(const X11Connection* x11) : x11_(x11) { XLockDisplay(x11_->display()); }
+        explicit DisplayLock(const X11Connection* x11) : x11_(x11) { XLockDisplay(x11_->display()); }
 
-      ~DisplayLock() { XUnlockDisplay(x11_->display()); }
+        ~DisplayLock() { XUnlockDisplay(x11_->display()); }
 
     private:
-      const X11Connection* x11_;
+        const X11Connection* x11_;
     };
 
     struct Cursors {
-      explicit Cursors(Display* display);
+        explicit Cursors(Display* display);
 
-      Cursor no_cursor;
-      Cursor arrow_cursor;
-      Cursor ibeam_cursor;
-      Cursor crosshair_cursor;
-      Cursor pointing_cursor;
-      Cursor horizontal_resize_cursor;
-      Cursor vertical_resize_cursor;
-      Cursor top_left_resize_cursor;
-      Cursor top_right_resize_cursor;
-      Cursor bottom_left_resize_cursor;
-      Cursor bottom_right_resize_cursor;
-      Cursor multi_directional_resize_cursor;
+        Cursor no_cursor;
+        Cursor arrow_cursor;
+        Cursor ibeam_cursor;
+        Cursor crosshair_cursor;
+        Cursor pointing_cursor;
+        Cursor horizontal_resize_cursor;
+        Cursor vertical_resize_cursor;
+        Cursor top_left_resize_cursor;
+        Cursor top_right_resize_cursor;
+        Cursor bottom_left_resize_cursor;
+        Cursor bottom_right_resize_cursor;
+        Cursor multi_directional_resize_cursor;
     };
 
     X11Connection() {
-      display_ = XOpenDisplay(nullptr);
-      XSetErrorHandler(xErrorHandler);
-      if (display_ == nullptr)
-        return;
+        display_ = XOpenDisplay(nullptr);
+        XSetErrorHandler(xErrorHandler);
+        if (display_ == nullptr) return;
 
-      fd_ = ConnectionNumber(display_);
-      root_ = DefaultRootWindow(display_);
-      XSetWindowAttributes attributes;
-      attributes.event_mask = NoEventMask;
-      XSync(display_, false);
-      clipboard_ = XInternAtom(display_, "CLIPBOARD", False);
-      utf8_string_ = XInternAtom(display_, "UTF8_STRING", False);
-      targets_ = XInternAtom(display_, "TARGETS", False);
-      timer_event_ = XInternAtom(display_, "APPLAUSE_TIMER_EVENT", False);
-      delete_message_ = XInternAtom(display_, "WM_DELETE_WINDOW", False);
-      dnd_aware_ = XInternAtom(display_, "XdndAware", False);
-      dnd_proxy_ = XInternAtom(display_, "XdndProxy", False);
-      dnd_enter_ = XInternAtom(display_, "XdndEnter", False);
-      dnd_leave_ = XInternAtom(display_, "XdndLeave", False);
-      dnd_drop_ = XInternAtom(display_, "XdndDrop", False);
-      dnd_selection_ = XInternAtom(display_, "XdndSelection", False);
-      dnd_uri_list_ = XInternAtom(display_, "text/uri-list", False);
-      dnd_position_ = XInternAtom(display_, "XdndPosition", False);
-      dnd_finished_ = XInternAtom(display_, "XdndFinished", False);
-      dnd_status_ = XInternAtom(display_, "XdndStatus", False);
-      dnd_action_none_ = XInternAtom(display_, "XdndActionNone", False);
-      dnd_action_copy_ = XInternAtom(display_, "XdndActionCopy", False);
-      dnd_action_list_ = XInternAtom(display_, "XdndActionList", False);
-      dnd_action_description_ = XInternAtom(display_, "XdndActionDescription", False);
-      dnd_type_list_ = XInternAtom(display_, "XdndTypeList", False);
-      dnd_types_[0] = dnd_uri_list_;
-      dnd_actions_[0] = dnd_action_copy_;
-      dnd_actions_[1] = dnd_action_none_;
-      cursors_ = std::make_unique<Cursors>(display_);
+        fd_ = ConnectionNumber(display_);
+        root_ = DefaultRootWindow(display_);
+        XSetWindowAttributes attributes;
+        attributes.event_mask = NoEventMask;
+        XSync(display_, false);
+        clipboard_ = XInternAtom(display_, "CLIPBOARD", False);
+        utf8_string_ = XInternAtom(display_, "UTF8_STRING", False);
+        targets_ = XInternAtom(display_, "TARGETS", False);
+        timer_event_ = XInternAtom(display_, "APPLAUSE_TIMER_EVENT", False);
+        delete_message_ = XInternAtom(display_, "WM_DELETE_WINDOW", False);
+        dnd_aware_ = XInternAtom(display_, "XdndAware", False);
+        dnd_proxy_ = XInternAtom(display_, "XdndProxy", False);
+        dnd_enter_ = XInternAtom(display_, "XdndEnter", False);
+        dnd_leave_ = XInternAtom(display_, "XdndLeave", False);
+        dnd_drop_ = XInternAtom(display_, "XdndDrop", False);
+        dnd_selection_ = XInternAtom(display_, "XdndSelection", False);
+        dnd_uri_list_ = XInternAtom(display_, "text/uri-list", False);
+        dnd_position_ = XInternAtom(display_, "XdndPosition", False);
+        dnd_finished_ = XInternAtom(display_, "XdndFinished", False);
+        dnd_status_ = XInternAtom(display_, "XdndStatus", False);
+        dnd_action_none_ = XInternAtom(display_, "XdndActionNone", False);
+        dnd_action_copy_ = XInternAtom(display_, "XdndActionCopy", False);
+        dnd_action_list_ = XInternAtom(display_, "XdndActionList", False);
+        dnd_action_description_ = XInternAtom(display_, "XdndActionDescription", False);
+        dnd_type_list_ = XInternAtom(display_, "XdndTypeList", False);
+        dnd_types_[0] = dnd_uri_list_;
+        dnd_actions_[0] = dnd_action_copy_;
+        dnd_actions_[1] = dnd_action_none_;
+        cursors_ = std::make_unique<Cursors>(display_);
     }
 
     X11Connection(const X11Connection& copy) = delete;
@@ -155,7 +155,7 @@ namespace applause {
     const Cursors& cursors() const { return *cursors_; }
     int fd() const { return fd_; }
 
-  private:
+private:
     ::Display* display_ = nullptr;
     int fd_ = 0;
     ::Window root_ = 0;
@@ -179,27 +179,25 @@ namespace applause {
     Atom dnd_action_list_ = 0;
     Atom dnd_action_description_ = 0;
     Atom dnd_version_ = kDndVersion;
-    Atom dnd_actions_[kNumDndActions] {};
+    Atom dnd_actions_[kNumDndActions]{};
     Atom dnd_type_list_ = 0;
-    Atom dnd_types_[kNumDndTypes] {};
+    Atom dnd_types_[kNumDndTypes]{};
     std::unique_ptr<Cursors> cursors_;
-  };
+};
 
-  struct MonitorInfo {
+struct MonitorInfo {
     static constexpr int kDefaultRefreshRate = 60;
 
     IBounds bounds;
     double refresh_rate = kDefaultRefreshRate;
     float dpi = Window::kDefaultDpi;
-  };
+};
 
-  class WindowX11 : public Window {
-  public:
-    static constexpr long kEventMask = ExposureMask | KeyPressMask | KeyReleaseMask |
-                                       ButtonPressMask | ButtonReleaseMask | StructureNotifyMask |
-                                       EnterWindowMask | LeaveWindowMask | PointerMotionMask |
-                                       Button1MotionMask | Button2MotionMask | Button3MotionMask |
-                                       VisibilityChangeMask | FocusChangeMask;
+class WindowX11 : public Window {
+public:
+    static constexpr long kEventMask = ExposureMask | KeyPressMask | KeyReleaseMask | ButtonPressMask |
+        ButtonReleaseMask | StructureNotifyMask | EnterWindowMask | LeaveWindowMask | PointerMotionMask |
+        Button1MotionMask | Button2MotionMask | Button3MotionMask | VisibilityChangeMask | FocusChangeMask;
 
     static constexpr int kMinWidth = 80;
     static constexpr int kMinHeight = 80;
@@ -240,12 +238,12 @@ namespace applause {
     bool timerThreadRunning() { return timer_thread_running_.load(); }
     int timerMs() const { return timer_microseconds_.load() / 1000; }
 
-  private:
+private:
     static WindowX11* last_active_window_;
 
     struct DragDropOutState {
-      bool dragging = false;
-      ::Window target = 0;
+        bool dragging = false;
+        ::Window target = 0;
     };
 
     ::Window parentHandle() const { return parent_handle_; }
@@ -289,7 +287,7 @@ namespace applause {
     std::atomic<long long> timer_microseconds_ = 16667;
     std::atomic<bool> timer_thread_running_ = false;
     std::unique_ptr<std::thread> timer_thread_;
-  };
-}
+};
+}  // namespace applause
 
 #endif

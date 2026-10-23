@@ -32,23 +32,23 @@
 #include <windows.h>
 
 namespace applause {
-  class DragDropTarget;
-  class VBlankThread;
+class DragDropTarget;
+class VBlankThread;
 
-  class EventHooks {
-  public:
+class EventHooks {
+public:
     static LRESULT CALLBACK eventHook(int code, WPARAM w_param, LPARAM l_param);
 
     EventHooks();
     ~EventHooks();
 
-  private:
+private:
     static int instance_count_;
     static HHOOK event_hook_;
-  };
+};
 
-  class WindowWin32 : public Window {
-  public:
+class WindowWin32 : public Window {
+public:
     static constexpr int kTimerId = 1;
     static HCURSOR cursor_;
 
@@ -93,7 +93,7 @@ namespace applause {
     WNDPROC parentWindowProc() const { return parent_window_proc_; }
     Window::Decoration decoration() const { return decoration_; }
 
-  private:
+private:
     void show(int show_flag);
     void registerWindowClass();
 
@@ -113,7 +113,7 @@ namespace applause {
     bool initialized_ = false;
     bool mouse_tracked_ = false;
     int mouse_down_flags_ = 0;
-  };
-}
+};
+}  // namespace applause
 
 #endif

@@ -22,7 +22,7 @@
 #pragma once
 
 namespace applause {
-  struct Uniforms {
+struct Uniforms {
     static constexpr char kTime[] = "u_time";
     static constexpr char kMult[] = "u_mult";
     static constexpr char kTextureClamp[] = "u_texture_clamp";
@@ -47,5 +47,5 @@ namespace applause {
     static constexpr char kGradientPosition[] = "u_gradient_position";
     static constexpr char kGradientPosition2[] = "u_gradient_position2";
     static constexpr char kRadialGradient[] = "u_radial_gradient";
-  };
-}
+};
+}  // namespace applause

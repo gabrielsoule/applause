@@ -22,9 +22,9 @@
 #pragma once
 
 namespace applause {
-  struct EmbeddedFile {
+struct EmbeddedFile {
     const char* name = nullptr;
     const unsigned char* data = nullptr;
     int size = 0;
-  };
-}
+};
+}  // namespace applause

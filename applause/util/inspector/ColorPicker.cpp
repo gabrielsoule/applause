@@ -21,11 +21,11 @@
 
 #include <applause/util/inspector/ColorPicker.h>
 
-#include <embedded/applause_fonts.h>
 #include <applause/util/StringUtils.h>
+#include <embedded/applause_fonts.h>
 
 namespace applause {
-  void HueEditor::draw(Canvas& canvas) {
+void HueEditor::draw(Canvas& canvas) {
     int w = width();
     int h = height();
 
@@ -56,9 +56,9 @@ namespace applause {
     float y = h * hue_ / Color::kHueRange;
     canvas.setColor(0xff000000);
     canvas.rectangle(0, y - 1.0f, w, 2.0f);
-  }
+}
 
-  void ValueSaturationEditor::draw(Canvas& canvas) {
+void ValueSaturationEditor::draw(Canvas& canvas) {
     canvas.setColor(Brush::horizontal(0xffffffff, hue_color_));
     canvas.rectangle(0, 0, width(), height());
 
@@ -70,22 +70,22 @@ namespace applause {
 
     canvas.setColor(0xff000000);
     canvas.ring(x - 3.0f, y - 3.0f, 6.0f, 1.0f);
-  }
+}
 
-  ColorPicker::ColorPicker() {
+ColorPicker::ColorPicker() {
     Font font(kEditHeight / 2, fonts::DroidSansMono_ttf);
 
     hue_.onEdit() = [this](float hue) {
-      updateColor();
-      notifyNewColor();
-      value_saturation_.setHueColor(Color::fromAHSV(1.0f, hue, 1.0f, 1.0f));
-      redraw();
+        updateColor();
+        notifyNewColor();
+        value_saturation_.setHueColor(Color::fromAHSV(1.0f, hue, 1.0f, 1.0f));
+        redraw();
     };
 
     value_saturation_.onEdit() = [this](float, float) {
-      updateColor();
-      notifyNewColor();
-      redraw();
+        updateColor();
+        notifyNewColor();
+        redraw();
     };
 
     hex_text_.setFont(font);
@@ -109,27 +109,27 @@ namespace applause {
     hdr_text_.onEnterKey() += [this] { requestKeyboardFocus(); };
 
     hex_text_.onTextChange() += [this] {
-      color_ = Color::fromHexString(hex_text_.text().toUtf8());
-      hue_.setHue(color_.hue());
-      value_saturation_.setValue(color_.value());
-      value_saturation_.setSaturation(color_.saturation());
-      value_saturation_.setHueColor(Color::fromAHSV(1.0f, hue_.hue(), 1.0f, 1.0f));
-      notifyNewColor();
-      redraw();
+        color_ = Color::fromHexString(hex_text_.text().toUtf8());
+        hue_.setHue(color_.hue());
+        value_saturation_.setValue(color_.value());
+        value_saturation_.setSaturation(color_.saturation());
+        value_saturation_.setHueColor(Color::fromAHSV(1.0f, hue_.hue(), 1.0f, 1.0f));
+        notifyNewColor();
+        redraw();
     };
 
     alpha_text_.onTextChange() += [this] {
-      alpha_ = std::min(1.0f, std::max(0.0f, alpha_text_.text().toFloat()));
-      color_.setAlpha(alpha_);
-      notifyNewColor();
-      redraw();
+        alpha_ = std::min(1.0f, std::max(0.0f, alpha_text_.text().toFloat()));
+        color_.setAlpha(alpha_);
+        notifyNewColor();
+        redraw();
     };
 
     hdr_text_.onTextChange() += [this] {
-      hdr_ = std::max(0.0f, hdr_text_.text().toFloat());
-      color_.setHdr(hdr_);
-      notifyNewColor();
-      redraw();
+        hdr_ = std::max(0.0f, hdr_text_.text().toFloat());
+        color_.setHdr(hdr_);
+        notifyNewColor();
+        redraw();
     };
 
     addChild(&hue_);
@@ -139,9 +139,9 @@ namespace applause {
     addChild(&hdr_text_);
     value_saturation_.setHueColor(Color::fromAHSV(1.0f, hue_.hue(), 1.0f, 1.0f));
     updateColor();
-  }
+}
 
-  void ColorPicker::resized() {
+void ColorPicker::resized() {
     Frame::resized();
     int widget_height = height() - kEditHeight - kPadding;
     hue_.setBounds(width() - kHueWidth, 0, kHueWidth, widget_height);
@@ -160,26 +160,25 @@ namespace applause {
     hex_text_.setBounds(kEditHeight + kPadding, widget_height + kPadding, edit_width, kEditHeight);
     alpha_text_.setBounds(hex_text_.right() + kPadding, widget_height + kPadding, edit_width, kEditHeight);
     hdr_text_.setBounds(alpha_text_.right() + kPadding, widget_height + kPadding, edit_width, kEditHeight);
-  }
+}
 
-  void ColorPicker::draw(Canvas& canvas) {
+void ColorPicker::draw(Canvas& canvas) {
     int widget_height = height() - kEditHeight;
 
     canvas.setColor(color_);
     canvas.roundedRectangle(0, widget_height, kEditHeight, kEditHeight, 8);
-  }
+}
 
-  void ColorPicker::updateColor() {
-    color_ = Color::fromAHSV(alpha_, hue_.hue(), value_saturation_.saturation(),
-                             value_saturation_.value());
+void ColorPicker::updateColor() {
+    color_ = Color::fromAHSV(alpha_, hue_.hue(), value_saturation_.saturation(), value_saturation_.value());
     color_.setHdr(hdr_);
     hex_text_.setText(color_.toRGBHexString());
     alpha_text_.setText(String(alpha_, kDecimalSigFigs).toUtf8());
     hdr_text_.setText(String(hdr_, kDecimalSigFigs).toUtf8());
     redraw();
-  }
+}
 
-  void ColorPicker::setColor(const Color& color) {
+void ColorPicker::setColor(const Color& color) {
     hue_.setHue(color.hue());
     value_saturation_.setHueColor(Color::fromAHSV(1.0f, hue_.hue(), 1.0f, 1.0f));
     value_saturation_.setValue(color.value());
@@ -187,5 +186,5 @@ namespace applause {
     alpha_ = color.alpha();
     hdr_ = color.hdr();
     updateColor();
-  }
 }
+}  // namespace applause

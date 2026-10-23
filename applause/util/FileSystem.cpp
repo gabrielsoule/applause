@@ -38,69 +38,57 @@
 #include <unistd.h>
 
 static applause::File xdgFolder(const char* env_var, const char* default_folder) {
-  const char* xdg_folder = getenv(env_var);
-  if (xdg_folder)
-    return xdg_folder;
+    const char* xdg_folder = getenv(env_var);
+    if (xdg_folder) return xdg_folder;
 
-  return default_folder;
+    return default_folder;
 }
 #endif
 
 namespace applause {
-  bool replaceFileWithData(const File& file, const unsigned char* data, size_t size) {
+bool replaceFileWithData(const File& file, const unsigned char* data, size_t size) {
     std::ofstream stream(file, std::ios::binary);
-    if (!stream)
-      return false;
+    if (!stream) return false;
 
     stream.write(reinterpret_cast<const char*>(data), size);
 
-    if (stream.fail())
-      return false;
+    if (stream.fail()) return false;
 
     return true;
-  }
+}
 
-  bool replaceFileWithText(const File& file, const std::string& text) {
+bool replaceFileWithText(const File& file, const std::string& text) {
     std::ofstream stream(file, std::ios::binary);
-    if (!stream)
-      return false;
+    if (!stream) return false;
 
     stream << text;
-    if (stream.fail())
-      return false;
+    if (stream.fail()) return false;
 
     return true;
-  }
+}
 
-  bool hasWriteAccess(const File& file) {
+bool hasWriteAccess(const File& file) {
     std::filesystem::file_status status = std::filesystem::status(file);
     return (status.permissions() & std::filesystem::perms::owner_write) != std::filesystem::perms::none;
-  }
+}
 
-  bool fileExists(const File& file) {
-    return std::filesystem::exists(file);
-  }
+bool fileExists(const File& file) { return std::filesystem::exists(file); }
 
-  bool isDirectory(const File& file) {
-    return std::filesystem::is_directory(file);
-  }
+bool isDirectory(const File& file) { return std::filesystem::is_directory(file); }
 
-  bool appendTextToFile(const File& file, const std::string& text) {
+bool appendTextToFile(const File& file, const std::string& text) {
     std::ofstream stream(file, std::ios::binary | std::ios::app);
-    if (!stream)
-      return false;
+    if (!stream) return false;
 
     stream << text;
-    if (stream.fail())
-      return false;
+    if (stream.fail()) return false;
 
     return true;
-  }
+}
 
-  std::unique_ptr<unsigned char[]> loadFileData(const File& file, size_t& size) {
+std::unique_ptr<unsigned char[]> loadFileData(const File& file, size_t& size) {
     std::ifstream stream(file, std::ios::binary | std::ios::ate);
-    if (!stream)
-      return {};
+    if (!stream) return {};
 
     size = stream.tellg();
     stream.seekg(0, std::ios::beg);
@@ -108,12 +96,11 @@ namespace applause {
     auto data = std::make_unique<unsigned char[]>(size);
     stream.read(reinterpret_cast<char*>(data.get()), size);
     return data;
-  }
+}
 
-  std::string loadFileAsString(const File& file) {
+std::string loadFileAsString(const File& file) {
     std::ifstream stream(file, std::ios::binary);
-    if (!stream)
-      return {};
+    if (!stream) return {};
 
     stream.seekg(0, std::ios::end);
     std::string out;
@@ -121,23 +108,22 @@ namespace applause {
     stream.seekg(0, std::ios::beg);
     stream.read(out.data(), out.size());
     return out;
-  }
+}
 
-  File hostExecutable() {
+File hostExecutable() {
 #if APPLAUSE_WINDOWS
     static File path;
     if (path.empty()) {
-      char buffer[MAX_PATH];
-      GetModuleFileNameA(nullptr, buffer, MAX_PATH);
-      path = buffer;
+        char buffer[MAX_PATH];
+        GetModuleFileNameA(nullptr, buffer, MAX_PATH);
+        path = buffer;
     }
     return path;
 #elif APPLAUSE_MAC
     static constexpr int kMaxPathLength = 1 << 14;
     char path[kMaxPathLength];
     uint32_t size = kMaxPathLength - 1;
-    if (_NSGetExecutablePath(path, &size))
-      return {};
+    if (_NSGetExecutablePath(path, &size)) return {};
 
     path[size] = '\0';
     return std::filesystem::canonical(path);
@@ -145,21 +131,19 @@ namespace applause {
     static constexpr int kMaxPathLength = 1 << 14;
     char path[kMaxPathLength];
     ssize_t size = readlink("/proc/self/exe", path, kMaxPathLength - 1);
-    if (size < 0)
-      return {};
+    if (size < 0) return {};
 
     path[size] = '\0';
     return std::filesystem::canonical(path);
 #endif
-  }
+}
 
-  File appDataDirectory() {
+File appDataDirectory() {
 #if APPLAUSE_WINDOWS
     static File path;
     if (path.empty()) {
-      char buffer[MAX_PATH];
-      if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_APPDATA, nullptr, 0, buffer)))
-        path = buffer;
+        char buffer[MAX_PATH];
+        if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_APPDATA, nullptr, 0, buffer))) path = buffer;
     }
     return path;
 #elif APPLAUSE_MAC
@@ -169,15 +153,14 @@ namespace applause {
 #else
     return {};
 #endif
-  }
+}
 
-  File userDocumentsDirectory() {
+File userDocumentsDirectory() {
 #if APPLAUSE_WINDOWS
     static File path;
     if (path.empty()) {
-      char buffer[MAX_PATH];
-      if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_PERSONAL, nullptr, 0, buffer)))
-        path = buffer;
+        char buffer[MAX_PATH];
+        if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_PERSONAL, nullptr, 0, buffer))) path = buffer;
     }
     return path;
 #elif APPLAUSE_MAC
@@ -187,60 +170,48 @@ namespace applause {
 #else
     return {};
 #endif
-  }
+}
 
-  File createTemporaryFile(const std::string& extension) {
+File createTemporaryFile(const std::string& extension) {
     auto now = std::chrono::system_clock::now().time_since_epoch();
     long long ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
     std::string unique_file = std::to_string(ms) + "." + extension;
     return std::filesystem::temp_directory_path() / unique_file;
-  }
-
-  void createDirectory(const File& file) {
-    std::filesystem::create_directories(file);
-  }
-
-  std::string fileName(const File& file) {
-    return file.filename().string();
-  }
-
-  std::string fileStem(const File& file) {
-    return file.stem().string();
-  }
-
-  std::string hostName() {
-    return fileStem(hostExecutable());
-  }
-
-  std::vector<File> searchForFiles(const File& directory, const std::string& regex) {
-    if (!std::filesystem::is_directory(directory))
-      return {};
-
-    std::vector<File> matches;
-    std::regex match_pattern(regex);
-
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(directory)) {
-      std::string file_name = entry.path().filename().string();
-      if (entry.is_regular_file() && std::regex_search(file_name, match_pattern))
-        matches.push_back(entry.path());
-    }
-
-    return matches;
-  }
-
-  std::vector<File> searchForDirectories(const File& directory, const std::string& regex) {
-    if (!std::filesystem::is_directory(directory))
-      return {};
-
-    std::vector<File> matches;
-    std::regex match_pattern(regex);
-
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(directory)) {
-      std::string file_name = entry.path().filename().string();
-      if (entry.is_directory() && std::regex_search(file_name, match_pattern))
-        matches.push_back(entry.path());
-    }
-
-    return matches;
-  }
 }
+
+void createDirectory(const File& file) { std::filesystem::create_directories(file); }
+
+std::string fileName(const File& file) { return file.filename().string(); }
+
+std::string fileStem(const File& file) { return file.stem().string(); }
+
+std::string hostName() { return fileStem(hostExecutable()); }
+
+std::vector<File> searchForFiles(const File& directory, const std::string& regex) {
+    if (!std::filesystem::is_directory(directory)) return {};
+
+    std::vector<File> matches;
+    std::regex match_pattern(regex);
+
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(directory)) {
+        std::string file_name = entry.path().filename().string();
+        if (entry.is_regular_file() && std::regex_search(file_name, match_pattern)) matches.push_back(entry.path());
+    }
+
+    return matches;
+}
+
+std::vector<File> searchForDirectories(const File& directory, const std::string& regex) {
+    if (!std::filesystem::is_directory(directory)) return {};
+
+    std::vector<File> matches;
+    std::regex match_pattern(regex);
+
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(directory)) {
+        std::string file_name = entry.path().filename().string();
+        if (entry.is_directory() && std::regex_search(file_name, match_pattern)) matches.push_back(entry.path());
+    }
+
+    return matches;
+}
+}  // namespace applause

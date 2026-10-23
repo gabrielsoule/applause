@@ -27,11 +27,11 @@
 #include <applause/util/Space.h>
 
 namespace applause {
-  class Region;
-  struct FrameBufferData;
+class Region;
+struct FrameBufferData;
 
-  class Layer {
-  public:
+class Layer {
+public:
     static constexpr int kInvalidRectMemory = 2;
 
     explicit Layer(GradientAtlas* gradient_atlas);
@@ -53,53 +53,49 @@ namespace applause {
     void setIntermediateLayer(bool intermediate_layer) { intermediate_layer_ = intermediate_layer; }
     void addRegion(Region* region);
     void removeRegion(const Region* region) {
-      auto it = std::find(regions_.begin(), regions_.end(), region);
-      if (it != regions_.end())
-        regions_.erase(it);
-      else
-        APPLAUSE_ASSERT(false);
+        auto it = std::find(regions_.begin(), regions_.end(), region);
+        if (it != regions_.end())
+            regions_.erase(it);
+        else
+            APPLAUSE_ASSERT(false);
     }
     void addPackedRegion(Region* region);
     void removePackedRegion(const Region* region);
     IBounds boundsForRegion(const Region* region) const;
     IPoint coordinatesForRegion(const Region* region) const;
 
-    template<typename V>
+    template <typename V>
     void setTexturePositionsForRegion(const Region* region, V* vertices) const {
-      TextureRect rect = atlas_map_.texturePositionsForId(region, bottom_left_origin_);
+        TextureRect rect = atlas_map_.texturePositionsForId(region, bottom_left_origin_);
 
-      vertices[0].texture_x = rect.left;
-      vertices[0].texture_y = rect.top;
-      vertices[1].texture_x = rect.right;
-      vertices[1].texture_y = rect.top;
-      vertices[2].texture_x = rect.left;
-      vertices[2].texture_y = rect.bottom;
-      vertices[3].texture_x = rect.right;
-      vertices[3].texture_y = rect.bottom;
+        vertices[0].texture_x = rect.left;
+        vertices[0].texture_y = rect.top;
+        vertices[1].texture_x = rect.right;
+        vertices[1].texture_y = rect.top;
+        vertices[2].texture_x = rect.left;
+        vertices[2].texture_y = rect.bottom;
+        vertices[3].texture_x = rect.right;
+        vertices[3].texture_y = rect.bottom;
     }
 
     void invalidate() {
-      invalid_rects_.clear();
-      for (const auto& region : regions_)
-        invalid_rects_[region].push_back(boundsForRegion(region));
+        invalid_rects_.clear();
+        for (const auto& region : regions_) invalid_rects_[region].push_back(boundsForRegion(region));
     }
 
-    const std::map<const Region*, std::vector<IBounds>>& invalidRects() const {
-      return invalid_rects_;
-    }
+    const std::map<const Region*, std::vector<IBounds>>& invalidRects() const { return invalid_rects_; }
 
     void invalidateRectInRegion(IBounds rect, const Region* region);
     bool anyInvalidRects() const { return !invalid_rects_.empty(); }
     void clearInvalidRects() { invalid_rects_.clear(); }
 
     void setDimensions(int width, int height) {
-      if (width == width_ && height == height_)
-        return;
+        if (width == width_ && height == height_) return;
 
-      width_ = width;
-      height_ = height;
-      destroyFrameBuffer();
-      invalidate();
+        width_ = width;
+        height_ = height;
+        destroyFrameBuffer();
+        invalidate();
     }
     int width() const { return width_; }
     int height() const { return height_; }
@@ -109,37 +105,37 @@ namespace applause {
     void setTime(double time) { render_time_ = time; }
 
     void setHdr(bool hdr) {
-      hdr_ = hdr;
-      destroyFrameBuffer();
+        hdr_ = hdr;
+        destroyFrameBuffer();
     }
     bool hdr() const { return hdr_; }
 
     void requestScreenshot();
     const Screenshot& screenshot() const;
     void pairToWindow(void* window_handle, int width, int height) {
-      window_handle_ = window_handle;
-      setDimensions(width, height);
-      destroyFrameBuffer();
+        window_handle_ = window_handle;
+        setDimensions(width, height);
+        destroyFrameBuffer();
     }
 
     void setWindowlessRender(int width, int height) {
-      headless_render_ = true;
-      setDimensions(width, height);
-      destroyFrameBuffer();
+        headless_render_ = true;
+        setDimensions(width, height);
+        destroyFrameBuffer();
     }
     bool isHeadlessRender() const { return headless_render_; }
 
     void removeFromWindow() {
-      window_handle_ = nullptr;
-      destroyFrameBuffer();
+        window_handle_ = nullptr;
+        destroyFrameBuffer();
     }
 
     void clear() {
-      regions_.clear();
-      atlas_map_.clear();
+        regions_.clear();
+        atlas_map_.clear();
     }
 
-  private:
+private:
     bool bottom_left_origin_ = false;
     bool hdr_ = false;
     int width_ = 0;
@@ -159,5 +155,5 @@ namespace applause {
     std::map<const Region*, std::vector<IBounds>> invalid_rects_;
     std::vector<IBounds> invalid_rect_pieces_;
     std::vector<Region*> regions_;
-  };
-}
+};
+}  // namespace applause

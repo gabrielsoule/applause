@@ -25,17 +25,15 @@
 #include <bx/file.h>
 
 namespace applause {
-  void Screenshot::save(const char* path) const {
+void Screenshot::save(const char* path) const {
     bx::FileWriter writer;
     bx::Error error;
     if (bx::open(&writer, path, false, &error)) {
-      bimg::imageWritePng(&writer, width_, height_, width_ * 4, data_.data(),
-                          bimg::TextureFormat::RGBA8, false, &error);
-      bx::close(&writer);
+        bimg::imageWritePng(&writer, width_, height_, width_ * 4, data_.data(), bimg::TextureFormat::RGBA8, false,
+                            &error);
+        bx::close(&writer);
     }
-  }
-
-  void Screenshot::save(const std::string& path) const {
-    save(path.c_str());
-  }
 }
+
+void Screenshot::save(const std::string& path) const { save(path.c_str()); }
+}  // namespace applause

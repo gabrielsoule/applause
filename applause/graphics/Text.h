@@ -25,14 +25,14 @@
 #include <applause/util/StringUtils.h>
 
 namespace applause {
-  class Canvas;
+class Canvas;
 
-  class Text {
-  public:
+class Text {
+public:
     Text() = default;
-    explicit Text(const String& text, const Font& font,
-                  Font::Justification justification = Font::kCenter, bool multi_line = false) :
-        text_(text), font_(font), justification_(justification), multi_line_(multi_line) { }
+    explicit Text(const String& text, const Font& font, Font::Justification justification = Font::kCenter,
+                  bool multi_line = false) :
+        text_(text), font_(font), justification_(justification), multi_line_(multi_line) {}
     virtual ~Text() = default;
 
     void setText(const String& text) { text_ = text; }
@@ -50,11 +50,11 @@ namespace applause {
     void setCharacterOverride(int character) { character_override_ = character; }
     int characterOverride() const { return character_override_; }
 
-  private:
+private:
     String text_;
     Font font_;
     Font::Justification justification_ = Font::kCenter;
     bool multi_line_ = false;
     int character_override_ = 0;
-  };
-}
+};
+}  // namespace applause

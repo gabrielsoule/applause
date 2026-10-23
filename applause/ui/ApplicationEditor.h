@@ -24,14 +24,14 @@
 #include <applause/ui/Frame.h>
 
 namespace applause {
-  class ApplicationEditor;
-  class Canvas;
-  class Window;
-  class WindowEventHandler;
-  class ClientWindowDecoration;
+class ApplicationEditor;
+class Canvas;
+class Window;
+class WindowEventHandler;
+class ClientWindowDecoration;
 
-  class TopLevelFrame : public Frame {
-  public:
+class TopLevelFrame : public Frame {
+public:
     explicit TopLevelFrame(ApplicationEditor* editor);
     ~TopLevelFrame() override;
 
@@ -39,13 +39,13 @@ namespace applause {
     void addClientDecoration();
     bool hasClientDecoration() const { return client_decoration_ != nullptr; }
 
-  private:
+private:
     ApplicationEditor* editor_ = nullptr;
     std::unique_ptr<ClientWindowDecoration> client_decoration_;
-  };
+};
 
-  class ApplicationEditor : public Frame {
-  public:
+class ApplicationEditor : public Frame {
+public:
     static constexpr int kDefaultClientTitleBarHeight = 30;
 
     ApplicationEditor();
@@ -68,9 +68,8 @@ namespace applause {
     bool isFixedAspectRatio() const { return fixed_aspect_ratio_ != 0.0f; }
     void setFixedAspectRatio(bool fixed);
     float aspectRatio() const override {
-      if (height() && width())
-        return width() * 1.0f / height();
-      return 1.0f;
+        if (height() && width()) return width() * 1.0f / height();
+        return 1.0f;
     }
 
     Window* window() const { return window_; }
@@ -78,35 +77,33 @@ namespace applause {
     void drawStaleChildren();
 
     void setMinimumDimensions(float width, float height) {
-      min_width_ = std::max(0.0f, width);
-      min_height_ = std::max(0.0f, height);
+        min_width_ = std::max(0.0f, width);
+        min_height_ = std::max(0.0f, height);
     }
 
     void checkFixedAspectRatio() {
-      if (fixed_aspect_ratio_ && width() && height())
-        fixed_aspect_ratio_ = aspectRatio();
+        if (fixed_aspect_ratio_ && width() && height()) fixed_aspect_ratio_ = aspectRatio();
     }
 
     void adjustWindowDimensions(int* width, int* height, bool horizontal_resize, bool vertical_resize) const;
 
-    void adjustWindowDimensions(uint32_t* width, uint32_t* height, bool horizontal_resize,
-                                bool vertical_resize) const {
-      int w = *width;
-      int h = *height;
-      adjustWindowDimensions(&w, &h, horizontal_resize, vertical_resize);
-      *width = w;
-      *height = h;
+    void adjustWindowDimensions(uint32_t* width, uint32_t* height, bool horizontal_resize, bool vertical_resize) const {
+        int w = *width;
+        int h = *height;
+        adjustWindowDimensions(&w, &h, horizontal_resize, vertical_resize);
+        *width = w;
+        *height = h;
     }
 
     void addClientDecoration() { top_level_->addClientDecoration(); }
     HitTestResult hitTest(const Point& position) const override {
-      if (position.y < kDefaultClientTitleBarHeight && top_level_->hasClientDecoration())
-        return HitTestResult::TitleBar;
+        if (position.y < kDefaultClientTitleBarHeight && top_level_->hasClientDecoration())
+            return HitTestResult::TitleBar;
 
-      return HitTestResult::Client;
+        return HitTestResult::Client;
     }
 
-  private:
+private:
     Window* window_ = nullptr;
     FrameEventHandler event_handler_;
     std::unique_ptr<Canvas> canvas_;
@@ -126,5 +123,5 @@ namespace applause {
     std::vector<Frame*> drawing_children_;
 
     APPLAUSE_LEAK_CHECKER(ApplicationEditor)
-  };
-}
+};
+}  // namespace applause

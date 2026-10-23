@@ -22,11 +22,11 @@
 #include <applause/util/TimeUtils.h>
 
 namespace applause::time {
-  std::string formatTime(const Time& time, const char* format_string) {
+std::string formatTime(const Time& time, const char* format_string) {
     static constexpr int kMaxLength = 100;
 
     auto t = std::chrono::system_clock::to_time_t(time);
-    tm time_info {};
+    tm time_info{};
 #if APPLAUSE_WINDOWS
     localtime_s(&time_info, &t);
 #else
@@ -34,9 +34,8 @@ namespace applause::time {
 #endif
 
     char buffer[kMaxLength];
-    if (std::strftime(buffer, kMaxLength, format_string, &time_info) == 0)
-      return "";
+    if (std::strftime(buffer, kMaxLength, format_string, &time_info) == 0) return "";
 
     return buffer;
-  }
 }
+}  // namespace applause::time

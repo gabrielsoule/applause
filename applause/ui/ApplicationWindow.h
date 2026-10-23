@@ -27,8 +27,8 @@
 
 namespace applause {
 
-  class ApplicationWindow : public ApplicationEditor {
-  public:
+class ApplicationWindow : public ApplicationEditor {
+public:
     ApplicationWindow();
     ~ApplicationWindow() override;
 
@@ -39,20 +39,17 @@ namespace applause {
     void setWindowOnTop(bool on_top);
 
     void setWindowDecoration(Window::Decoration decoration) {
-      decoration_ = decoration;
-      if (decoration_ == Window::Decoration::Client)
-        addClientDecoration();
+        decoration_ = decoration;
+        if (decoration_ == Window::Decoration::Client) addClientDecoration();
     }
 
     void setNativeWindowDimensions(int width, int height) {
-      setNativeBounds(nativeX(), nativeY(), width, height);
-      if (window_)
-        window_->setNativeWindowSize(width, height);
+        setNativeBounds(nativeX(), nativeY(), width, height);
+        if (window_) window_->setNativeWindowSize(width, height);
     }
 
     void setWindowDimensions(const Dimension& width, const Dimension& height);
-    void setWindowDimensions(const Dimension& x, const Dimension& y, const Dimension& width,
-                             const Dimension& height);
+    void setWindowDimensions(const Dimension& x, const Dimension& y, const Dimension& width, const Dimension& height);
 
     void show();
     void show(void* parent_window);
@@ -65,7 +62,7 @@ namespace applause {
     bool isShowing() const;
     void runEventLoop();
 
-  private:
+private:
     void showWindow(bool maximized);
 
     IPoint initial_position_;
@@ -73,5 +70,5 @@ namespace applause {
     std::string title_;
     bool always_on_top_ = false;
     std::unique_ptr<Window> window_;
-  };
-}
+};
+}  // namespace applause

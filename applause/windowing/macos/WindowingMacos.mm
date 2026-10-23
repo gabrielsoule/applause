@@ -29,92 +29,87 @@
 
 namespace applause {
 
-  class NativeWindowLookup {
-  public:
+class NativeWindowLookup {
+public:
     static NativeWindowLookup& instance() {
-      static NativeWindowLookup instance;
-      return instance;
+        static NativeWindowLookup instance;
+        return instance;
     }
 
     void addWindow(WindowMac* window) { native_window_lookup_[window->nativeHandle()] = window; }
 
     void removeWindow(WindowMac* window) {
-      if (native_window_lookup_.count(window->nativeHandle()))
-        native_window_lookup_.erase(window->nativeHandle());
+        if (native_window_lookup_.count(window->nativeHandle())) native_window_lookup_.erase(window->nativeHandle());
     }
 
     bool anyWindowOpen() const {
-      for (auto& window : native_window_lookup_) {
-        if (window.second->isShowing())
-          return true;
-      }
-      return false;
+        for (auto& window : native_window_lookup_) {
+            if (window.second->isShowing()) return true;
+        }
+        return false;
     }
 
     void closeAll() const {
-      auto windows = native_window_lookup_;
-      for (auto& window : windows)
-        window.second->close();
+        auto windows = native_window_lookup_;
+        for (auto& window : windows) window.second->close();
     }
 
     bool requestAllToClose() const {
-      bool result = true;
-      for (auto& window : native_window_lookup_) {
-        if (!window.second->handleCloseRequested())
-          result = false;
-      }
-      return result;
+        bool result = true;
+        for (auto& window : native_window_lookup_) {
+            if (!window.second->handleCloseRequested()) result = false;
+        }
+        return result;
     }
 
     WindowMac* findWindow(void* handle) {
-      auto it = native_window_lookup_.find((void*)handle);
-      return it != native_window_lookup_.end() ? it->second : nullptr;
+        auto it = native_window_lookup_.find((void*)handle);
+        return it != native_window_lookup_.end() ? it->second : nullptr;
     }
 
-  private:
+private:
     NativeWindowLookup() = default;
     ~NativeWindowLookup() = default;
 
     std::map<void*, WindowMac*> native_window_lookup_;
-  };
+};
 
-  class InitialMetalLayer {
-  public:
+class InitialMetalLayer {
+public:
     static CAMetalLayer* layer() { return instance().metal_layer_; }
 
-  private:
+private:
     static InitialMetalLayer& instance() {
-      static InitialMetalLayer instance;
-      return instance;
+        static InitialMetalLayer instance;
+        return instance;
     }
 
     InitialMetalLayer() {
-      metal_layer_ = [CAMetalLayer layer];
-      metal_layer_.colorspace = CGColorSpaceCreateWithName(kCGColorSpaceDisplayP3);
+        metal_layer_ = [CAMetalLayer layer];
+        metal_layer_.colorspace = CGColorSpaceCreateWithName(kCGColorSpaceDisplayP3);
     }
 
     CAMetalLayer* metal_layer_ = nullptr;
-  };
+};
 
-  std::string readClipboardText() {
+std::string readClipboardText() {
     NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
     NSString* clipboard_text = [pasteboard stringForType:NSPasteboardTypeString];
-    if (clipboard_text != nil)
-      return [clipboard_text UTF8String];
+    if (clipboard_text != nil) return [clipboard_text UTF8String];
     return "";
-  }
+}
 
-  void setClipboardText(const std::string& text) {
+void setClipboardText(const std::string& text) {
     NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
     [pasteboard clearContents];
     NSString* ns_text = [NSString stringWithUTF8String:text.c_str()];
     [pasteboard setString:ns_text forType:NSPasteboardTypeString];
-  }
+}
 
-  void setCursorStyle(MouseCursor style) {
+void setCursorStyle(MouseCursor style) {
     if (style == MouseCursor::Invisible) {
-      setCursorVisible(false);
-      return;
+        setCursorVisible(false);
+        return;
     }
 
     setCursorVisible(true);
@@ -128,48 +123,61 @@ namespace applause {
 
     const NSCursor* cursor = nil;
     switch (style) {
-    case MouseCursor::Arrow: cursor = arrow_cursor; break;
-    case MouseCursor::IBeam: cursor = ibeam_cursor; break;
-    case MouseCursor::Crosshair: cursor = crosshair_cursor; break;
-    case MouseCursor::Pointing: cursor = pointing_cursor; break;
+    case MouseCursor::Arrow:
+        cursor = arrow_cursor;
+        break;
+    case MouseCursor::IBeam:
+        cursor = ibeam_cursor;
+        break;
+    case MouseCursor::Crosshair:
+        cursor = crosshair_cursor;
+        break;
+    case MouseCursor::Pointing:
+        cursor = pointing_cursor;
+        break;
     case MouseCursor::MultiDirectionalResize:
-    case MouseCursor::Dragging: cursor = dragging_cursor; break;
-    case MouseCursor::HorizontalResize: cursor = horizontal_resize_cursor; break;
-    case MouseCursor::VerticalResize: cursor = vertical_resize_cursor; break;
-    default: return;
+    case MouseCursor::Dragging:
+        cursor = dragging_cursor;
+        break;
+    case MouseCursor::HorizontalResize:
+        cursor = horizontal_resize_cursor;
+        break;
+    case MouseCursor::VerticalResize:
+        cursor = vertical_resize_cursor;
+        break;
+    default:
+        return;
     }
     [cursor set];
-  }
+}
 
-  Point cursorPosition() {
+Point cursorPosition() {
     CGEventRef event = CGEventCreate(nullptr);
     CGPoint cursor = CGEventGetLocation(event);
     CFRelease(event);
-    return { static_cast<float>(cursor.x), static_cast<float>(cursor.y) };
-  }
+    return {static_cast<float>(cursor.x), static_cast<float>(cursor.y)};
+}
 
-  void setCursorVisible(bool visible) {
+void setCursorVisible(bool visible) {
     if (visible)
-      [NSCursor unhide];
+        [NSCursor unhide];
     else
-      [NSCursor hide];
-  }
+        [NSCursor hide];
+}
 
-  void setCursorScreenPosition(Point screen_position) {
+void setCursorScreenPosition(Point screen_position) {
     CGPoint position = CGPointMake(screen_position.x, screen_position.y);
     CGAssociateMouseAndMouseCursorPosition(false);
     CGWarpMouseCursorPosition(position);
     CGAssociateMouseAndMouseCursorPosition(true);
-  }
+}
 
-  void setCursorPosition(Point window_position) {
+void setCursorPosition(Point window_position) {
     NSWindow* window = [NSApp mainWindow];
-    if (!window)
-      return;
+    if (!window) return;
 
     NSScreen* screen = [window screen];
-    if (!screen)
-      return;
+    if (!screen) return;
 
     NSRect content_rect = [[window contentView] frame];
     NSRect screen_rect = [window convertRectToScreen:content_rect];
@@ -179,222 +187,328 @@ namespace applause {
     float x = screen_rect.origin.x + window_position.x;
     float y = screen_height - NSMaxY(screen_rect) + window_position.y;
 
-    setCursorScreenPosition({ x, y });
-  }
+    setCursorScreenPosition({x, y});
+}
 
-  static Point windowBorderSize(NSWindow* window_handle) {
-    if (window_handle == nullptr)
-      return { 0, 0 };
+static Point windowBorderSize(NSWindow* window_handle) {
+    if (window_handle == nullptr) return {0, 0};
     NSRect frame = [window_handle frame];
     NSRect content_rect = [window_handle contentRectForFrameRect:frame];
     float x = frame.size.width - content_rect.size.width;
     float y = frame.size.height - content_rect.size.height;
-    return { x, y };
-  }
-
-  bool isMobileDevice() {
-    return false;
-  }
-
-  KeyCode translateKeyCode(int mac_key_code) {
-    switch (mac_key_code) {
-    case kVK_ANSI_A: return KeyCode::A;
-    case kVK_ANSI_S: return KeyCode::S;
-    case kVK_ANSI_D: return KeyCode::D;
-    case kVK_ANSI_F: return KeyCode::F;
-    case kVK_ANSI_H: return KeyCode::H;
-    case kVK_ANSI_G: return KeyCode::G;
-    case kVK_ANSI_Z: return KeyCode::Z;
-    case kVK_ANSI_X: return KeyCode::X;
-    case kVK_ANSI_C: return KeyCode::C;
-    case kVK_ANSI_V: return KeyCode::V;
-    case kVK_ANSI_B: return KeyCode::B;
-    case kVK_ANSI_Q: return KeyCode::Q;
-    case kVK_ANSI_W: return KeyCode::W;
-    case kVK_ANSI_E: return KeyCode::E;
-    case kVK_ANSI_R: return KeyCode::R;
-    case kVK_ANSI_Y: return KeyCode::Y;
-    case kVK_ANSI_T: return KeyCode::T;
-    case kVK_ANSI_1: return KeyCode::Number1;
-    case kVK_ANSI_2: return KeyCode::Number2;
-    case kVK_ANSI_3: return KeyCode::Number3;
-    case kVK_ANSI_4: return KeyCode::Number4;
-    case kVK_ANSI_6: return KeyCode::Number6;
-    case kVK_ANSI_5: return KeyCode::Number5;
-    case kVK_ANSI_Equal: return KeyCode::Equals;
-    case kVK_ANSI_9: return KeyCode::Number9;
-    case kVK_ANSI_7: return KeyCode::Number7;
-    case kVK_ANSI_Minus: return KeyCode::Minus;
-    case kVK_ANSI_8: return KeyCode::Number8;
-    case kVK_ANSI_0: return KeyCode::Number0;
-    case kVK_ANSI_RightBracket: return KeyCode::RightBracket;
-    case kVK_ANSI_O: return KeyCode::O;
-    case kVK_ANSI_U: return KeyCode::U;
-    case kVK_ANSI_LeftBracket: return KeyCode::LeftBracket;
-    case kVK_ANSI_I: return KeyCode::I;
-    case kVK_ANSI_P: return KeyCode::P;
-    case kVK_ANSI_L: return KeyCode::L;
-    case kVK_ANSI_J: return KeyCode::J;
-    case kVK_ANSI_Quote: return KeyCode::Apostrophe;
-    case kVK_ANSI_K: return KeyCode::K;
-    case kVK_ANSI_Semicolon: return KeyCode::Semicolon;
-    case kVK_ANSI_Backslash: return KeyCode::Backslash;
-    case kVK_ANSI_Comma: return KeyCode::Comma;
-    case kVK_ANSI_Slash: return KeyCode::Slash;
-    case kVK_ANSI_N: return KeyCode::N;
-    case kVK_ANSI_M: return KeyCode::M;
-    case kVK_ANSI_Period: return KeyCode::Period;
-    case kVK_ANSI_Grave: return KeyCode::Grave;
-    case kVK_ANSI_KeypadDecimal: return KeyCode::KPDecimal;
-    case kVK_ANSI_KeypadMultiply: return KeyCode::KPMultiply;
-    case kVK_ANSI_KeypadPlus: return KeyCode::KPPlus;
-    case kVK_ANSI_KeypadClear: return KeyCode::KPClear;
-    case kVK_ANSI_KeypadDivide: return KeyCode::KPDivide;
-    case kVK_ANSI_KeypadEnter: return KeyCode::KPEnter;
-    case kVK_ANSI_KeypadMinus: return KeyCode::KPMinus;
-    case kVK_ANSI_KeypadEquals: return KeyCode::KPEquals;
-    case kVK_ANSI_Keypad0: return KeyCode::KP0;
-    case kVK_ANSI_Keypad1: return KeyCode::KP1;
-    case kVK_ANSI_Keypad2: return KeyCode::KP2;
-    case kVK_ANSI_Keypad3: return KeyCode::KP3;
-    case kVK_ANSI_Keypad4: return KeyCode::KP4;
-    case kVK_ANSI_Keypad5: return KeyCode::KP5;
-    case kVK_ANSI_Keypad6: return KeyCode::KP6;
-    case kVK_ANSI_Keypad7: return KeyCode::KP7;
-    case kVK_ANSI_Keypad8: return KeyCode::KP8;
-    case kVK_ANSI_Keypad9: return KeyCode::KP9;
-    case kVK_Return: return KeyCode::Return;
-    case kVK_Tab: return KeyCode::Tab;
-    case kVK_Space: return KeyCode::Space;
-    case kVK_Delete: return KeyCode::Backspace;
-    case kVK_Escape: return KeyCode::Escape;
-    case kVK_Command: return KeyCode::LGui;
-    case kVK_Shift: return KeyCode::LShift;
-    case kVK_CapsLock: return KeyCode::CapsLock;
-    case kVK_Option: return KeyCode::LAlt;
-    case kVK_Control: return KeyCode::LCtrl;
-    case kVK_RightCommand: return KeyCode::RGui;
-    case kVK_RightShift: return KeyCode::RShift;
-    case kVK_RightOption: return KeyCode::RAlt;
-    case kVK_RightControl: return KeyCode::RCtrl;
-    case kVK_VolumeUp: return KeyCode::VolumeUp;
-    case kVK_VolumeDown: return KeyCode::VolumeDown;
-    case kVK_Mute: return KeyCode::Mute;
-    case kVK_F1: return KeyCode::F1;
-    case kVK_F2: return KeyCode::F2;
-    case kVK_F3: return KeyCode::F3;
-    case kVK_F4: return KeyCode::F4;
-    case kVK_F5: return KeyCode::F5;
-    case kVK_F6: return KeyCode::F6;
-    case kVK_F7: return KeyCode::F7;
-    case kVK_F8: return KeyCode::F8;
-    case kVK_F9: return KeyCode::F9;
-    case kVK_F10: return KeyCode::F10;
-    case kVK_F11: return KeyCode::F11;
-    case kVK_F12: return KeyCode::F12;
-    case kVK_F13: return KeyCode::F13;
-    case kVK_F14: return KeyCode::F14;
-    case kVK_F15: return KeyCode::F15;
-    case kVK_F16: return KeyCode::F16;
-    case kVK_F17: return KeyCode::F17;
-    case kVK_F18: return KeyCode::F18;
-    case kVK_F19: return KeyCode::F19;
-    case kVK_F20: return KeyCode::F20;
-    case kVK_Help: return KeyCode::Help;
-    case kVK_Home: return KeyCode::Home;
-    case kVK_PageUp: return KeyCode::PageUp;
-    case kVK_ForwardDelete: return KeyCode::Delete;
-    case kVK_End: return KeyCode::End;
-    case kVK_PageDown: return KeyCode::PageDown;
-    case kVK_LeftArrow: return KeyCode::Left;
-    case kVK_RightArrow: return KeyCode::Right;
-    case kVK_DownArrow: return KeyCode::Down;
-    case kVK_UpArrow: return KeyCode::Up;
-    default: return KeyCode::Unknown;
-    }
-  }
+    return {x, y};
 }
+
+bool isMobileDevice() { return false; }
+
+KeyCode translateKeyCode(int mac_key_code) {
+    switch (mac_key_code) {
+    case kVK_ANSI_A:
+        return KeyCode::A;
+    case kVK_ANSI_S:
+        return KeyCode::S;
+    case kVK_ANSI_D:
+        return KeyCode::D;
+    case kVK_ANSI_F:
+        return KeyCode::F;
+    case kVK_ANSI_H:
+        return KeyCode::H;
+    case kVK_ANSI_G:
+        return KeyCode::G;
+    case kVK_ANSI_Z:
+        return KeyCode::Z;
+    case kVK_ANSI_X:
+        return KeyCode::X;
+    case kVK_ANSI_C:
+        return KeyCode::C;
+    case kVK_ANSI_V:
+        return KeyCode::V;
+    case kVK_ANSI_B:
+        return KeyCode::B;
+    case kVK_ANSI_Q:
+        return KeyCode::Q;
+    case kVK_ANSI_W:
+        return KeyCode::W;
+    case kVK_ANSI_E:
+        return KeyCode::E;
+    case kVK_ANSI_R:
+        return KeyCode::R;
+    case kVK_ANSI_Y:
+        return KeyCode::Y;
+    case kVK_ANSI_T:
+        return KeyCode::T;
+    case kVK_ANSI_1:
+        return KeyCode::Number1;
+    case kVK_ANSI_2:
+        return KeyCode::Number2;
+    case kVK_ANSI_3:
+        return KeyCode::Number3;
+    case kVK_ANSI_4:
+        return KeyCode::Number4;
+    case kVK_ANSI_6:
+        return KeyCode::Number6;
+    case kVK_ANSI_5:
+        return KeyCode::Number5;
+    case kVK_ANSI_Equal:
+        return KeyCode::Equals;
+    case kVK_ANSI_9:
+        return KeyCode::Number9;
+    case kVK_ANSI_7:
+        return KeyCode::Number7;
+    case kVK_ANSI_Minus:
+        return KeyCode::Minus;
+    case kVK_ANSI_8:
+        return KeyCode::Number8;
+    case kVK_ANSI_0:
+        return KeyCode::Number0;
+    case kVK_ANSI_RightBracket:
+        return KeyCode::RightBracket;
+    case kVK_ANSI_O:
+        return KeyCode::O;
+    case kVK_ANSI_U:
+        return KeyCode::U;
+    case kVK_ANSI_LeftBracket:
+        return KeyCode::LeftBracket;
+    case kVK_ANSI_I:
+        return KeyCode::I;
+    case kVK_ANSI_P:
+        return KeyCode::P;
+    case kVK_ANSI_L:
+        return KeyCode::L;
+    case kVK_ANSI_J:
+        return KeyCode::J;
+    case kVK_ANSI_Quote:
+        return KeyCode::Apostrophe;
+    case kVK_ANSI_K:
+        return KeyCode::K;
+    case kVK_ANSI_Semicolon:
+        return KeyCode::Semicolon;
+    case kVK_ANSI_Backslash:
+        return KeyCode::Backslash;
+    case kVK_ANSI_Comma:
+        return KeyCode::Comma;
+    case kVK_ANSI_Slash:
+        return KeyCode::Slash;
+    case kVK_ANSI_N:
+        return KeyCode::N;
+    case kVK_ANSI_M:
+        return KeyCode::M;
+    case kVK_ANSI_Period:
+        return KeyCode::Period;
+    case kVK_ANSI_Grave:
+        return KeyCode::Grave;
+    case kVK_ANSI_KeypadDecimal:
+        return KeyCode::KPDecimal;
+    case kVK_ANSI_KeypadMultiply:
+        return KeyCode::KPMultiply;
+    case kVK_ANSI_KeypadPlus:
+        return KeyCode::KPPlus;
+    case kVK_ANSI_KeypadClear:
+        return KeyCode::KPClear;
+    case kVK_ANSI_KeypadDivide:
+        return KeyCode::KPDivide;
+    case kVK_ANSI_KeypadEnter:
+        return KeyCode::KPEnter;
+    case kVK_ANSI_KeypadMinus:
+        return KeyCode::KPMinus;
+    case kVK_ANSI_KeypadEquals:
+        return KeyCode::KPEquals;
+    case kVK_ANSI_Keypad0:
+        return KeyCode::KP0;
+    case kVK_ANSI_Keypad1:
+        return KeyCode::KP1;
+    case kVK_ANSI_Keypad2:
+        return KeyCode::KP2;
+    case kVK_ANSI_Keypad3:
+        return KeyCode::KP3;
+    case kVK_ANSI_Keypad4:
+        return KeyCode::KP4;
+    case kVK_ANSI_Keypad5:
+        return KeyCode::KP5;
+    case kVK_ANSI_Keypad6:
+        return KeyCode::KP6;
+    case kVK_ANSI_Keypad7:
+        return KeyCode::KP7;
+    case kVK_ANSI_Keypad8:
+        return KeyCode::KP8;
+    case kVK_ANSI_Keypad9:
+        return KeyCode::KP9;
+    case kVK_Return:
+        return KeyCode::Return;
+    case kVK_Tab:
+        return KeyCode::Tab;
+    case kVK_Space:
+        return KeyCode::Space;
+    case kVK_Delete:
+        return KeyCode::Backspace;
+    case kVK_Escape:
+        return KeyCode::Escape;
+    case kVK_Command:
+        return KeyCode::LGui;
+    case kVK_Shift:
+        return KeyCode::LShift;
+    case kVK_CapsLock:
+        return KeyCode::CapsLock;
+    case kVK_Option:
+        return KeyCode::LAlt;
+    case kVK_Control:
+        return KeyCode::LCtrl;
+    case kVK_RightCommand:
+        return KeyCode::RGui;
+    case kVK_RightShift:
+        return KeyCode::RShift;
+    case kVK_RightOption:
+        return KeyCode::RAlt;
+    case kVK_RightControl:
+        return KeyCode::RCtrl;
+    case kVK_VolumeUp:
+        return KeyCode::VolumeUp;
+    case kVK_VolumeDown:
+        return KeyCode::VolumeDown;
+    case kVK_Mute:
+        return KeyCode::Mute;
+    case kVK_F1:
+        return KeyCode::F1;
+    case kVK_F2:
+        return KeyCode::F2;
+    case kVK_F3:
+        return KeyCode::F3;
+    case kVK_F4:
+        return KeyCode::F4;
+    case kVK_F5:
+        return KeyCode::F5;
+    case kVK_F6:
+        return KeyCode::F6;
+    case kVK_F7:
+        return KeyCode::F7;
+    case kVK_F8:
+        return KeyCode::F8;
+    case kVK_F9:
+        return KeyCode::F9;
+    case kVK_F10:
+        return KeyCode::F10;
+    case kVK_F11:
+        return KeyCode::F11;
+    case kVK_F12:
+        return KeyCode::F12;
+    case kVK_F13:
+        return KeyCode::F13;
+    case kVK_F14:
+        return KeyCode::F14;
+    case kVK_F15:
+        return KeyCode::F15;
+    case kVK_F16:
+        return KeyCode::F16;
+    case kVK_F17:
+        return KeyCode::F17;
+    case kVK_F18:
+        return KeyCode::F18;
+    case kVK_F19:
+        return KeyCode::F19;
+    case kVK_F20:
+        return KeyCode::F20;
+    case kVK_Help:
+        return KeyCode::Help;
+    case kVK_Home:
+        return KeyCode::Home;
+    case kVK_PageUp:
+        return KeyCode::PageUp;
+    case kVK_ForwardDelete:
+        return KeyCode::Delete;
+    case kVK_End:
+        return KeyCode::End;
+    case kVK_PageDown:
+        return KeyCode::PageDown;
+    case kVK_LeftArrow:
+        return KeyCode::Left;
+    case kVK_RightArrow:
+        return KeyCode::Right;
+    case kVK_DownArrow:
+        return KeyCode::Down;
+    case kVK_UpArrow:
+        return KeyCode::Up;
+    default:
+        return KeyCode::Unknown;
+    }
+}
+}  // namespace applause
 
 @implementation ApplauseDraggingSource
 - (NSDragOperation)draggingSession:(NSDraggingSession*)session
     sourceOperationMaskForDraggingContext:(NSDraggingContext)context {
-  return NSDragOperationCopy;
+    return NSDragOperationCopy;
 }
 @end
 
 @implementation ApplauseAppViewDelegate
 - (instancetype)initWithWindow:(applause::WindowMac*)window {
-  self = [super init];
-  self.applause_window = window;
-  self.start_microseconds = applause::time::microseconds();
-  return self;
+    self = [super init];
+    self.applause_window = window;
+    self.start_microseconds = applause::time::microseconds();
+    return self;
 }
 
 - (void)drawWindow {
-  long long ms = applause::time::microseconds();
-  self.applause_window->drawCallback((ms - self.start_microseconds) / 1000000.0);
+    long long ms = applause::time::microseconds();
+    self.applause_window->drawCallback((ms - self.start_microseconds) / 1000000.0);
 }
 
 - (void)mtkView:(MTKView*)view drawableSizeWillChange:(CGSize)size {
-  self.applause_window->handleNativeResize(size.width, size.height);
+    self.applause_window->handleNativeResize(size.width, size.height);
 }
 
 - (void)drawInMTKView:(MTKView*)view {
-  if (!view.currentDrawable || !view.currentRenderPassDescriptor)
-    return;
+    if (!view.currentDrawable || !view.currentRenderPassDescriptor) return;
 
-  view.layer.contentsScale = self.applause_window->dpiScale();
-  [self drawWindow];
+    view.layer.contentsScale = self.applause_window->dpiScale();
+    [self drawWindow];
 }
 @end
 
 @implementation ApplauseAppView
 - (instancetype)initWithFrame:(NSRect)frame_rect inWindow:(applause::WindowMac*)window {
-  self = [super initWithFrame:frame_rect];
-  self.applause_window = window;
-  self.device = MTLCreateSystemDefaultDevice();
-  self.clearColor = MTLClearColorMake(0.1, 0.1, 0.1, 1.0);
-  self.enableSetNeedsDisplay = NO;
-  self.framebufferOnly = YES;
-  self.layerContentsPlacement = NSViewLayerContentsPlacementTopLeft;
-  self.preferredFramesPerSecond = 120;
+    self = [super initWithFrame:frame_rect];
+    self.applause_window = window;
+    self.device = MTLCreateSystemDefaultDevice();
+    self.clearColor = MTLClearColorMake(0.1, 0.1, 0.1, 1.0);
+    self.enableSetNeedsDisplay = NO;
+    self.framebufferOnly = YES;
+    self.layerContentsPlacement = NSViewLayerContentsPlacementTopLeft;
+    self.preferredFramesPerSecond = 120;
 
-  [self registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
-  self.drag_source = [[ApplauseDraggingSource alloc] init];
+    [self registerForDraggedTypes:@[ NSPasteboardTypeFileURL ]];
+    self.drag_source = [[ApplauseDraggingSource alloc] init];
 
-  return self;
+    return self;
 }
 
 - (BOOL)acceptsFirstResponder {
-  return YES;
+    return YES;
 }
 
 - (void)keyDown:(NSEvent*)event {
-  bool command = [event modifierFlags] & NSEventModifierFlagCommand;
-  bool q_or_w = [[event charactersIgnoringModifiers] isEqualToString:@"q"] ||
-                [[event charactersIgnoringModifiers] isEqualToString:@"w"];
-  if (self.allow_quit && command && q_or_w) {
-    applause::NativeWindowLookup::instance().closeAll();
-    return;
-  }
+    bool command = [event modifierFlags] & NSEventModifierFlagCommand;
+    bool q_or_w = [[event charactersIgnoringModifiers] isEqualToString:@"q"] ||
+        [[event charactersIgnoringModifiers] isEqualToString:@"w"];
+    if (self.allow_quit && command && q_or_w) {
+        applause::NativeWindowLookup::instance().closeAll();
+        return;
+    }
 
-  int modifiers = [self keyboardModifiers:event];
-  if ((modifiers & applause::kModifierCmd) == 0)
-    [self interpretKeyEvents:[NSArray arrayWithObject:event]];
+    int modifiers = [self keyboardModifiers:event];
+    if ((modifiers & applause::kModifierCmd) == 0) [self interpretKeyEvents:[NSArray arrayWithObject:event]];
 
-  applause::KeyCode key_code = applause::translateKeyCode([event keyCode]);
-  if (!self.applause_window->handleKeyDown(key_code, modifiers, [event isARepeat]))
-    [super keyDown:event];
+    applause::KeyCode key_code = applause::translateKeyCode([event keyCode]);
+    if (!self.applause_window->handleKeyDown(key_code, modifiers, [event isARepeat])) [super keyDown:event];
 }
 
 - (void)keyUp:(NSEvent*)event {
-  applause::KeyCode key_code = applause::translateKeyCode([event keyCode]);
-  if (!self.applause_window->handleKeyUp(key_code, [self keyboardModifiers:event]))
-    [super keyUp:event];
+    applause::KeyCode key_code = applause::translateKeyCode([event keyCode]);
+    if (!self.applause_window->handleKeyUp(key_code, [self keyboardModifiers:event])) [super keyUp:event];
 }
 
 - (void)insertText:(id)string {
-  self.applause_window->handleTextInput([string UTF8String]);
+    self.applause_window->handleTextInput([string UTF8String]);
 }
 
 - (void)moveLeft:(id)sender {
@@ -429,370 +543,341 @@ namespace applause {
 }
 
 - (applause::Point)eventPosition:(NSEvent*)event {
-  NSPoint location = [event locationInWindow];
-  NSPoint view_location = [self convertPoint:location fromView:nil];
-  CGFloat view_height = self.frame.size.height;
-  return applause::Point(view_location.x, view_height - view_location.y) * self.applause_window->dpiScale();
+    NSPoint location = [event locationInWindow];
+    NSPoint view_location = [self convertPoint:location fromView:nil];
+    CGFloat view_height = self.frame.size.height;
+    return applause::Point(view_location.x, view_height - view_location.y) * self.applause_window->dpiScale();
 }
 
 - (applause::Point)dragPosition:(id<NSDraggingInfo>)sender {
-  NSPoint drag_point = [self convertPoint:[sender draggingLocation] fromView:nil];
-  CGFloat view_height = self.frame.size.height;
-  return applause::Point(drag_point.x, view_height - drag_point.y) * self.applause_window->dpiScale();
+    NSPoint drag_point = [self convertPoint:[sender draggingLocation] fromView:nil];
+    CGFloat view_height = self.frame.size.height;
+    return applause::Point(drag_point.x, view_height - drag_point.y) * self.applause_window->dpiScale();
 }
 
 - (NSPoint)mouseScreenPosition {
-  NSPoint result = [NSEvent mouseLocation];
-  if ([[NSScreen screens] count] == 0)
-    return result;
+    NSPoint result = [NSEvent mouseLocation];
+    if ([[NSScreen screens] count] == 0) return result;
 
-  result.y = [[[NSScreen screens] objectAtIndex:0] frame].size.height - result.y;
-  return result;
+    result.y = [[[NSScreen screens] objectAtIndex:0] frame].size.height - result.y;
+    return result;
 }
 
 - (int)mouseButtonState {
-  NSUInteger buttons = [NSEvent pressedMouseButtons];
-  int result = 0;
-  if (buttons & (1 << 0))
-    result = result | applause::kMouseButtonLeft;
-  if (buttons & (1 << 1))
-    result = result | applause::kMouseButtonRight;
-  if (buttons & (1 << 2))
-    result = result | applause::kMouseButtonMiddle;
-  return result;
+    NSUInteger buttons = [NSEvent pressedMouseButtons];
+    int result = 0;
+    if (buttons & (1 << 0)) result = result | applause::kMouseButtonLeft;
+    if (buttons & (1 << 1)) result = result | applause::kMouseButtonRight;
+    if (buttons & (1 << 2)) result = result | applause::kMouseButtonMiddle;
+    return result;
 }
 
 - (int)keyboardModifiers:(NSEvent*)event {
-  NSUInteger flags = [event modifierFlags];
-  int result = 0;
-  if (flags & NSEventModifierFlagCommand)
-    result = result | applause::kModifierCmd;
-  if (flags & NSEventModifierFlagControl)
-    result = result | applause::kModifierMacCtrl;
-  if (flags & NSEventModifierFlagOption)
-    result = result | applause::kModifierOption;
-  if (flags & NSEventModifierFlagShift)
-    result = result | applause::kModifierShift;
-  return result;
+    NSUInteger flags = [event modifierFlags];
+    int result = 0;
+    if (flags & NSEventModifierFlagCommand) result = result | applause::kModifierCmd;
+    if (flags & NSEventModifierFlagControl) result = result | applause::kModifierMacCtrl;
+    if (flags & NSEventModifierFlagOption) result = result | applause::kModifierOption;
+    if (flags & NSEventModifierFlagShift) result = result | applause::kModifierShift;
+    return result;
 }
 
 - (void)checkRelativeMode {
-  if (self.applause_window->mouseRelativeMode()) {
-    CGAssociateMouseAndMouseCursorPosition(false);
-    CGWarpMouseCursorPosition(self.mouse_down_screen_position);
-    CGAssociateMouseAndMouseCursorPosition(true);
-  }
+    if (self.applause_window->mouseRelativeMode()) {
+        CGAssociateMouseAndMouseCursorPosition(false);
+        CGWarpMouseCursorPosition(self.mouse_down_screen_position);
+        CGAssociateMouseAndMouseCursorPosition(true);
+    }
 }
 
 - (void)makeKeyWindow {
-  if (!self.applause_window->isPopup())
-    [self.window makeKeyWindow];
+    if (!self.applause_window->isPopup()) [self.window makeKeyWindow];
 }
 
 - (void)scrollWheel:(NSEvent*)event {
-  static constexpr float kPreciseScrollingScale = 0.008f;
-  applause::Point point = [self eventPosition:event];
-  float delta_x = [event deltaX];
-  float precise_x = delta_x;
-  float delta_y = [event deltaY];
-  float precise_y = delta_y;
-  if ([event hasPreciseScrollingDeltas]) {
-    precise_x = [event scrollingDeltaX] * kPreciseScrollingScale;
-    precise_y = [event scrollingDeltaY] * kPreciseScrollingScale;
-  }
-  self.applause_window->handleMouseWheel(delta_x, delta_y, precise_x, precise_y, point.x, point.y,
-                                       [self mouseButtonState], [self keyboardModifiers:event],
-                                       [event momentumPhase] != NSEventPhaseNone);
+    static constexpr float kPreciseScrollingScale = 0.008f;
+    applause::Point point = [self eventPosition:event];
+    float delta_x = [event deltaX];
+    float precise_x = delta_x;
+    float delta_y = [event deltaY];
+    float precise_y = delta_y;
+    if ([event hasPreciseScrollingDeltas]) {
+        precise_x = [event scrollingDeltaX] * kPreciseScrollingScale;
+        precise_y = [event scrollingDeltaY] * kPreciseScrollingScale;
+    }
+    self.applause_window->handleMouseWheel(delta_x, delta_y, precise_x, precise_y, point.x, point.y,
+                                           [self mouseButtonState], [self keyboardModifiers:event],
+                                           [event momentumPhase] != NSEventPhaseNone);
 }
 
 - (void)mouseMoved:(NSEvent*)event {
-  applause::Point point = [self eventPosition:event];
-  self.applause_window->handleMouseMove(point.x, point.y, [self mouseButtonState],
-                                      [self keyboardModifiers:event]);
+    applause::Point point = [self eventPosition:event];
+    self.applause_window->handleMouseMove(point.x, point.y, [self mouseButtonState], [self keyboardModifiers:event]);
 }
 
 - (void)mouseEntered:(NSEvent*)event {
-  applause::Point point = [self eventPosition:event];
-  self.applause_window->handleMouseMove(point.x, point.y, [self mouseButtonState],
-                                      [self keyboardModifiers:event]);
+    applause::Point point = [self eventPosition:event];
+    self.applause_window->handleMouseMove(point.x, point.y, [self mouseButtonState], [self keyboardModifiers:event]);
 }
 
 - (void)mouseExited:(NSEvent*)event {
-  self.applause_window->handleMouseLeave([self mouseButtonState], [self keyboardModifiers:event]);
+    self.applause_window->handleMouseLeave([self mouseButtonState], [self keyboardModifiers:event]);
 }
 
 - (void)mouseDown:(NSEvent*)event {
-  applause::Point point = [self eventPosition:event];
-  self.mouse_down_screen_position = [self mouseScreenPosition];
-  self.applause_window->handleMouseDown(applause::kMouseButtonLeft, point.x, point.y,
-                                      [self mouseButtonState], [self keyboardModifiers:event]);
-  [self makeKeyWindow];
-  if (self.applause_window->isDragDropSource()) {
-    applause::File file = self.applause_window->startDragDropSource();
-    NSString* path = [NSString stringWithUTF8String:file.string().c_str()];
-    NSURL* url = [NSURL fileURLWithPath:path];
+    applause::Point point = [self eventPosition:event];
+    self.mouse_down_screen_position = [self mouseScreenPosition];
+    self.applause_window->handleMouseDown(applause::kMouseButtonLeft, point.x, point.y, [self mouseButtonState],
+                                          [self keyboardModifiers:event]);
+    [self makeKeyWindow];
+    if (self.applause_window->isDragDropSource()) {
+        applause::File file = self.applause_window->startDragDropSource();
+        NSString* path = [NSString stringWithUTF8String:file.string().c_str()];
+        NSURL* url = [NSURL fileURLWithPath:path];
 
-    NSImage* image = [[NSWorkspace sharedWorkspace] iconForFile:path];
-    NSPasteboardItem* pasteboard_item = [[NSPasteboardItem alloc] init];
-    [pasteboard_item setString:url.absoluteString forType:NSPasteboardTypeFileURL];
+        NSImage* image = [[NSWorkspace sharedWorkspace] iconForFile:path];
+        NSPasteboardItem* pasteboard_item = [[NSPasteboardItem alloc] init];
+        [pasteboard_item setString:url.absoluteString forType:NSPasteboardTypeFileURL];
 
-    NSDraggingItem* dragging_item = [[NSDraggingItem alloc] initWithPasteboardWriter:pasteboard_item];
-    NSPoint drag_position = [self convertPoint:event.locationInWindow fromView:nil];
-    drag_position.x -= image.size.width / 2;
-    drag_position.y -= image.size.height / 2;
-    [dragging_item
-        setDraggingFrame:NSMakeRect(drag_position.x, drag_position.y, image.size.width, image.size.height)
-                contents:image];
+        NSDraggingItem* dragging_item = [[NSDraggingItem alloc] initWithPasteboardWriter:pasteboard_item];
+        NSPoint drag_position = [self convertPoint:event.locationInWindow fromView:nil];
+        drag_position.x -= image.size.width / 2;
+        drag_position.y -= image.size.height / 2;
+        [dragging_item
+            setDraggingFrame:NSMakeRect(drag_position.x, drag_position.y, image.size.width, image.size.height)
+                    contents:image];
 
-    [self beginDraggingSessionWithItems:[NSArray arrayWithObject:dragging_item]
-                                  event:event
-                                 source:self.drag_source];
-  }
+        [self beginDraggingSessionWithItems:[NSArray arrayWithObject:dragging_item]
+                                      event:event
+                                     source:self.drag_source];
+    }
 }
 
 - (void)mouseUp:(NSEvent*)event {
-  applause::Point point = [self eventPosition:event];
-  self.applause_window->handleMouseUp(applause::kMouseButtonLeft, point.x, point.y,
-                                    [self mouseButtonState], [self keyboardModifiers:event]);
+    applause::Point point = [self eventPosition:event];
+    self.applause_window->handleMouseUp(applause::kMouseButtonLeft, point.x, point.y, [self mouseButtonState],
+                                        [self keyboardModifiers:event]);
 }
 
 - (void)mouseDragged:(NSEvent*)event {
-  applause::Point point = [self eventPosition:event];
-  self.applause_window->handleMouseMove(point.x, point.y, [self mouseButtonState],
-                                      [self keyboardModifiers:event]);
-  [self checkRelativeMode];
+    applause::Point point = [self eventPosition:event];
+    self.applause_window->handleMouseMove(point.x, point.y, [self mouseButtonState], [self keyboardModifiers:event]);
+    [self checkRelativeMode];
 }
 
 - (void)rightMouseDown:(NSEvent*)event {
-  applause::Point point = [self eventPosition:event];
-  self.mouse_down_screen_position = [self mouseScreenPosition];
-  self.applause_window->handleMouseDown(applause::kMouseButtonRight, point.x, point.y,
-                                      [self mouseButtonState], [self keyboardModifiers:event]);
-  [self makeKeyWindow];
+    applause::Point point = [self eventPosition:event];
+    self.mouse_down_screen_position = [self mouseScreenPosition];
+    self.applause_window->handleMouseDown(applause::kMouseButtonRight, point.x, point.y, [self mouseButtonState],
+                                          [self keyboardModifiers:event]);
+    [self makeKeyWindow];
 }
 
 - (void)rightMouseUp:(NSEvent*)event {
-  applause::Point point = [self eventPosition:event];
-  self.applause_window->handleMouseUp(applause::kMouseButtonRight, point.x, point.y,
-                                    [self mouseButtonState], [self keyboardModifiers:event]);
+    applause::Point point = [self eventPosition:event];
+    self.applause_window->handleMouseUp(applause::kMouseButtonRight, point.x, point.y, [self mouseButtonState],
+                                        [self keyboardModifiers:event]);
 }
 
 - (void)rightMouseDragged:(NSEvent*)event {
-  applause::Point point = [self eventPosition:event];
-  self.applause_window->handleMouseMove(point.x, point.y, [self mouseButtonState],
-                                      [self keyboardModifiers:event]);
-  [self checkRelativeMode];
+    applause::Point point = [self eventPosition:event];
+    self.applause_window->handleMouseMove(point.x, point.y, [self mouseButtonState], [self keyboardModifiers:event]);
+    [self checkRelativeMode];
 }
 
 - (void)otherMouseDown:(NSEvent*)event {
-  if ([event buttonNumber] != 2)
-    return;
+    if ([event buttonNumber] != 2) return;
 
-  applause::Point point = [self eventPosition:event];
-  self.mouse_down_screen_position = [self mouseScreenPosition];
-  self.applause_window->handleMouseDown(applause::kMouseButtonMiddle, point.x, point.y,
-                                      [self mouseButtonState], [self keyboardModifiers:event]);
-  [self makeKeyWindow];
+    applause::Point point = [self eventPosition:event];
+    self.mouse_down_screen_position = [self mouseScreenPosition];
+    self.applause_window->handleMouseDown(applause::kMouseButtonMiddle, point.x, point.y, [self mouseButtonState],
+                                          [self keyboardModifiers:event]);
+    [self makeKeyWindow];
 }
 
 - (void)otherMouseUp:(NSEvent*)event {
-  if ([event buttonNumber] != 2)
-    return;
+    if ([event buttonNumber] != 2) return;
 
-  applause::Point point = [self eventPosition:event];
-  self.applause_window->handleMouseUp(applause::kMouseButtonMiddle, point.x, point.y,
-                                    [self mouseButtonState], [self keyboardModifiers:event]);
+    applause::Point point = [self eventPosition:event];
+    self.applause_window->handleMouseUp(applause::kMouseButtonMiddle, point.x, point.y, [self mouseButtonState],
+                                        [self keyboardModifiers:event]);
 }
 
 - (void)otherMouseDragged:(NSEvent*)event {
-  applause::Point point = [self eventPosition:event];
-  self.applause_window->handleMouseMove(point.x, point.y, [self mouseButtonState],
-                                      [self keyboardModifiers:event]);
-  [self checkRelativeMode];
+    applause::Point point = [self eventPosition:event];
+    self.applause_window->handleMouseMove(point.x, point.y, [self mouseButtonState], [self keyboardModifiers:event]);
+    [self checkRelativeMode];
 }
 
 - (void)viewDidChangeBackingProperties {
-  [super viewDidChangeBackingProperties];
-  if (self.applause_window)
-    self.applause_window->resetBackingScale();
+    [super viewDidChangeBackingProperties];
+    if (self.applause_window) self.applause_window->resetBackingScale();
 }
 
 - (void)viewWillMoveToWindow:(NSWindow*)new_window {
-  [super viewWillMoveToWindow:new_window];
+    [super viewWillMoveToWindow:new_window];
 
-  if (new_window) {
-    [new_window setAcceptsMouseMovedEvents:YES];
-    [new_window setIgnoresMouseEvents:NO];
-    [new_window makeFirstResponder:self];
-    if (self.applause_window)
-      self.applause_window->setParentWindow(new_window);
+    if (new_window) {
+        [new_window setAcceptsMouseMovedEvents:YES];
+        [new_window setIgnoresMouseEvents:NO];
+        [new_window makeFirstResponder:self];
+        if (self.applause_window) self.applause_window->setParentWindow(new_window);
 
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(windowOcclusionChanged:)
-                                                 name:NSWindowDidChangeOcclusionStateNotification
-                                               object:new_window];
-  }
-  else if (self.applause_window)
-    self.applause_window->closeWindow();
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(windowOcclusionChanged:)
+                                                     name:NSWindowDidChangeOcclusionStateNotification
+                                                   object:new_window];
+    } else if (self.applause_window)
+        self.applause_window->closeWindow();
 }
 
 - (void)windowOcclusionChanged:(NSNotification*)notification {
-  NSWindow* window = notification.object;
-  if (self.applause_window)
-    self.applause_window->setVisible(window.occlusionState & NSWindowOcclusionStateVisible);
+    NSWindow* window = notification.object;
+    if (self.applause_window) self.applause_window->setVisible(window.occlusionState & NSWindowOcclusionStateVisible);
 }
 
 - (std::vector<std::string>)dropFileList:(id<NSDraggingInfo>)sender {
-  NSPasteboard* pasteboard = [sender draggingPasteboard];
-  NSArray* classes = @[[NSURL class]];
-  NSDictionary* options = @{ NSPasteboardURLReadingFileURLsOnlyKey: @YES };
-  NSArray* file_urls = [pasteboard readObjectsForClasses:classes options:options];
+    NSPasteboard* pasteboard = [sender draggingPasteboard];
+    NSArray* classes = @[ [NSURL class] ];
+    NSDictionary* options = @{NSPasteboardURLReadingFileURLsOnlyKey : @YES};
+    NSArray* file_urls = [pasteboard readObjectsForClasses:classes options:options];
 
-  std::vector<std::string> result;
-  if (file_urls) {
-    for (NSURL* file_url in file_urls)
-      result.emplace_back([[file_url path] UTF8String]);
-  }
-  return result;
+    std::vector<std::string> result;
+    if (file_urls) {
+        for (NSURL* file_url in file_urls) result.emplace_back([[file_url path] UTF8String]);
+    }
+    return result;
 }
 
 - (NSDragOperation)dragFiles:(id<NSDraggingInfo>)sender {
-  applause::Point drag_point = [self dragPosition:sender];
-  std::vector<std::string> files = [self dropFileList:sender];
-  if (self.applause_window->handleFileDrag(drag_point.x, drag_point.y, files))
-    return NSDragOperationCopy;
-  return NSDragOperationNone;
+    applause::Point drag_point = [self dragPosition:sender];
+    std::vector<std::string> files = [self dropFileList:sender];
+    if (self.applause_window->handleFileDrag(drag_point.x, drag_point.y, files)) return NSDragOperationCopy;
+    return NSDragOperationNone;
 }
 
 - (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
-  return [self dragFiles:sender];
+    return [self dragFiles:sender];
 }
 
 - (NSDragOperation)draggingUpdated:(id<NSDraggingInfo>)sender {
-  return [self dragFiles:sender];
+    return [self dragFiles:sender];
 }
 
 - (BOOL)performDragOperation:(id<NSDraggingInfo>)sender {
-  applause::Point drag_point = [self dragPosition:sender];
-  std::vector<std::string> files = [self dropFileList:sender];
-  if (self.applause_window->handleFileDrop(drag_point.x, drag_point.y, files))
-    return NSDragOperationCopy;
-  return NSDragOperationNone;
+    applause::Point drag_point = [self dragPosition:sender];
+    std::vector<std::string> files = [self dropFileList:sender];
+    if (self.applause_window->handleFileDrop(drag_point.x, drag_point.y, files)) return NSDragOperationCopy;
+    return NSDragOperationNone;
 }
 
 - (BOOL)prepareForDragOperation:(id<NSDraggingInfo>)sender {
-  return YES;
+    return YES;
 }
 
 - (void)draggingExited:(id<NSDraggingInfo>)sender {
-  self.applause_window->handleFileDragLeave();
+    self.applause_window->handleFileDragLeave();
 }
 
 @end
 
 @implementation ApplauseAppWindowDelegate
 - (BOOL)windowShouldClose:(NSWindow*)sender {
-  NSView* view = [sender contentView];
-  applause::WindowMac* window = applause::NativeWindowLookup::instance().findWindow((__bridge void*)view);
-  return window->handleCloseRequested();
+    NSView* view = [sender contentView];
+    applause::WindowMac* window = applause::NativeWindowLookup::instance().findWindow((__bridge void*)view);
+    return window->handleCloseRequested();
 }
 
 - (void)windowWillClose:(NSNotification*)notification {
-  NSWindow* ns_window = notification.object;
-  NSView* view = ns_window.contentView;
-  applause::WindowMac* window = applause::NativeWindowLookup::instance().findWindow((__bridge void*)view);
-  if (window)
-    window->closeWindow();
+    NSWindow* ns_window = notification.object;
+    NSView* view = ns_window.contentView;
+    applause::WindowMac* window = applause::NativeWindowLookup::instance().findWindow((__bridge void*)view);
+    if (window) window->closeWindow();
 }
 
 - (void)windowWillStartLiveResize:(NSNotification*)notification {
-  self.resizing_vertical = false;
-  self.resizing_horizontal = false;
+    self.resizing_vertical = false;
+    self.resizing_horizontal = false;
 }
 
 - (NSSize)windowWillResize:(NSWindow*)sender toSize:(NSSize)frame_size {
-  NSSize current_frame = [self.window_handle frame].size;
-  if (current_frame.width != frame_size.width)
-    self.resizing_horizontal = true;
-  if (current_frame.height != frame_size.height)
-    self.resizing_vertical = true;
+    NSSize current_frame = [self.window_handle frame].size;
+    if (current_frame.width != frame_size.width) self.resizing_horizontal = true;
+    if (current_frame.height != frame_size.height) self.resizing_vertical = true;
 
-  applause::Point borders = applause::windowBorderSize(self.window_handle);
-  float scale = self.applause_window->dpiScale();
-  int width = scale * (frame_size.width - borders.x);
-  int height = scale * (frame_size.height - borders.y);
-  self.applause_window->handleAdjustResize(&width, &height, self.resizing_horizontal, self.resizing_vertical);
-  return NSMakeSize(width / scale + borders.x, height / scale + borders.y);
+    applause::Point borders = applause::windowBorderSize(self.window_handle);
+    float scale = self.applause_window->dpiScale();
+    int width = scale * (frame_size.width - borders.x);
+    int height = scale * (frame_size.height - borders.y);
+    self.applause_window->handleAdjustResize(&width, &height, self.resizing_horizontal, self.resizing_vertical);
+    return NSMakeSize(width / scale + borders.x, height / scale + borders.y);
 }
 
 @end
 
 @implementation ApplauseAppDelegate
 - (void)applicationDidFinishLaunching:(NSNotification*)notification {
-  self.window_delegate = [[ApplauseAppWindowDelegate alloc] init];
-  self.window_delegate.applause_window = self.applause_window;
-  self.window_delegate.window_handle = self.window_handle;
-  [self.window_handle setDelegate:self.window_delegate];
+    self.window_delegate = [[ApplauseAppWindowDelegate alloc] init];
+    self.window_delegate.applause_window = self.applause_window;
+    self.window_delegate.window_handle = self.window_handle;
+    [self.window_handle setDelegate:self.window_delegate];
 
-  [NSApp activateIgnoringOtherApps:YES];
+    [NSApp activateIgnoringOtherApps:YES];
 }
 
 - (void)applicationWillTerminate:(NSNotification*)notification {
-  APPLAUSE_LOG("TEST");
+    APPLAUSE_LOG("TEST");
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*)sender {
-  return NO;
+    return NO;
 }
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication*)sender {
-  if (applause::NativeWindowLookup::instance().requestAllToClose())
-    return NSTerminateNow;
-  return NSTerminateCancel;
+    if (applause::NativeWindowLookup::instance().requestAllToClose()) return NSTerminateNow;
+    return NSTerminateCancel;
 }
 
 @end
 
 namespace applause {
-  bool WindowMac::running_event_loop_ = false;
+bool WindowMac::running_event_loop_ = false;
 
-  void WindowMac::runEventLoop() {
+void WindowMac::runEventLoop() {
     running_event_loop_ = true;
 
     @autoreleasepool {
-      NSApplication* app = [NSApplication sharedApplication];
-      ApplauseAppDelegate* delegate = [[ApplauseAppDelegate alloc] init];
-      delegate.applause_window = this;
-      delegate.window_handle = window_handle_;
-      [app setDelegate:delegate];
-      [app run];
+        NSApplication* app = [NSApplication sharedApplication];
+        ApplauseAppDelegate* delegate = [[ApplauseAppDelegate alloc] init];
+        delegate.applause_window = this;
+        delegate.window_handle = window_handle_;
+        [app setDelegate:delegate];
+        [app run];
     }
-  }
+}
 
-  void* WindowMac::initWindow() const {
-    return (__bridge void*)InitialMetalLayer::layer();
-  }
+void* WindowMac::initWindow() const { return (__bridge void*)InitialMetalLayer::layer(); }
 
-  void showMessageBox(std::string title, std::string message) {
+void showMessageBox(std::string title, std::string message) {
     dispatch_async(dispatch_get_main_queue(), ^{
       @autoreleasepool {
-        NSAlert* alert = [[NSAlert alloc] init];
-        [alert setMessageText:[NSString stringWithUTF8String:title.c_str()]];
-        [alert setInformativeText:[NSString stringWithUTF8String:message.c_str()]];
-        [alert addButtonWithTitle:@"OK"];
-        [alert runModal];
+          NSAlert* alert = [[NSAlert alloc] init];
+          [alert setMessageText:[NSString stringWithUTF8String:title.c_str()]];
+          [alert setInformativeText:[NSString stringWithUTF8String:message.c_str()]];
+          [alert addButtonWithTitle:@"OK"];
+          [alert runModal];
       }
     });
-  }
+}
 
-  float defaultDpiScale() {
+float defaultDpiScale() {
     NSScreen* screen = [NSScreen mainScreen];
     CGRect screen_frame = [screen frame];
     return screen.backingScaleFactor;
-  }
+}
 
-  static IBounds computeWindowBoundsWithScale(const Dimension& x, const Dimension& y,
-                                              const Dimension& w, const Dimension& h, float& scale) {
+static IBounds computeWindowBoundsWithScale(const Dimension& x, const Dimension& y, const Dimension& w,
+                                            const Dimension& h, float& scale) {
     scale = defaultDpiScale();
     NSScreen* screen = [NSScreen mainScreen];
     CGRect screen_frame = [screen frame];
@@ -803,10 +888,10 @@ namespace applause {
     int y_pos = y.computeInt(scale, screen_width, screen_height, 0);
 
     for (NSScreen* s in [NSScreen screens]) {
-      if (NSPointInRect(CGPointMake(x_pos, y_pos), [s frame])) {
-        screen = s;
-        break;
-      }
+        if (NSPointInRect(CGPointMake(x_pos, y_pos), [s frame])) {
+            screen = s;
+            break;
+        }
     }
 
     screen_frame = [screen frame];
@@ -821,40 +906,33 @@ namespace applause {
     x_pos = x.computeInt(scale, screen_width, screen_height, default_x);
     y_pos = y.computeInt(scale, screen_width, screen_height, default_y);
 
-    return { x_pos, screen_height - y_pos - height, width, height };
-  }
+    return {x_pos, screen_height - y_pos - height, width, height};
+}
 
-  IBounds computeWindowBounds(const Dimension& x, const Dimension& y, const Dimension& w,
-                              const Dimension& h) {
+IBounds computeWindowBounds(const Dimension& x, const Dimension& y, const Dimension& w, const Dimension& h) {
     float scale = 1.0f;
     return computeWindowBoundsWithScale(x, y, w, h, scale);
-  }
+}
 
-  std::unique_ptr<Window> createWindow(const Dimension& x, const Dimension& y, const Dimension& width,
-                                       const Dimension& height, Window::Decoration decoration) {
+std::unique_ptr<Window> createWindow(const Dimension& x, const Dimension& y, const Dimension& width,
+                                     const Dimension& height, Window::Decoration decoration) {
     float scale = 1.0f;
     IBounds bounds = computeWindowBoundsWithScale(x, y, width, height, scale);
-    return std::make_unique<WindowMac>(bounds.x(), bounds.y(), bounds.width(), bounds.height(),
-                                       scale, decoration);
-  }
+    return std::make_unique<WindowMac>(bounds.x(), bounds.y(), bounds.width(), bounds.height(), scale, decoration);
+}
 
-  void* headlessWindowHandle() {
-    return (__bridge void*)InitialMetalLayer::layer();
-  }
+void* headlessWindowHandle() { return (__bridge void*)InitialMetalLayer::layer(); }
 
-  void closeApplication() {
-    NativeWindowLookup::instance().closeAll();
-  }
+void closeApplication() { NativeWindowLookup::instance().closeAll(); }
 
-  std::unique_ptr<Window> createPluginWindow(const Dimension& width, const Dimension& height,
-                                             void* parent_handle) {
+std::unique_ptr<Window> createPluginWindow(const Dimension& width, const Dimension& height, void* parent_handle) {
     float scale = 1.0f;
     IBounds bounds = computeWindowBoundsWithScale({}, {}, width, height, scale);
     return std::make_unique<WindowMac>(bounds.width(), bounds.height(), scale, parent_handle);
-  }
+}
 
-  WindowMac::WindowMac(int x, int y, int width, int height, float scale, Decoration decoration) :
-      Window(width, height), decoration_(decoration) {
+WindowMac::WindowMac(int x, int y, int width, int height, float scale, Decoration decoration) :
+    Window(width, height), decoration_(decoration) {
     setDpiScale(scale);
     last_content_rect_ = NSMakeRect(x / scale, y / scale, width / scale, height / scale);
     NSRect rect = last_content_rect_;
@@ -868,10 +946,9 @@ namespace applause {
 
     createWindow();
     NativeWindowLookup::instance().addWindow(this);
-  }
+}
 
-  WindowMac::WindowMac(int width, int height, float scale, void* parent_handle) :
-      Window(width, height) {
+WindowMac::WindowMac(int width, int height, float scale, void* parent_handle) : Window(width, height) {
     setDpiScale(scale);
     parent_view_ = (__bridge NSView*)parent_handle;
     CGRect view_frame = CGRectMake(0.0f, 0.0f, width / scale, height / scale);
@@ -883,37 +960,36 @@ namespace applause {
     [parent_view_ addSubview:view_];
 
     NativeWindowLookup::instance().addWindow(this);
-  }
+}
 
-  WindowMac::~WindowMac() {
+WindowMac::~WindowMac() {
     NativeWindowLookup::instance().removeWindow(this);
     hide();
     view_.applause_window = nullptr;
 
-    if (parent_view_)
-      [view_ removeFromSuperview];
-  }
+    if (parent_view_) [view_ removeFromSuperview];
+}
 
-  void WindowMac::createWindow() {
+void WindowMac::createWindow() {
     static const NSUInteger kNativeStyle = NSWindowStyleMaskTitled | NSWindowStyleMaskResizable |
-                                           NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskClosable;
+        NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskClosable;
     static const NSUInteger kClientStyle = kNativeStyle | NSWindowStyleMaskFullSizeContentView;
     static const NSUInteger kPopupStyle = NSWindowStyleMaskBorderless;
 
     int style_mask = kNativeStyle;
     if (decoration_ == Decoration::Popup)
-      style_mask = kPopupStyle;
+        style_mask = kPopupStyle;
     else if (decoration_ == Decoration::Client)
-      style_mask = kClientStyle;
+        style_mask = kClientStyle;
 
     NSWindow* window = [[NSWindow alloc] initWithContentRect:last_content_rect_
                                                    styleMask:style_mask
                                                      backing:NSBackingStoreBuffered
                                                        defer:NO];
     if (decoration_ == Decoration::Popup)
-      [window setLevel:NSStatusWindowLevel];
+        [window setLevel:NSStatusWindowLevel];
     else if (decoration_ == Decoration::Client)
-      window.titlebarAppearsTransparent = YES;
+        window.titlebarAppearsTransparent = YES;
 
     window_handle_ = window;
     setDpiScale([window_handle_ backingScaleFactor]);
@@ -923,34 +999,31 @@ namespace applause {
 
     [window_handle_ setContentView:view_];
     [window_handle_ makeFirstResponder:view_];
-  }
+}
 
-  void WindowMac::closeWindow() {
+void WindowMac::closeWindow() {
     last_content_rect_ = window_handle_.contentLayoutRect;
     NativeWindowLookup::instance().removeWindow(this);
     hide();
     window_handle_ = nullptr;
 
-    if (running_event_loop_ && !NativeWindowLookup::instance().anyWindowOpen())
-      [NSApp stop:nil];
-  }
+    if (running_event_loop_ && !NativeWindowLookup::instance().anyWindowOpen()) [NSApp stop:nil];
+}
 
-  void WindowMac::setParentWindow(NSWindow* window) {
-    if (parent_view_ == nullptr)
-      return;
+void WindowMac::setParentWindow(NSWindow* window) {
+    if (parent_view_ == nullptr) return;
 
     window_handle_ = window;
     [window_handle_ makeFirstResponder:view_];
     [NSApp activateIgnoringOtherApps:YES];
     resetBackingScale();
-  }
+}
 
-  void WindowMac::resetBackingScale() {
-    if (window_handle_)
-      setDpiScale([window_handle_ backingScaleFactor]);
-  }
+void WindowMac::resetBackingScale() {
+    if (window_handle_) setDpiScale([window_handle_ backingScaleFactor]);
+}
 
-  void WindowMac::windowContentsResized(int width, int height) {
+void WindowMac::windowContentsResized(int width, int height) {
     NSRect frame = [window_handle_ frame];
     int x = frame.origin.x;
     int y = frame.origin.y;
@@ -963,54 +1036,46 @@ namespace applause {
 
     [view_ setFrameSize:CGSizeMake(w, h)];
     if (parent_view_ == nullptr) {
-      [window_handle_ setFrame:NSMakeRect(x, y, frame.size.width, frame.size.height)
-                       display:YES
-                       animate:true];
+        [window_handle_ setFrame:NSMakeRect(x, y, frame.size.width, frame.size.height) display:YES animate:true];
     }
-  }
+}
 
-  void WindowMac::show() {
+void WindowMac::show() {
     if (parent_view_ == nullptr) {
-      if (window_handle_ == nullptr)
-        createWindow();
+        if (window_handle_ == nullptr) createWindow();
 
-      if (isPopup())
-        [window_handle_ orderFront:nil];
-      else
-        [window_handle_ makeKeyAndOrderFront:nil];
+        if (isPopup())
+            [window_handle_ orderFront:nil];
+        else
+            [window_handle_ makeKeyAndOrderFront:nil];
     }
     handleWindowShown();
-  }
+}
 
-  void WindowMac::showMaximized() {
-    if (window_handle_ == nullptr)
-      createWindow();
+void WindowMac::showMaximized() {
+    if (window_handle_ == nullptr) createWindow();
 
     [window_handle_ zoom:nil];
     [window_handle_ makeKeyAndOrderFront:nil];
     handleWindowShown();
-  }
+}
 
-  void WindowMac::hide() {
+void WindowMac::hide() {
     if (window_handle_ && parent_view_ == nullptr) {
-      [window_handle_ orderOut:nil];
-      handleWindowHidden();
+        [window_handle_ orderOut:nil];
+        handleWindowHidden();
     }
-  }
+}
 
-  void WindowMac::close() {
-    [window_handle_ performClose:nil];
-  }
+void WindowMac::close() { [window_handle_ performClose:nil]; }
 
-  bool WindowMac::isShowing() const {
-    return window_handle_ && [window_handle_ isVisible];
-  }
+bool WindowMac::isShowing() const { return window_handle_ && [window_handle_ isVisible]; }
 
-  void WindowMac::setWindowTitle(const std::string& title) {
+void WindowMac::setWindowTitle(const std::string& title) {
     [window_handle_ setTitle:[NSString stringWithUTF8String:title.c_str()]];
-  }
+}
 
-  IPoint WindowMac::maxWindowDimensions() const {
+IPoint WindowMac::maxWindowDimensions() const {
     Point borders = windowBorderSize(window_handle_);
 
     NSScreen* screen = [window_handle_ screen] ?: [NSScreen mainScreen];
@@ -1018,19 +1083,17 @@ namespace applause {
 
     int display_width = dpiScale() * (visible_frame.size.width - borders.x);
     int display_height = dpiScale() * (visible_frame.size.height - borders.y);
-    return { display_width, display_height };
-  }
-
-  void WindowMac::setAlwaysOnTop(bool on_top) {
-    if (on_top)
-      [window_handle_ setLevel:NSFloatingWindowLevel];
-    else
-      [window_handle_ setLevel:NSNormalWindowLevel];
-  }
-
-  void WindowMac::handleNativeResize(int width, int height) {
-    handleResized(width, height);
-  }
+    return {display_width, display_height};
 }
+
+void WindowMac::setAlwaysOnTop(bool on_top) {
+    if (on_top)
+        [window_handle_ setLevel:NSFloatingWindowLevel];
+    else
+        [window_handle_ setLevel:NSNormalWindowLevel];
+}
+
+void WindowMac::handleNativeResize(int width, int height) { handleResized(width, height); }
+}  // namespace applause
 
 #endif

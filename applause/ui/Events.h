@@ -30,10 +30,10 @@
 #include <string>
 
 namespace applause {
-  class Frame;
+class Frame;
 
-  class EventTimer {
-  public:
+class EventTimer {
+public:
     EventTimer() = default;
     virtual ~EventTimer();
 
@@ -42,26 +42,26 @@ namespace applause {
     void startTimer(int ms);
     void stopTimer();
     bool checkTimer(long long current_time);
-    virtual void timerCallback() { }
+    virtual void timerCallback() {}
 
     bool isRunning() const {
-      APPLAUSE_ASSERT(ms_ >= -1);
-      return ms_ > 0;
+        APPLAUSE_ASSERT(ms_ >= -1);
+        return ms_ > 0;
     }
 
-  private:
+private:
     void notifyTimerCallback() { on_timer_callback_.callback(); }
 
-    CallbackList<void()> on_timer_callback_ { [this]() -> void { timerCallback(); } };
+    CallbackList<void()> on_timer_callback_{[this]() -> void { timerCallback(); }};
     int ms_ = 0;
     long long last_run_time_ = 0;
-  };
+};
 
-  class EventManager {
-  public:
+class EventManager {
+public:
     static EventManager& instance() {
-      static EventManager instance;
-      return instance;
+        static EventManager instance;
+        return instance;
     }
 
     EventManager(const EventManager&) = delete;
@@ -72,20 +72,20 @@ namespace applause {
     void addCallback(std::function<void()> callback);
     void checkEventTimers();
 
-  private:
+private:
     EventManager() = default;
     ~EventManager() = default;
 
-    std::vector<EventTimer*> timers_ {};
-    std::vector<std::function<void()>> callbacks_ {};
+    std::vector<EventTimer*> timers_{};
+    std::vector<std::function<void()>> callbacks_{};
     std::mutex callback_mutex_;
-  };
+};
 
-  static void runOnEventThread(std::function<void()> function) {
+static void runOnEventThread(std::function<void()> function) {
     EventManager::instance().addCallback(std::move(function));
-  }
+}
 
-  struct MouseEvent {
+struct MouseEvent {
     Point relativePosition() const { return relative_position; }
     Point windowPosition() const { return window_position; }
     bool isAltDown() const { return modifiers & kModifierAlt; }
@@ -114,9 +114,7 @@ namespace applause {
 
     MouseEvent relativeTo(const Frame* new_frame) const;
 
-    bool shouldTriggerPopup() const {
-      return isRightButton() || (isLeftButton() && isMacCtrlDown());
-    }
+    bool shouldTriggerPopup() const { return isRightButton() || (isLeftButton() && isMacCtrlDown()); }
 
     const Frame* event_frame = nullptr;
     Point position;
@@ -134,12 +132,12 @@ namespace applause {
     bool wheel_reversed = false;
     bool wheel_momentum = false;
     int repeat_click_count = 0;
-  };
+};
 
-  class KeyEvent {
-  public:
+class KeyEvent {
+public:
     KeyEvent(KeyCode key, int mods, bool is_down, bool repeat = false) :
-        key_code(key), modifiers(mods), key_down(is_down), is_repeat(repeat) { }
+        key_code(key), modifiers(mods), key_down(is_down), is_repeat(repeat) {}
 
     KeyCode keyCode() const { return key_code; }
     bool isAltDown() const { return modifiers & kModifierAlt; }
@@ -155,33 +153,33 @@ namespace applause {
     bool isRepeat() const { return is_repeat; }
 
     KeyEvent withMainModifier() const {
-      KeyEvent copy = *this;
-      copy.modifiers = modifiers | kModifierRegCtrl;
-      return copy;
+        KeyEvent copy = *this;
+        copy.modifiers = modifiers | kModifierRegCtrl;
+        return copy;
     }
 
     KeyEvent withMeta() const {
-      KeyEvent copy = *this;
-      copy.modifiers = modifiers | kModifierMeta;
-      return copy;
+        KeyEvent copy = *this;
+        copy.modifiers = modifiers | kModifierMeta;
+        return copy;
     }
 
     KeyEvent withShift() const {
-      KeyEvent copy = *this;
-      copy.modifiers = modifiers | kModifierShift;
-      return copy;
+        KeyEvent copy = *this;
+        copy.modifiers = modifiers | kModifierShift;
+        return copy;
     }
 
     KeyEvent withAlt() const {
-      KeyEvent copy = *this;
-      copy.modifiers = modifiers | kModifierAlt;
-      return copy;
+        KeyEvent copy = *this;
+        copy.modifiers = modifiers | kModifierAlt;
+        return copy;
     }
 
     KeyEvent withOption() const { return withAlt(); }
 
     bool operator==(const KeyEvent& other) const {
-      return key_code == other.key_code && key_down == other.key_down && modifiers == other.modifiers;
+        return key_code == other.key_code && key_down == other.key_down && modifiers == other.modifiers;
     }
 
     bool operator!=(const KeyEvent& other) const { return !(*this == other); }
@@ -190,5 +188,5 @@ namespace applause {
     int modifiers = 0;
     bool key_down = false;
     bool is_repeat = false;
-  };
-}
+};
+}  // namespace applause

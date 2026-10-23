@@ -23,10 +23,8 @@
 
 namespace applause {
 #if APPLAUSE_MAC
-  void* windowlessContext();
+void* windowlessContext();
 #else
-  static void* windowlessContext() {
-    return nullptr;
-  }
+static void* windowlessContext() { return nullptr; }
 #endif
-}
+}  // namespace applause

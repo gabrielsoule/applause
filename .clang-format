@@ -1,0 +1,28 @@
+---
+BasedOnStyle: Google
+AccessModifierOffset: -4
+AlignOperands: false
+AlignTrailingComments: false
+BreakBeforeBraces: Attach
+BreakConstructorInitializers: AfterColon
+ColumnLimit: 120
+IncludeBlocks: Preserve
+IncludeCategories:
+  - Regex: '^<.*'
+    Priority: 1
+  - Regex: '^".*'
+    Priority: 2
+  - Regex: '.*'
+    Priority: 3
+IncludeIsMainRegex: '([-_](test|unittest))?$'
+IndentCaseBlocks: true
+IndentCaseLabels: false
+IndentWidth: 4
+InsertNewlineAtEOF: true
+MaxEmptyLinesToKeep: 2
+NamespaceIndentation: None
+TabWidth: 4
+---
+Language: Cpp
+---
+Language: ObjC

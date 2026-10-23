@@ -21,87 +21,84 @@
 
 #include <applause/ui/PopupMenu.h>
 
-#include <embedded/applause_fonts.h>
 #include <applause/graphics/Theme.h>
+#include <embedded/applause_fonts.h>
 
 namespace applause {
-  APPLAUSE_THEME_COLOR(PopupMenuBackground, 0xff262a2e);
-  APPLAUSE_THEME_COLOR(PopupMenuBorder, 0xff606265);
-  APPLAUSE_THEME_COLOR(PopupMenuText, 0xffeeeeee);
-  APPLAUSE_THEME_COLOR(PopupMenuDisabledText, 0xff888888);
-  APPLAUSE_THEME_COLOR(PopupMenuSelection, 0xffaa88ff);
-  APPLAUSE_THEME_COLOR(PopupMenuSelectionText, 0xffffffff);
+APPLAUSE_THEME_COLOR(PopupMenuBackground, 0xff262a2e);
+APPLAUSE_THEME_COLOR(PopupMenuBorder, 0xff606265);
+APPLAUSE_THEME_COLOR(PopupMenuText, 0xffeeeeee);
+APPLAUSE_THEME_COLOR(PopupMenuDisabledText, 0xff888888);
+APPLAUSE_THEME_COLOR(PopupMenuSelection, 0xffaa88ff);
+APPLAUSE_THEME_COLOR(PopupMenuSelectionText, 0xffffffff);
 
-  APPLAUSE_THEME_VALUE(PopupOptionHeight, 22.0f);
-  APPLAUSE_THEME_VALUE(PopupMinWidth, 175.0f);
-  APPLAUSE_THEME_VALUE(PopupTextPadding, 9.0f);
-  APPLAUSE_THEME_VALUE(PopupFontSize, 14.0f);
-  APPLAUSE_THEME_VALUE(PopupSelectionPadding, 4.0f);
+APPLAUSE_THEME_VALUE(PopupOptionHeight, 22.0f);
+APPLAUSE_THEME_VALUE(PopupMinWidth, 175.0f);
+APPLAUSE_THEME_VALUE(PopupTextPadding, 9.0f);
+APPLAUSE_THEME_VALUE(PopupFontSize, 14.0f);
+APPLAUSE_THEME_VALUE(PopupSelectionPadding, 4.0f);
 
-  void PopupMenu::show(Frame* source, Point position) {
+void PopupMenu::show(Frame* source, Point position) {
     std::unique_ptr<PopupMenuFrame> frame = std::make_unique<PopupMenuFrame>(*this);
     PopupMenuFrame* frame_ptr = frame.get();
     frame_ptr->show(std::move(frame), source, position);
-  }
+}
 
-  float PopupList::renderHeight() const {
+float PopupList::renderHeight() const {
     float popup_height = paletteValue(PopupOptionHeight);
     float selection_padding = paletteValue(PopupSelectionPadding);
     return options_.size() * popup_height + 2.0f * selection_padding;
-  }
+}
 
-  float PopupList::renderWidth() const {
+float PopupList::renderWidth() const {
     float width = paletteValue(PopupMinWidth);
     float x_padding = paletteValue(PopupSelectionPadding) + paletteValue(PopupTextPadding);
     for (const PopupMenu& option : options_) {
-      float string_width = font_.stringWidth(option.name().c_str(), option.name().size()) + 2 * x_padding;
-      width = std::max(width, string_width);
+        float string_width = font_.stringWidth(option.name().c_str(), option.name().size()) + 2 * x_padding;
+        width = std::max(width, string_width);
     }
 
     return width;
-  }
+}
 
-  int PopupList::yForIndex(int index) const {
+int PopupList::yForIndex(int index) const {
     return paletteValue(PopupSelectionPadding) + index * paletteValue(PopupOptionHeight);
-  }
+}
 
-  void PopupList::selectHoveredIndex() {
+void PopupList::selectHoveredIndex() {
     if (hover_index_ >= 0 && hover_index_ < options_.size()) {
-      if (options_[hover_index_].hasOptions()) {
-        for (Listener* listener : listeners_)
-          listener->subMenuSelected(options_[hover_index_], yForIndex(hover_index_), this);
-        menu_open_index_ = hover_index_;
-      }
-      else {
-        for (Listener* listener : listeners_)
-          listener->optionSelected(options_[hover_index_], this);
-      }
+        if (options_[hover_index_].hasOptions()) {
+            for (Listener* listener : listeners_)
+                listener->subMenuSelected(options_[hover_index_], yForIndex(hover_index_), this);
+            menu_open_index_ = hover_index_;
+        } else {
+            for (Listener* listener : listeners_) listener->optionSelected(options_[hover_index_], this);
+        }
     }
-  }
+}
 
-  void PopupList::setHoverFromPosition(Point position) {
+void PopupList::setHoverFromPosition(Point position) {
     int y = paletteValue(PopupSelectionPadding);
 
     int option_height = paletteValue(PopupOptionHeight);
     for (int i = 0; i < options_.size(); ++i) {
-      if (!options_[i].isBreak() && options_[i].enabled() && position.y >= y &&
-          position.y < y + option_height) {
-        hover_index_ = i;
-        return;
-      }
+        if (!options_[i].isBreak() && options_[i].enabled() && position.y >= y && position.y < y + option_height) {
+            hover_index_ = i;
+            return;
+        }
 
-      y += option_height;
+        y += option_height;
     }
 
     hover_index_ = -1;
-  }
+}
 
-  void PopupList::selectFromPosition(Point position) {
+void PopupList::selectFromPosition(Point position) {
     setHoverFromPosition(position + Point(0, yPosition()));
     selectHoveredIndex();
-  }
+}
 
-  void PopupList::draw(Canvas& canvas) {
+void PopupList::draw(Canvas& canvas) {
     static constexpr float kTriangleWidthRatio = 0.25f;
 
     Brush background = canvas.color(PopupMenuBackground).withMultipliedAlpha(opacity_);
@@ -121,140 +118,125 @@ namespace applause {
     Brush disabled_text = canvas.color(PopupMenuDisabledText).withMultipliedAlpha(opacity_);
     Brush selected_text = canvas.color(PopupMenuSelectionText).withMultipliedAlpha(opacity_);
     for (int i = 0; i < options_.size(); ++i) {
-      if (y + option_height > 0 && y < height()) {
-        if (options_[i].isBreak())
-          canvas.rectangle(x_padding, y + option_height / 2, width() - 2 * x_padding, 1);
-        else {
-          if (i == hover_index_) {
-            Brush selected = canvas.color(PopupMenuSelection).withMultipliedAlpha(opacity_);
-            canvas.setColor(selected);
-            canvas.roundedRectangle(selection_padding, y, width() - 2 * selection_padding,
-                                    option_height, 4.0f);
-            canvas.setColor(selected_text);
-          }
-          else if (options_[i].enabled())
-            canvas.setColor(text);
-          else
-            canvas.setColor(disabled_text);
+        if (y + option_height > 0 && y < height()) {
+            if (options_[i].isBreak())
+                canvas.rectangle(x_padding, y + option_height / 2, width() - 2 * x_padding, 1);
+            else {
+                if (i == hover_index_) {
+                    Brush selected = canvas.color(PopupMenuSelection).withMultipliedAlpha(opacity_);
+                    canvas.setColor(selected);
+                    canvas.roundedRectangle(selection_padding, y, width() - 2 * selection_padding, option_height, 4.0f);
+                    canvas.setColor(selected_text);
+                } else if (options_[i].enabled())
+                    canvas.setColor(text);
+                else
+                    canvas.setColor(disabled_text);
 
-          int popup_font_size = paletteValue(PopupFontSize);
-          Font font = font_.withSize(popup_font_size);
-          canvas.text(options_[i].name(), font, Font::kLeft, x_padding, y, width(), option_height);
+                int popup_font_size = paletteValue(PopupFontSize);
+                Font font = font_.withSize(popup_font_size);
+                canvas.text(options_[i].name(), font, Font::kLeft, x_padding, y, width(), option_height);
 
-          if (options_[i].hasOptions()) {
-            int triangle_width = popup_font_size * kTriangleWidthRatio;
-            int triangle_x = width() - x_padding - triangle_width;
-            int triangle_y = y + option_height / 2 - triangle_width;
-            canvas.triangleRight(triangle_x, triangle_y, triangle_width);
-          }
+                if (options_[i].hasOptions()) {
+                    int triangle_width = popup_font_size * kTriangleWidthRatio;
+                    int triangle_x = width() - x_padding - triangle_width;
+                    int triangle_y = y + option_height / 2 - triangle_width;
+                    canvas.triangleRight(triangle_x, triangle_y, triangle_width);
+                }
+            }
         }
-      }
-      y += option_height;
+        y += option_height;
     }
-  }
+}
 
-  void PopupList::resized() {
+void PopupList::resized() {
     ScrollableFrame::resized();
     setScrollableHeight(renderHeight(), height());
-  }
+}
 
-  void PopupList::mouseDown(const MouseEvent& e) {
+void PopupList::mouseDown(const MouseEvent& e) {
     Point position = e.relativeTo(this).position;
-    if (!isVisible() || !localBounds().contains(position))
-      return;
+    if (!isVisible() || !localBounds().contains(position)) return;
 
     setHoverFromPosition(e.relativeTo(this).position + Point(0, yPosition()));
 
     if (hover_index_ < options_.size() && hover_index_ >= 0 && options_[hover_index_].hasOptions())
-      selectHoveredIndex();
+        selectHoveredIndex();
 
     redraw();
-  }
+}
 
-  void PopupList::mouseExit(const MouseEvent& e) {
-    if (!isVisible())
-      return;
+void PopupList::mouseExit(const MouseEvent& e) {
+    if (!isVisible()) return;
 
     hover_index_ = menu_open_index_;
-    for (Listener* listener : listeners_)
-      listener->mouseMovedOnMenu(e.relativeTo(this).position, this);
+    for (Listener* listener : listeners_) listener->mouseMovedOnMenu(e.relativeTo(this).position, this);
 
     redraw();
-  }
+}
 
-  void PopupList::mouseMove(const MouseEvent& e) {
-    if (!isVisible())
-      return;
+void PopupList::mouseMove(const MouseEvent& e) {
+    if (!isVisible()) return;
 
-    for (Listener* listener : listeners_)
-      listener->mouseMovedOnMenu(e.relativeTo(this).position, this);
+    for (Listener* listener : listeners_) listener->mouseMovedOnMenu(e.relativeTo(this).position, this);
 
     redraw();
-  }
+}
 
-  void PopupList::mouseDrag(const MouseEvent& e) {
-    if (!isVisible())
-      return;
+void PopupList::mouseDrag(const MouseEvent& e) {
+    if (!isVisible()) return;
 
-    for (Listener* listener : listeners_)
-      listener->mouseDraggedOnMenu(e.relativeTo(this).position, this);
+    for (Listener* listener : listeners_) listener->mouseDraggedOnMenu(e.relativeTo(this).position, this);
 
     redraw();
-  }
+}
 
-  void PopupList::mouseUp(const MouseEvent& e) {
-    if (!isVisible())
-      return;
+void PopupList::mouseUp(const MouseEvent& e) {
+    if (!isVisible()) return;
 
     Point position = e.relativeTo(this).position;
     if (localBounds().contains(position) == 0) {
-      for (Listener* listener : listeners_)
-        listener->mouseUpOutside(position, this);
-      return;
+        for (Listener* listener : listeners_) listener->mouseUpOutside(position, this);
+        return;
     }
 
-    if (enable_mouse_up_)
-      selectFromPosition(position);
+    if (enable_mouse_up_) selectFromPosition(position);
     enable_mouse_up_ = true;
 
     redraw();
-  }
+}
 
-  PopupMenuFrame::PopupMenuFrame(PopupMenu menu) :
-      menu_(std::move(menu)), font_(10, fonts::Lato_Regular_ttf) {
+PopupMenuFrame::PopupMenuFrame(PopupMenu menu) : menu_(std::move(menu)), font_(10, fonts::Lato_Regular_ttf) {
     opacity_animation_.setTargetValue(1.0f);
     setAcceptsKeystrokes(true);
     setIgnoresMouseEvents(true, true);
 
     for (auto& list : lists_) {
-      addChild(&list);
-      list.setVisible(false);
-      list.addListener(this);
+        addChild(&list);
+        list.setVisible(false);
+        list.addListener(this);
     }
-  }
+}
 
-  PopupMenuFrame::~PopupMenuFrame() = default;
+PopupMenuFrame::~PopupMenuFrame() = default;
 
-  void PopupMenuFrame::draw(Canvas& canvas) {
+void PopupMenuFrame::draw(Canvas& canvas) {
     float opacity = opacity_animation_.update();
-    for (auto& list : lists_)
-      list.setOpacity(opacity);
+    for (auto& list : lists_) list.setOpacity(opacity);
 
     if (opacity_animation_.isAnimating())
-      redraw();
+        redraw();
     else if (parent_ && !opacity_animation_.isTargeting())
-      exit();
-  }
+        exit();
+}
 
-  void PopupMenuFrame::show(std::unique_ptr<PopupMenuFrame> self, Frame* source, Point point) {
+void PopupMenuFrame::show(std::unique_ptr<PopupMenuFrame> self, Frame* source, Point point) {
     parent_ = source->topParentFrame();
     parent_->addChild(std::move(self));
 
     setOnTop(true);
     setBounds(parent_->bounds());
 
-    for (int i = 1; i < kMaxSubMenus; ++i)
-      lists_[i].setVisible(false);
+    for (int i = 1; i < kMaxSubMenus; ++i) lists_[i].setVisible(false);
 
     font_ = font_.withSize(paletteValue(PopupFontSize));
     setListFonts(font_);
@@ -269,15 +251,14 @@ namespace applause {
     int bottom = y + h;
     int right = x + w;
     if (bottom > height()) {
-      int top = point.y == PopupMenu::kNotSet ? window_bounds.y() : point.y;
-      y = std::max(0, top - h);
+        int top = point.y == PopupMenu::kNotSet ? window_bounds.y() : point.y;
+        y = std::max(0, top - h);
     }
-    if (right > width())
-      x = std::max(0, x - w);
+    if (right > width()) x = std::max(0, x - w);
 
     for (auto& list : lists_) {
-      list.resetOpenMenu();
-      list.setNoHover();
+        list.resetOpenMenu();
+        list.setNoHover();
     }
 
     lists_[0].setBounds(x, y, w, h);
@@ -287,138 +268,129 @@ namespace applause {
 
     stopTimer();
     startTimer(kWaitForSelection);
-    for (auto& list : lists_)
-      list.enableMouseUp(false);
+    for (auto& list : lists_) list.enableMouseUp(false);
 
     requestKeyboardFocus();
     redraw();
-  }
+}
 
-  void PopupMenuFrame::exit() {
+void PopupMenuFrame::exit() {
     done_ = true;
     startTimer(1);
-  }
+}
 
-  void PopupMenuFrame::hierarchyChanged() {
-    if (parent() == nullptr)
-      startTimer(1);
-  }
+void PopupMenuFrame::hierarchyChanged() {
+    if (parent() == nullptr) startTimer(1);
+}
 
-  void PopupMenuFrame::focusChanged(bool is_focused, bool was_clicked) {
+void PopupMenuFrame::focusChanged(bool is_focused, bool was_clicked) {
     if (!is_focused && isVisible()) {
-      startTimer(1);
-      opacity_animation_.target(false);
+        startTimer(1);
+        opacity_animation_.target(false);
     }
 
     redraw();
-  }
+}
 
-  void PopupMenuFrame::timerCallback() {
+void PopupMenuFrame::timerCallback() {
     if (parent_ && done_) {
-      parent_->removeChild(this);
-      return;
+        parent_->removeChild(this);
+        return;
     }
 
     redraw();
     stopTimer();
 
-    for (auto& list : lists_)
-      list.enableMouseUp(true);
+    for (auto& list : lists_) list.enableMouseUp(true);
 
     if (hover_list_ && hover_index_ >= 0 && hover_index_ < hover_list_->numOptions()) {
-      const PopupMenu& option = hover_list_->option(hover_index_);
-      if (option.hasOptions()) {
-        subMenuSelected(option, hover_list_->hoverY(), hover_list_);
-        return;
-      }
+        const PopupMenu& option = hover_list_->option(hover_index_);
+        if (option.hasOptions()) {
+            subMenuSelected(option, hover_list_->hoverY(), hover_list_);
+            return;
+        }
     }
 
     int last_open_menu = kMaxSubMenus - 1;
     for (; last_open_menu > 0 && hover_list_ != &lists_[last_open_menu]; --last_open_menu) {
-      lists_[last_open_menu].setVisible(false);
-      lists_[last_open_menu].resetOpenMenu();
+        lists_[last_open_menu].setVisible(false);
+        lists_[last_open_menu].resetOpenMenu();
     }
 
     lists_[last_open_menu].resetOpenMenu();
-    if (hover_index_ < 0)
-      lists_[last_open_menu].setNoHover();
-  }
+    if (hover_index_ < 0) lists_[last_open_menu].setNoHover();
+}
 
-  void PopupMenuFrame::optionSelected(const PopupMenu& option, PopupList* list) {
+void PopupMenuFrame::optionSelected(const PopupMenu& option, PopupList* list) {
     if (isVisible()) {
-      option.onSelection().callback(option.id());
-      menu_.onSelection().callback(option.id());
-    }
-    else
-      menu_.onCancel().callback();
+        option.onSelection().callback(option.id());
+        menu_.onSelection().callback(option.id());
+    } else
+        menu_.onCancel().callback();
 
     exit();
-  }
+}
 
-  void PopupMenuFrame::subMenuSelected(const PopupMenu& option, int selection_y, PopupList* list) {
+void PopupMenuFrame::subMenuSelected(const PopupMenu& option, int selection_y, PopupList* list) {
     int source_index = 0;
     for (int i = 0; i < kMaxSubMenus; ++i) {
-      if (list == &lists_[i])
-        source_index = i;
+        if (list == &lists_[i]) source_index = i;
     }
 
     lists_[source_index].setOpenMenu(lists_[source_index].hoverIndex());
     if (source_index < kMaxSubMenus - 1) {
-      lists_[source_index + 1].setOptions(option.options());
-      int h = lists_[source_index + 1].renderHeight();
-      int w = lists_[source_index + 1].renderWidth();
-      int y = list->y() + selection_y;
-      int bottom = y + h;
-      int x = lists_[source_index].right();
-      int right = x + w;
-      if (bottom > height())
-        y = height() - h;
-      if (right > width())
-        x = lists_[source_index].x() - w;
+        lists_[source_index + 1].setOptions(option.options());
+        int h = lists_[source_index + 1].renderHeight();
+        int w = lists_[source_index + 1].renderWidth();
+        int y = list->y() + selection_y;
+        int bottom = y + h;
+        int x = lists_[source_index].right();
+        int right = x + w;
+        if (bottom > height()) y = height() - h;
+        if (right > width()) x = lists_[source_index].x() - w;
 
-      lists_[source_index + 1].setBounds(x, y, w, h);
-      lists_[source_index + 1].setNoHover();
-      lists_[source_index + 1].setVisible(true);
+        lists_[source_index + 1].setBounds(x, y, w, h);
+        lists_[source_index + 1].setNoHover();
+        lists_[source_index + 1].setVisible(true);
     }
-  }
+}
 
-  void PopupMenuFrame::moveHover(Point position, const PopupList* list) {
+void PopupMenuFrame::moveHover(Point position, const PopupList* list) {
     PopupList* last_hover_list = hover_list_;
     int last_hover_index = hover_index_;
     position += list->topLeft();
     hover_list_ = nullptr;
     hover_index_ = -1;
     for (auto& sub_list : lists_) {
-      if (sub_list.isVisible() && sub_list.bounds().contains(position)) {
-        sub_list.setHoverFromPosition(position - sub_list.topLeft() + Point(0, list->yPosition()));
+        if (sub_list.isVisible() && sub_list.bounds().contains(position)) {
+            sub_list.setHoverFromPosition(position - sub_list.topLeft() + Point(0, list->yPosition()));
 
-        hover_list_ = &sub_list;
-        hover_index_ = hover_list_->hoverIndex();
-      }
+            hover_list_ = &sub_list;
+            hover_index_ = hover_list_->hoverIndex();
+        }
     }
     if (hover_list_ != last_hover_list || hover_index_ != last_hover_index) {
-      stopTimer();
-      startTimer(kPauseMs);
+        stopTimer();
+        startTimer(kPauseMs);
     }
-  }
+}
 
-  void PopupMenuFrame::mouseUpOutside(Point position, PopupList* list) {
+void PopupMenuFrame::mouseUpOutside(Point position, PopupList* list) {
     position += list->topLeft();
     for (auto& sub_list : lists_) {
-      if (sub_list.isVisible() && sub_list.bounds().contains(position)) {
-        sub_list.selectFromPosition(position - sub_list.topLeft());
-        return;
-      }
+        if (sub_list.isVisible() && sub_list.bounds().contains(position)) {
+            sub_list.selectFromPosition(position - sub_list.topLeft());
+            return;
+        }
     }
 
-    if (isRunning())
-      return;
+    if (isRunning()) return;
 
     menu_.onCancel().callback();
     exit();
-  }
+}
 
-  void ValueDisplay::showDisplay(const String& text, Bounds bounds, Font::Justification justification) {
+void ValueDisplay::showDisplay(const String& text, Bounds bounds, Font::Justification justification) {
     setVisible(true);
     text_ = text;
 
@@ -429,19 +401,19 @@ namespace applause {
     int x = bounds.xCenter() - width / 2;
     int y = bounds.yCenter() - height / 2;
     if (justification & Font::kLeft)
-      x = bounds.x() - width;
+        x = bounds.x() - width;
     else if (justification & Font::kRight)
-      x = bounds.right();
+        x = bounds.right();
     if (justification & Font::kBottom)
-      y = bounds.bottom();
+        y = bounds.bottom();
     else if (justification & Font::kTop)
-      y = bounds.y() - height;
+        y = bounds.y() - height;
 
     setBounds(x, y, width, height);
     redraw();
-  }
+}
 
-  void ValueDisplay::draw(Canvas& canvas) {
+void ValueDisplay::draw(Canvas& canvas) {
     Font font = font_.withSize(paletteValue(PopupFontSize));
     canvas.setColor(PopupMenuBackground);
     canvas.roundedRectangle(0, 0, width(), height(), 8.0f);
@@ -452,5 +424,5 @@ namespace applause {
     canvas.setColor(PopupMenuText);
     canvas.setColor(canvas.color(PopupMenuText));
     canvas.text(text_, font, Font::kCenter, 0, 0, width(), height());
-  }
 }
+}  // namespace applause

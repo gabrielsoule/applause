@@ -28,17 +28,17 @@
 #include <memory>
 
 namespace applause {
-  static constexpr int kUnprintableKeycodeMask = 1 << 30;
+static constexpr int kUnprintableKeycodeMask = 1 << 30;
 
-  enum MouseButton {
+enum MouseButton {
     kMouseButtonNone = 0,
     kMouseButtonLeft = 1 << 0,
     kMouseButtonMiddle = 1 << 1,
     kMouseButtonRight = 1 << 2,
     kMouseButtonTouch = 1 << 3
-  };
+};
 
-  enum class MouseCursor {
+enum class MouseCursor {
     Invisible,
     Arrow,
     IBeam,
@@ -52,9 +52,9 @@ namespace applause {
     BottomLeftResize,
     BottomRightResize,
     MultiDirectionalResize,
-  };
+};
 
-  enum Modifiers {
+enum Modifiers {
     kModifierNone = 0,
     kModifierShift = 1 << 0,
     kModifierRegCtrl = 1 << 1,
@@ -63,17 +63,17 @@ namespace applause {
     kModifierOption = 1 << 3,
     kModifierCmd = 1 << 4,
     kModifierMeta = 1 << 5,
-  };
+};
 
-  enum class HitTestResult {
+enum class HitTestResult {
     Client,
     TitleBar,
     CloseButton,
     MinimizeButton,
     MaximizeButton,
-  };
+};
 
-  enum class KeyCode {
+enum class KeyCode {
     Unknown = 0,
     A = 'a',
     B = 'b',
@@ -320,28 +320,27 @@ namespace applause {
     App2 = kUnprintableKeycodeMask | 190,
     AudioRewind = kUnprintableKeycodeMask | 191,
     AudioFastForward = kUnprintableKeycodeMask | 192,
-  };
+};
 
-  static constexpr bool isPrintableKeyCode(KeyCode key_code) {
+static constexpr bool isPrintableKeyCode(KeyCode key_code) {
     return key_code != KeyCode::Unknown && (static_cast<int>(key_code) & kUnprintableKeycodeMask) == 0;
-  }
+}
 
-  template<typename T>
-  class CallbackList {
-  public:
-    template<typename R>
+template <typename T>
+class CallbackList {
+public:
+    template <typename R>
     static R defaultResult() {
-      if constexpr (std::is_default_constructible_v<R>)
-        return {};
-      else
-        static_assert(std::is_void_v<R>, "Callback return value must be default constructable");
+        if constexpr (std::is_default_constructible_v<R>)
+            return {};
+        else
+            static_assert(std::is_void_v<R>, "Callback return value must be default constructable");
     }
 
     CallbackList() = default;
 
-    explicit CallbackList(std::function<T> callback) :
-        original_(std::make_unique<std::function<T>>(callback)) {
-      add(callback);
+    explicit CallbackList(std::function<T> callback) : original_(std::make_unique<std::function<T>>(callback)) {
+        add(callback);
     }
 
     CallbackList(const CallbackList& other) = default;
@@ -350,56 +349,51 @@ namespace applause {
     void add(std::function<T> callback) { callbacks_.push_back(std::move(callback)); }
 
     CallbackList& operator+=(std::function<T> callback) {
-      add(callback);
-      return *this;
+        add(callback);
+        return *this;
     }
 
     void set(std::function<T> callback) {
-      callbacks_.clear();
-      callbacks_.push_back(std::move(callback));
+        callbacks_.clear();
+        callbacks_.push_back(std::move(callback));
     }
 
     CallbackList& operator=(const std::function<T>& callback) {
-      set(callback);
-      return *this;
+        set(callback);
+        return *this;
     }
 
     void remove(const std::function<T>& callback) {
-      auto compare = [&](const std::function<T>& other) {
-        return other.target_type() == callback.target_type();
-      };
+        auto compare = [&](const std::function<T>& other) { return other.target_type() == callback.target_type(); };
 
-      auto it = std::remove_if(callbacks_.begin(), callbacks_.end(), compare);
-      callbacks_.erase(it, callbacks_.end());
+        auto it = std::remove_if(callbacks_.begin(), callbacks_.end(), compare);
+        callbacks_.erase(it, callbacks_.end());
     }
 
     CallbackList& operator-=(const std::function<T>& callback) {
-      remove(callback);
-      return *this;
+        remove(callback);
+        return *this;
     }
 
     void reset() {
-      callbacks_.clear();
-      if (original_)
-        callbacks_.push_back(*original_);
+        callbacks_.clear();
+        if (original_) callbacks_.push_back(*original_);
     }
 
     void clear() { callbacks_.clear(); }
     bool isEmpty() const { return callbacks_.empty(); }
 
-    template<typename... Args>
+    template <typename... Args>
     auto callback(Args&&... args) const {
-      if (callbacks_.empty())
-        return defaultResult<decltype(std::declval<std::function<T>>()(args...))>();
+        if (callbacks_.empty()) return defaultResult<decltype(std::declval<std::function<T>>()(args...))>();
 
-      for (size_t i = 0; i + 1 < callbacks_.size(); ++i)
-        callbacks_[i](std::forward<Args>(args)...);
+        for (size_t i = 0; i + 1 < callbacks_.size(); ++i) callbacks_[i](std::forward<Args>(args)...);
 
-      return callbacks_.back()(std::forward<Args>(args)...);
+        return callbacks_.back()(std::forward<Args>(args)...);
     }
 
-  private:
+private:
     clone_ptr<std::function<T>> original_;
     std::vector<std::function<T>> callbacks_;
-  };
-}
+};
+}  // namespace applause

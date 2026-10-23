@@ -26,10 +26,10 @@
 #include <applause/windowing/Windowing.h>
 
 namespace applause {
-  class Frame;
+class Frame;
 
-  class WindowEventHandler : public Window::EventHandler {
-  public:
+class WindowEventHandler : public Window::EventHandler {
+public:
     WindowEventHandler() = delete;
     WindowEventHandler(const WindowEventHandler&) = delete;
 
@@ -50,14 +50,12 @@ namespace applause {
     HitTestResult handleHitTest(int x, int y) override;
     HitTestResult currentHitTest() const override { return current_hit_test_; }
     void handleMouseMove(int x, int y, int button_state, int modifiers) override;
-    void handleMouseDown(MouseButton button_id, int x, int y, int button_state, int modifiers,
-                         int repeat) override;
-    void handleMouseUp(MouseButton button_id, int x, int y, int button_state, int modifiers,
-                       int repeat) override;
+    void handleMouseDown(MouseButton button_id, int x, int y, int button_state, int modifiers, int repeat) override;
+    void handleMouseUp(MouseButton button_id, int x, int y, int button_state, int modifiers, int repeat) override;
     void handleMouseEnter(int x, int y) override;
     void handleMouseLeave(int x, int y, int button_state, int modifiers) override;
-    void handleMouseWheel(float delta_x, float delta_y, float precise_x, float precise_y, int x,
-                          int y, int button_state, int modifiers, bool momentum) override;
+    void handleMouseWheel(float delta_x, float delta_y, float precise_x, float precise_y, int x, int y,
+                          int button_state, int modifiers, bool momentum) override;
 
     bool handleKeyDown(const KeyEvent& e);
     bool handleKeyUp(const KeyEvent& e);
@@ -84,7 +82,7 @@ namespace applause {
     std::string startDragDropSource() override;
     void cleanupDragDropSource() override;
 
-  private:
+private:
     Frame* dragDropFrame(Point point, const std::vector<std::string>& files) const;
 
     ApplicationEditor* editor_ = nullptr;
@@ -96,9 +94,9 @@ namespace applause {
     Frame* keyboard_focused_frame_ = nullptr;
     Frame* drag_drop_target_frame_ = nullptr;
 
-    Point last_mouse_position_ = { 0, 0 };
+    Point last_mouse_position_ = {0, 0};
     HitTestResult current_hit_test_ = HitTestResult::Client;
 
     APPLAUSE_LEAK_CHECKER(WindowEventHandler)
-  };
-}
+};
+}  // namespace applause

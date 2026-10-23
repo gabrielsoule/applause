@@ -31,54 +31,49 @@
 #include <thread>
 
 namespace applause {
-  class Thread {
-  public:
+class Thread {
+public:
     static inline std::thread::id main_thread_id_;
     static inline bool main_thread_set_ = false;
 
     static void setAsMainThread() {
-      main_thread_set_ = true;
-      main_thread_id_ = std::this_thread::get_id();
+        main_thread_set_ = true;
+        main_thread_id_ = std::this_thread::get_id();
     }
 
-    static bool isMainThread() {
-      return !main_thread_set_ || main_thread_id_ == std::this_thread::get_id();
-    }
+    static bool isMainThread() { return !main_thread_set_ || main_thread_id_ == std::this_thread::get_id(); }
 
-    explicit Thread(std::string name) : name_(std::move(name)) { }
+    explicit Thread(std::string name) : name_(std::move(name)) {}
     explicit Thread() = default;
     virtual ~Thread() {
-      // Stop thread before the end of inherited destructor
-      APPLAUSE_ASSERT(!running());
-      stop();
+        // Stop thread before the end of inherited destructor
+        APPLAUSE_ASSERT(!running());
+        stop();
     }
 
     virtual void run() {
-      if (task_)
-        task_();
+        if (task_) task_();
     }
 
     void start() {
-      APPLAUSE_ASSERT(!running());
+        APPLAUSE_ASSERT(!running());
 #if APPLAUSE_EMSCRIPTEN
-      APPLAUSE_ASSERT(false);
+        APPLAUSE_ASSERT(false);
 #endif
 
-      if (running())
-        return;
+        if (running()) return;
 
-      should_run_ = true;
-      completed_ = false;
-      thread_ = std::make_unique<std::thread>(&Thread::startRun, this);
+        should_run_ = true;
+        completed_ = false;
+        thread_ = std::make_unique<std::thread>(&Thread::startRun, this);
     }
 
     void stop() {
-      should_run_ = false;
-      if (thread_) {
-        if (thread_->joinable())
-          thread_->join();
-        thread_.reset();
-      }
+        should_run_ = false;
+        if (thread_) {
+            if (thread_->joinable()) thread_->join();
+            thread_.reset();
+        }
     }
 
     static void sleep(int ms) { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }
@@ -88,15 +83,14 @@ namespace applause {
     void setThreadTask(std::function<void()> task) { task_ = std::move(task); }
 
     bool waitForEnd(int ms_timeout) {
-      long long ms_start = time::milliseconds();
-      while (!completed()) {
-        if (time::milliseconds() - ms_start > ms_timeout)
-          return false;
+        long long ms_start = time::milliseconds();
+        while (!completed()) {
+            if (time::milliseconds() - ms_start > ms_timeout) return false;
 
-        sleep(5);
-      }
-      stop();
-      return true;
+            sleep(5);
+        }
+        stop();
+        return true;
     }
 
     const std::string& name() const { return name_; }
@@ -104,10 +98,10 @@ namespace applause {
     bool running() const { return thread_ && thread_->joinable(); }
     bool completed() const { return completed_.load(); }
 
-  private:
+private:
     void startRun() {
-      run();
-      completed_ = true;
+        run();
+        completed_ = true;
     }
 
     std::string name_;
@@ -115,5 +109,5 @@ namespace applause {
     std::atomic<bool> should_run_ = true;
     std::function<void()> task_;
     std::unique_ptr<std::thread> thread_;
-  };
-}
+};
+}  // namespace applause

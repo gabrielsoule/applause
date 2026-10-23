@@ -24,20 +24,19 @@
 #include <memory>
 
 namespace applause {
-  template<class T>
-  class clone_ptr {
-  public:
+template <class T>
+class clone_ptr {
+public:
     static_assert(std::is_copy_constructible_v<T>, "T must be copy constructible for clone_ptr");
 
     clone_ptr() = default;
-    clone_ptr(std::unique_ptr<T> p) : p_(std::move(p)) { }
+    clone_ptr(std::unique_ptr<T> p) : p_(std::move(p)) {}
 
-    clone_ptr(const clone_ptr& other) : p_(other.p_ ? std::make_unique<T>(*other.p_) : nullptr) { }
+    clone_ptr(const clone_ptr& other) : p_(other.p_ ? std::make_unique<T>(*other.p_) : nullptr) {}
 
     clone_ptr& operator=(const clone_ptr& other) {
-      if (this != &other)
-        p_ = other.p_ ? std::make_unique<T>(*other.p_) : nullptr;
-      return *this;
+        if (this != &other) p_ = other.p_ ? std::make_unique<T>(*other.p_) : nullptr;
+        return *this;
     }
 
     clone_ptr(clone_ptr&&) noexcept = default;
@@ -51,7 +50,7 @@ namespace applause {
     T* operator->() const { return p_.operator->(); }
     explicit operator bool() const { return static_cast<bool>(p_); }
 
-  private:
+private:
     std::unique_ptr<T> p_;
-  };
-}
+};
+}  // namespace applause

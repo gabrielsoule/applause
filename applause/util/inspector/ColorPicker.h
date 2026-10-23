@@ -21,13 +21,13 @@
 
 #pragma once
 
-#include <applause/ui/components/TextEditor.h>
 #include <applause/graphics/Color.h>
 #include <applause/ui/Frame.h>
+#include <applause/ui/components/TextEditor.h>
 
 namespace applause {
-  class HueEditor : public Frame {
-  public:
+class HueEditor : public Frame {
+public:
     HueEditor() = default;
 
     void draw(Canvas& canvas) override;
@@ -35,77 +35,77 @@ namespace applause {
     auto& onEdit() { return on_edit_; }
 
     void setHue(const MouseEvent& e) {
-      static constexpr float kHueRange = Color::kHueRange;
+        static constexpr float kHueRange = Color::kHueRange;
 
-      hue_ = std::max(0.0f, std::min(kHueRange, kHueRange * e.position.y / height()));
-      on_edit_.callback(hue_);
-      redraw();
+        hue_ = std::max(0.0f, std::min(kHueRange, kHueRange * e.position.y / height()));
+        on_edit_.callback(hue_);
+        redraw();
     }
 
     void mouseDown(const MouseEvent& e) override { setHue(e); }
     void mouseDrag(const MouseEvent& e) override { setHue(e); }
 
     void setHue(float hue) {
-      hue_ = hue;
-      redraw();
+        hue_ = hue;
+        redraw();
     }
     float hue() const { return hue_; }
 
-  private:
+private:
     float hue_ = 0.0f;
     CallbackList<void(float)> on_edit_;
 
     APPLAUSE_LEAK_CHECKER(HueEditor)
-  };
+};
 
-  class ValueSaturationEditor : public Frame {
-  public:
+class ValueSaturationEditor : public Frame {
+public:
     ValueSaturationEditor() = default;
 
     void draw(Canvas& canvas) override;
 
     void setValueSaturation(const MouseEvent& e) {
-      value_ = std::max(0.0f, std::min(1.0f, 1.0f - e.position.y * 1.0f / height()));
-      saturation_ = std::max(0.0f, std::min(1.0f, e.position.x * 1.0f / width()));
-      on_edit_.callback(value_, saturation_);
+        value_ = std::max(0.0f, std::min(1.0f, 1.0f - e.position.y * 1.0f / height()));
+        saturation_ = std::max(0.0f, std::min(1.0f, e.position.x * 1.0f / width()));
+        on_edit_.callback(value_, saturation_);
 
-      redraw();
+        redraw();
     }
 
     void mouseDown(const MouseEvent& e) override { setValueSaturation(e); }
     void mouseDrag(const MouseEvent& e) override { setValueSaturation(e); }
 
     void setValue(float value) {
-      value_ = value;
-      redraw();
+        value_ = value;
+        redraw();
     }
 
     float value() const { return value_; }
 
     void setSaturation(float saturation) {
-      saturation_ = saturation;
-      redraw();
+        saturation_ = saturation;
+        redraw();
     }
     float saturation() const { return saturation_; }
 
     void setHueColor(const Color& hue_color) {
-      hue_color_ = hue_color;
-      redraw();
+        hue_color_ = hue_color;
+        redraw();
     }
 
     auto& onEdit() { return on_edit_; }
 
-  private:
+private:
     float value_ = 1.0f;
     float saturation_ = 1.0f;
     Color hue_color_ = Color(0xffff00ff);
     CallbackList<void(float, float)> on_edit_;
 
     APPLAUSE_LEAK_CHECKER(ValueSaturationEditor)
-  };
+};
 
-  class ColorPicker : public Frame {
-  public:
+class ColorPicker : public Frame {
+public:
     static constexpr float kHueWidth = 24.0f;
     static constexpr float kPadding = 8.0f;
     static constexpr float kEditHeight = 40.0f;
@@ -123,7 +123,7 @@ namespace applause {
     void setColor(const Color& color);
     void notifyNewColor() { on_color_change_.callback(color_); }
 
-  private:
+private:
     CallbackList<void(const Color&)> on_color_change_;
     Color color_ = Color(0);
     HueEditor hue_;
@@ -135,5 +135,5 @@ namespace applause {
     float hdr_ = 1.0f;
 
     APPLAUSE_LEAK_CHECKER(ColorPicker)
-  };
-}
+};
+}  // namespace applause

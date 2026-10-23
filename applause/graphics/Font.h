@@ -29,10 +29,10 @@
 #include <vector>
 
 namespace applause {
-  class TypeFace;
-  class PackedFont;
+class TypeFace;
+class PackedFont;
 
-  struct PackedGlyph {
+struct PackedGlyph {
     int atlas_left = -1;
     int atlas_top = -1;
     int width = -1;
@@ -41,42 +41,36 @@ namespace applause {
     float y_offset = 0.0f;
     float x_advance = 0.0f;
     const TypeFace* type_face = nullptr;
-  };
+};
 
-  struct FontAtlasQuad {
+struct FontAtlasQuad {
     const PackedGlyph* packed_glyph;
     float x;
     float y;
     float width;
     float height;
-  };
+};
 
-  class Font {
-  public:
-    static constexpr PackedGlyph kNullPackedGlyph = { 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr };
+class Font {
+public:
+    static constexpr PackedGlyph kNullPackedGlyph = {0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr};
 
     enum Justification {
-      kCenter = 0,
-      kLeft = 0x1,
-      kRight = 0x2,
-      kTop = 0x10,
-      kBottom = 0x20,
-      kTopLeft = kTop | kLeft,
-      kBottomLeft = kBottom | kLeft,
-      kTopRight = kTop | kRight,
-      kBottomRight = kBottom | kRight,
+        kCenter = 0,
+        kLeft = 0x1,
+        kRight = 0x2,
+        kTop = 0x10,
+        kBottom = 0x20,
+        kTopLeft = kTop | kLeft,
+        kBottomLeft = kBottom | kLeft,
+        kTopRight = kTop | kRight,
+        kBottomRight = kBottom | kRight,
     };
 
-    static bool isVariationSelector(char32_t character) {
-      return (character & 0xfffffff0) == 0xfe00;
-    }
-    static bool isPrintable(char32_t character) {
-      return character != ' ' && character != '\t' && character != '\n';
-    }
+    static bool isVariationSelector(char32_t character) { return (character & 0xfffffff0) == 0xfe00; }
+    static bool isPrintable(char32_t character) { return character != ' ' && character != '\t' && character != '\n'; }
     static bool isNewLine(char32_t character) { return character == '\n'; }
-    static bool isIgnored(char32_t character) {
-      return character == '\r' || isVariationSelector(character);
-    }
+    static bool isIgnored(char32_t character) { return character == '\r' || isVariationSelector(character); }
     static bool hasNewLine(const char32_t* string, int length);
 
     Font() = default;
@@ -88,27 +82,27 @@ namespace applause {
     ~Font();
 
     float dpiScale() const {
-      // DPI scale must be set to get accurate measurements
-      APPLAUSE_ASSERT(dpi_scale_);
+        // DPI scale must be set to get accurate measurements
+        APPLAUSE_ASSERT(dpi_scale_);
 
-      return dpi_scale_ ? dpi_scale_ : 1.0f;
+        return dpi_scale_ ? dpi_scale_ : 1.0f;
     }
     Font withDpiScale(float dpi_scale) const;
     Font withSize(float size) const;
 
-    int widthOverflowIndex(const char32_t* string, int string_length, float width,
-                           bool round = false, int character_override = 0) const {
-      return nativeWidthOverflowIndex(string, string_length, width * dpiScale(), round, character_override);
+    int widthOverflowIndex(const char32_t* string, int string_length, float width, bool round = false,
+                           int character_override = 0) const {
+        return nativeWidthOverflowIndex(string, string_length, width * dpiScale(), round, character_override);
     }
     std::vector<int> lineBreaks(const char32_t* string, int length, float width) const {
-      return nativeLineBreaks(string, length, width * dpiScale());
+        return nativeLineBreaks(string, length, width * dpiScale());
     }
 
     float stringWidth(const char32_t* string, int length, int character_override = 0) const {
-      return nativeStringWidth(string, length, character_override) / dpiScale();
+        return nativeStringWidth(string, length, character_override) / dpiScale();
     }
     float stringWidth(const std::u32string& string, int character_override = 0) const {
-      return stringWidth(string.c_str(), string.size(), character_override);
+        return stringWidth(string.c_str(), string.size(), character_override);
     }
     float lineHeight() const { return nativeLineHeight() / dpiScale(); }
     float capitalHeight() const { return nativeCapitalHeight() / dpiScale(); }
@@ -119,19 +113,17 @@ namespace applause {
     int size() const { return size_; }
     const bgfx::TextureHandle& textureHandle() const;
 
-    void setVertexPositions(FontAtlasQuad* quads, const char32_t* text, int length, float x,
-                            float y, float width, float height,
-                            Justification justification = kCenter, int character_override = 0) const;
+    void setVertexPositions(FontAtlasQuad* quads, const char32_t* text, int length, float x, float y, float width,
+                            float height, Justification justification = kCenter, int character_override = 0) const;
 
-    void setMultiLineVertexPositions(FontAtlasQuad* quads, const char32_t* text, int length,
-                                     float x, float y, float width, float height,
-                                     Justification justification = kCenter) const;
+    void setMultiLineVertexPositions(FontAtlasQuad* quads, const char32_t* text, int length, float x, float y,
+                                     float width, float height, Justification justification = kCenter) const;
 
     const PackedFont* packedFont() const { return packed_font_; }
 
-  private:
-    int nativeWidthOverflowIndex(const char32_t* string, int string_length, float width,
-                                 bool round = false, int character_override = 0) const;
+private:
+    int nativeWidthOverflowIndex(const char32_t* string, int string_length, float width, bool round = false,
+                                 int character_override = 0) const;
     float nativeStringWidth(const char32_t* string, int length, int character_override = 0) const;
     int nativeLineHeight() const;
     float nativeCapitalHeight() const;
@@ -142,57 +134,51 @@ namespace applause {
     int native_size_ = 0;
     float dpi_scale_ = 0.0f;
     PackedFont* packed_font_ = nullptr;
-  };
+};
 
-  class FontCache {
-  public:
+class FontCache {
+public:
     friend class Font;
 
     ~FontCache();
 
     static void clearStaleFonts() {
-      if (instance()->has_stale_fonts_)
-        instance()->removeStaleFonts();
+        if (instance()->has_stale_fonts_) instance()->removeStaleFonts();
     }
 
-  private:
+private:
     struct TypeFaceData {
-      TypeFaceData(const unsigned char* data, int data_size) : data(data), data_size(data_size) { }
-      const unsigned char* data = nullptr;
-      int data_size = 0;
+        TypeFaceData(const unsigned char* data, int data_size) : data(data), data_size(data_size) {}
+        const unsigned char* data = nullptr;
+        int data_size = 0;
 
-      bool operator<(const TypeFaceData& other) const {
-        if (data_size != other.data_size)
-          return data_size < other.data_size;
-        if (data == nullptr || other.data == nullptr)
-          return data < other.data;
-        return std::memcmp(data, other.data, data_size) < 0;
-      }
+        bool operator<(const TypeFaceData& other) const {
+            if (data_size != other.data_size) return data_size < other.data_size;
+            if (data == nullptr || other.data == nullptr) return data < other.data;
+            return std::memcmp(data, other.data, data_size) < 0;
+        }
     };
 
     static FontCache* instance() {
-      static FontCache cache;
-      return &cache;
+        static FontCache cache;
+        return &cache;
     }
 
     static PackedFont* loadPackedFont(int size, const EmbeddedFile& font) {
-      std::string id = "embed: " + std::string(font.name) + " - " + std::to_string(size);
-      return instance()->createOrLoadPackedFont(id, size, font.data, font.size);
+        std::string id = "embed: " + std::string(font.name) + " - " + std::to_string(size);
+        return instance()->createOrLoadPackedFont(id, size, font.data, font.size);
     }
 
     static PackedFont* loadPackedFont(int size, const std::string& file_path);
     static PackedFont* loadPackedFont(const PackedFont* packed_font);
     static PackedFont* loadPackedFont(int size, const unsigned char* font_data, int data_size);
 
-    static void returnPackedFont(PackedFont* packed_font) {
-      instance()->decrementPackedFont(packed_font);
-    }
+    static void returnPackedFont(PackedFont* packed_font) { instance()->decrementPackedFont(packed_font); }
 
     FontCache();
 
     PackedFont* incrementPackedFont(const std::string& id);
-    PackedFont* createOrLoadPackedFont(const std::string& id, int size,
-                                       const unsigned char* font_data, int data_size);
+    PackedFont* createOrLoadPackedFont(const std::string& id, int size, const unsigned char* font_data, int data_size);
     void decrementPackedFont(PackedFont* packed_font);
     void removeStaleFonts();
 
@@ -201,5 +187,5 @@ namespace applause {
     std::map<TypeFaceData, std::unique_ptr<unsigned char[]>> type_face_data_lookup_;
     std::map<TypeFaceData, int> type_face_data_ref_count_;
     bool has_stale_fonts_ = false;
-  };
-}
+};
+}  // namespace applause

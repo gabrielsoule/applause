@@ -25,38 +25,34 @@
 #include <applause/util/EmbeddedFile.h>
 
 namespace applause {
-  struct ShaderCacheMap;
-  struct ProgramCacheMap;
-  struct UniformCacheMap;
+struct ShaderCacheMap;
+struct ProgramCacheMap;
+struct UniformCacheMap;
 
-  class ShaderCache {
-  public:
+class ShaderCache {
+public:
     static ShaderCache* instance() {
-      static ShaderCache cache;
-      return &cache;
+        static ShaderCache cache;
+        return &cache;
     }
 
-    static bgfx::ShaderHandle& shaderHandle(const EmbeddedFile& file) {
-      return instance()->handle(file);
-    }
+    static bgfx::ShaderHandle& shaderHandle(const EmbeddedFile& file) { return instance()->handle(file); }
 
     static bgfx::ShaderHandle& shaderHandle(const char* data) { return instance()->handle(data); }
 
     static bool swapShader(const EmbeddedFile& file, const char* data, int size) {
-      return instance()->swap(file, data, size);
+        return instance()->swap(file, data, size);
     }
 
     static bool swapShader(const std::string& name, const char* data, int size) {
-      return instance()->swap(name, data, size);
+        return instance()->swap(name, data, size);
     }
 
     static void restoreShader(const EmbeddedFile& file) { instance()->restore(file); }
 
-    static const char* originalData(const std::string& name) {
-      return instance()->shaderData(name);
-    }
+    static const char* originalData(const std::string& name) { return instance()->shaderData(name); }
 
-  private:
+private:
     ShaderCache();
     ~ShaderCache();
 
@@ -69,43 +65,39 @@ namespace applause {
     void restore(const EmbeddedFile& file) const;
 
     std::unique_ptr<ShaderCacheMap> cache_;
-  };
+};
 
-  class ProgramCache {
-  public:
+class ProgramCache {
+public:
     struct ShaderPair {
-      EmbeddedFile vertex;
-      EmbeddedFile fragment;
+        EmbeddedFile vertex;
+        EmbeddedFile fragment;
     };
 
     static ProgramCache* instance() {
-      static ProgramCache cache;
-      return &cache;
+        static ProgramCache cache;
+        return &cache;
     }
 
     static bgfx::ProgramHandle& programHandle(const EmbeddedFile& vertex, const EmbeddedFile& fragment) {
-      return instance()->handle(vertex, fragment);
+        return instance()->handle(vertex, fragment);
     }
 
-    static void refreshAllProgramsWithShader(const std::string& shader_name) {
-      instance()->reloadAll(shader_name);
-    }
+    static void refreshAllProgramsWithShader(const std::string& shader_name) { instance()->reloadAll(shader_name); }
 
-    static void refreshAllProgramsWithShader(const EmbeddedFile& shader) {
-      instance()->reloadAll(shader);
-    }
+    static void refreshAllProgramsWithShader(const EmbeddedFile& shader) { instance()->reloadAll(shader); }
 
     static void refreshProgram(const EmbeddedFile& vertex, const EmbeddedFile& fragment) {
-      instance()->reload(vertex, fragment);
+        instance()->reload(vertex, fragment);
     }
 
     static void restoreProgram(const EmbeddedFile& vertex, const EmbeddedFile& fragment) {
-      instance()->restore(vertex, fragment);
+        instance()->restore(vertex, fragment);
     }
 
     static std::vector<ShaderPair> programList() { return instance()->listPrograms(); }
 
-  private:
+private:
     ProgramCache();
     ~ProgramCache();
 
@@ -119,32 +111,32 @@ namespace applause {
     void restore(const EmbeddedFile& vertex, const EmbeddedFile& fragment) const;
 
     std::unique_ptr<ProgramCacheMap> cache_;
-  };
+};
 
-  class UniformCache {
-  public:
+class UniformCache {
+public:
     enum Type {
-      Sampler,
-      Vec4,
-      Mat3,
-      Mat4,
+        Sampler,
+        Vec4,
+        Mat3,
+        Mat4,
     };
 
     static UniformCache* instance() {
-      static UniformCache cache;
-      return &cache;
+        static UniformCache cache;
+        return &cache;
     }
 
     static bgfx::UniformHandle& uniformHandle(const char* name, Type type = Vec4) {
-      return instance()->handle(name, type);
+        return instance()->handle(name, type);
     }
 
-  private:
+private:
     UniformCache();
     ~UniformCache();
 
     bgfx::UniformHandle& handle(const char* name, Type type, int size = 1) const;
 
     std::unique_ptr<UniformCacheMap> cache_;
-  };
-}
+};
+}  // namespace applause

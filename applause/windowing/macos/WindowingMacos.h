@@ -29,7 +29,7 @@
 #include <MetalKit/MetalKit.h>
 
 namespace applause {
-  class WindowMac;
+class WindowMac;
 }
 
 @interface ApplauseDraggingSource : NSObject <NSDraggingSource>
@@ -63,8 +63,8 @@ namespace applause {
 @end
 
 namespace applause {
-  class WindowMac : public Window {
-  public:
+class WindowMac : public Window {
+public:
     WindowMac(int x, int y, int width, int height, float scale, Decoration decoration);
     WindowMac(int width, int height, float scale, void* parent_handle);
 
@@ -93,15 +93,15 @@ namespace applause {
     void handleNativeResize(int width, int height);
     bool isPopup() const { return decoration_ == Decoration::Popup; }
 
-  private:
+private:
     static bool running_event_loop_;
     NSWindow* window_handle_ = nullptr;
     NSView* parent_view_ = nullptr;
     ApplauseAppView* view_ = nullptr;
     ApplauseAppViewDelegate* view_delegate_ = nullptr;
-    NSRect last_content_rect_ {};
+    NSRect last_content_rect_{};
     Decoration decoration_ = Decoration::Native;
-  };
-}
+};
+}  // namespace applause
 
 #endif

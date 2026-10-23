@@ -21,65 +21,56 @@
 
 #pragma once
 
-#include <functional>
 #include <applause/util/Dimension.h>
 #include <applause/util/Space.h>
+#include <functional>
 
 namespace applause {
 
-  class Layout {
-  public:
+class Layout {
+public:
     enum class ItemAlignment {
-      NotSet,
-      Stretch,
-      Start,
-      Center,
-      End,
+        NotSet,
+        Stretch,
+        Start,
+        Center,
+        End,
     };
 
-    enum class WrapAlignment {
-      Start,
-      Center,
-      End,
-      Stretch,
-      SpaceBetween,
-      SpaceAround,
-      SpaceEvenly
-    };
+    enum class WrapAlignment { Start, Center, End, Stretch, SpaceBetween, SpaceAround, SpaceEvenly };
 
-    std::vector<IBounds> flexPositions(const std::vector<const Layout*>& children,
-                                       const IBounds& bounds, float dpi_scale) {
-      int pad_left = padding_before_[0].computeInt(dpi_scale, bounds.width(), bounds.height());
-      int pad_right = padding_after_[0].computeInt(dpi_scale, bounds.width(), bounds.height());
-      int pad_top = padding_before_[1].computeInt(dpi_scale, bounds.width(), bounds.height());
-      int pad_bottom = padding_after_[1].computeInt(dpi_scale, bounds.width(), bounds.height());
+    std::vector<IBounds> flexPositions(const std::vector<const Layout*>& children, const IBounds& bounds,
+                                       float dpi_scale) {
+        int pad_left = padding_before_[0].computeInt(dpi_scale, bounds.width(), bounds.height());
+        int pad_right = padding_after_[0].computeInt(dpi_scale, bounds.width(), bounds.height());
+        int pad_top = padding_before_[1].computeInt(dpi_scale, bounds.width(), bounds.height());
+        int pad_bottom = padding_after_[1].computeInt(dpi_scale, bounds.width(), bounds.height());
 
-      IBounds flex_bounds = { bounds.x() + pad_left, bounds.y() + pad_top,
-                              bounds.width() - pad_left - pad_right,
-                              bounds.height() - pad_top - pad_bottom };
+        IBounds flex_bounds = {bounds.x() + pad_left, bounds.y() + pad_top, bounds.width() - pad_left - pad_right,
+                               bounds.height() - pad_top - pad_bottom};
 
-      bounding_box_ = {};
-      std::vector<IBounds> results;
-      if (flex_wrap_)
-        results = flexChildWrap(children, flex_bounds, dpi_scale, bounding_box_);
-      else
-        results = flexChildGroup(children, flex_bounds, dpi_scale, bounding_box_);
+        bounding_box_ = {};
+        std::vector<IBounds> results;
+        if (flex_wrap_)
+            results = flexChildWrap(children, flex_bounds, dpi_scale, bounding_box_);
+        else
+            results = flexChildGroup(children, flex_bounds, dpi_scale, bounding_box_);
 
-      bounding_box_.setX(bounding_box_.x() - pad_left);
-      bounding_box_.setY(bounding_box_.y() - pad_top);
-      bounding_box_.setWidth(bounding_box_.width() + pad_left + pad_right);
-      bounding_box_.setHeight(bounding_box_.height() + pad_top + pad_bottom);
-      return results;
+        bounding_box_.setX(bounding_box_.x() - pad_left);
+        bounding_box_.setY(bounding_box_.y() - pad_top);
+        bounding_box_.setWidth(bounding_box_.width() + pad_left + pad_right);
+        bounding_box_.setHeight(bounding_box_.height() + pad_top + pad_bottom);
+        return results;
     }
 
     void setFlex(bool flex) { flex_ = flex; }
     bool flex() const { return flex_; }
 
     void setMargin(const Dimension& margin) {
-      margin_before_[0] = margin;
-      margin_before_[1] = margin;
-      margin_after_[0] = margin;
-      margin_after_[1] = margin;
+        margin_before_[0] = margin;
+        margin_before_[1] = margin;
+        margin_after_[0] = margin;
+        margin_after_[1] = margin;
     }
 
     void setMarginLeft(const Dimension& margin) { margin_before_[0] = margin; }
@@ -92,10 +83,10 @@ namespace applause {
     const Dimension& marginBottom() { return margin_after_[1]; }
 
     void setPadding(const Dimension& padding) {
-      padding_before_[0] = padding;
-      padding_before_[1] = padding;
-      padding_after_[0] = padding;
-      padding_after_[1] = padding;
+        padding_before_[0] = padding;
+        padding_before_[1] = padding;
+        padding_after_[0] = padding;
+        padding_after_[1] = padding;
     }
 
     void setPaddingLeft(const Dimension& padding) { padding_before_[0] = padding; }
@@ -108,8 +99,8 @@ namespace applause {
     const Dimension& paddingBottom() { return padding_after_[1]; }
 
     void setDimensions(const Dimension& width, const Dimension& height) {
-      dimensions_[0] = width;
-      dimensions_[1] = height;
+        dimensions_[0] = width;
+        dimensions_[1] = height;
     }
 
     void setWidth(const Dimension& width) { dimensions_[0] = width; }
@@ -129,14 +120,14 @@ namespace applause {
     void setFlexGap(Dimension gap) { flex_gap_ = std::move(gap); }
     IBounds boundingBox() const { return bounding_box_; }
 
-  private:
-    std::vector<IBounds> flexChildGroup(const std::vector<const Layout*>& children, IBounds bounds,
-                                        float dpi_scale, IBounds& bounding_box) const;
+private:
+    std::vector<IBounds> flexChildGroup(const std::vector<const Layout*>& children, IBounds bounds, float dpi_scale,
+                                        IBounds& bounding_box) const;
 
     std::vector<int> alignCrossPositions(std::vector<int>& cross_sizes, int cross_area, int gap) const;
 
-    std::vector<IBounds> flexChildWrap(const std::vector<const Layout*>& children, IBounds bounds,
-                                       float dpi_scale, IBounds& bounding_box) const;
+    std::vector<IBounds> flexChildWrap(const std::vector<const Layout*>& children, IBounds bounds, float dpi_scale,
+                                       IBounds& bounding_box) const;
 
     bool flex_ = false;
     IBounds bounding_box_;
@@ -155,5 +146,5 @@ namespace applause {
     bool flex_reverse_direction_ = false;
     int flex_wrap_ = 0;
     Dimension flex_gap_;
-  };
-}
+};
+}  // namespace applause
