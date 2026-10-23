@@ -81,7 +81,7 @@ private:
     std::mutex callback_mutex_;
 };
 
-static void runOnEventThread(std::function<void()> function) {
+inline void runOnEventThread(std::function<void()> function) {
     EventManager::instance().addCallback(std::move(function));
 }
 

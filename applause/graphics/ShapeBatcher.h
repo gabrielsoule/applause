@@ -317,7 +317,7 @@ public:
             if (batch->overlapsShape(shape)) break;
             if (batch->id() > shape.batch_id) insert = i;
         }
-        if (match < batches_.size()) return match;
+        if (match < numBatches()) return match;
         return insert;
     }
 
@@ -348,8 +348,8 @@ public:
     template <typename T>
     void addShape(T shape, BlendMode blend = BlendMode::Alpha) {
         int batch_index = batchIndex(shape, blend);
-        bool match = batch_index < batches_.size() &&
-            batches_[batch_index]->match(shape.batch_id, blend, shape.radialGradient());
+        bool match =
+            batch_index < numBatches() && batches_[batch_index]->match(shape.batch_id, blend, shape.radialGradient());
         ShapeBatch<T>* batch = match ? reinterpret_cast<ShapeBatch<T>*>(batches_[batch_index].get())
                                      : createNewBatch<T>(shape.batch_id, blend, batch_index);
 

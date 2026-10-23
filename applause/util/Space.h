@@ -42,6 +42,7 @@ struct BasePoint {
         y = other.y;
     }
 
+    BasePoint(const BasePoint& other) = default;
     BasePoint& operator=(const BasePoint& other) = default;
 
     BasePoint operator+(const BasePoint& other) const { return {x + other.x, y + other.y}; }
@@ -558,7 +559,7 @@ private:
     float height_ = 0.0f;
 };
 
-static Point adjustBoundsForAspectRatio(Point current, Point min_bounds, Point max_bounds, float aspect_ratio,
+inline Point adjustBoundsForAspectRatio(Point current, Point min_bounds, Point max_bounds, float aspect_ratio,
                                         bool horizontal_resize, bool vertical_resize) {
     float min_x = std::max(min_bounds.x, min_bounds.y * aspect_ratio);
     float min_y = std::max(min_bounds.y, min_bounds.x / aspect_ratio);

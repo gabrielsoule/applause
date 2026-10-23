@@ -42,7 +42,7 @@ public:
     int numColors() const { return colors_.size(); }
 
     Brush colorIndex(int index) const {
-        APPLAUSE_ASSERT(index >= 0 && index < colors_.size());
+        APPLAUSE_ASSERT(index >= 0 && index < numColors());
         return colors_[index];
     }
 
@@ -55,22 +55,22 @@ public:
     std::map<std::string, std::vector<theme::ValueId>> valueIdList(theme::OverrideId override_id);
 
     void setEditColor(int index, const Brush& color) {
-        APPLAUSE_ASSERT(index >= 0 && index < colors_.size());
+        APPLAUSE_ASSERT(index >= 0 && index < numColors());
         colors_[index] = color;
     }
 
     void setColorIndexFrom(int index, const Color& color) {
-        APPLAUSE_ASSERT(index >= 0 && index < colors_.size());
+        APPLAUSE_ASSERT(index >= 0 && index < numColors());
         colors_[index].gradient().setColor(0, color);
     }
 
     void setColorIndexTo(int index, const Color& color) {
-        APPLAUSE_ASSERT(index >= 0 && index < colors_.size());
+        APPLAUSE_ASSERT(index >= 0 && index < numColors());
         colors_[index].gradient().setColor(1, color);
     }
 
     void toggleColorIndexStyle(int index) {
-        APPLAUSE_ASSERT(index >= 0 && index < colors_.size());
+        APPLAUSE_ASSERT(index >= 0 && index < numColors());
         if (colors_[index].position().shape == GradientPosition::InterpolationShape::Solid) {
             colors_[index].gradient().setResolution(2);
             colors_[index].position().shape = GradientPosition::InterpolationShape::Vertical;

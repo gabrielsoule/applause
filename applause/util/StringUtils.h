@@ -183,6 +183,7 @@ public:
     String(const char* string) : string_(convertToUtf32(string)) {}
 
     String(const String& other) = default;
+    String& operator=(const String& other) = default;
 
     explicit String(bool value) : String(value ? U"true" : U"false") {}
     String(char32_t character) { string_.push_back(character); }
@@ -274,7 +275,7 @@ public:
     }
 
     bool endsWith(const std::string& suffix) const { return endsWith(convertToUtf32(suffix)); }
-    bool endsWith(char suffix) const { return !string_.empty() && string_.back() == suffix; }
+    bool endsWith(char suffix) const { return !string_.empty() && string_.back() == static_cast<char32_t>(suffix); }
 
     bool contains(const std::u32string& substring) const { return string_.find(substring) != std::u32string::npos; }
 

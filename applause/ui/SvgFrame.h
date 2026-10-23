@@ -94,7 +94,7 @@ private:
                     float offset_x = -drawable_->post_bounding_box.x();
                     float offset_y = -drawable_->post_bounding_box.y();
 
-                    for (int i = 0; i < drawable_->clipping_paths.size(); ++i) {
+                    for (size_t i = 0; i < drawable_->clipping_paths.size(); ++i) {
                         canvas.setBlendMode(BlendMode::Mult);
                         canvas.setColor(0xffffffff);
                         canvas.fill(drawable_->clipping_paths[i], offset_x, offset_y);

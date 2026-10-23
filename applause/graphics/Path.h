@@ -159,7 +159,7 @@ public:
             }
 
             Point next_point = command;
-            for (int i = index + 1; i < size() && next_point == command; ++i) {
+            for (int i = index + 1; i < static_cast<int>(size()) && next_point == command; ++i) {
                 const auto& next = at(i);
                 if (check_delta(command, next.control1))
                     next_point = next.control1;

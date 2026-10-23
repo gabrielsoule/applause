@@ -158,7 +158,7 @@ public:
     int padding() const { return packer_.padding(); }
 
     const PackedRect& rectAtIndex(int index) const {
-        APPLAUSE_ASSERT(index >= 0 && index < packed_rects_.size());
+        APPLAUSE_ASSERT(index >= 0 && index < numRects());
         return packed_rects_[index];
     }
 

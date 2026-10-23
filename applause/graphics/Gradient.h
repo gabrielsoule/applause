@@ -92,7 +92,7 @@ public:
         positions_.resize(colors_.size(), 0.0f);
         if (colors_.size() > 1) {
             float step = 1.0f / (colors_.size() - 1);
-            for (int i = 0; i < colors_.size(); ++i) positions_[i] = i * step;
+            for (int i = 0; i < numColors(); ++i) positions_[i] = i * step;
         }
     }
 
@@ -137,7 +137,7 @@ public:
 
     const std::vector<Color>& colors() const { return colors_; }
     void setColor(int index, const Color& color) {
-        APPLAUSE_ASSERT(index < colors_.size());
+        APPLAUSE_ASSERT(index >= 0 && index < numColors());
         colors_[index] = color;
     }
 
@@ -155,7 +155,7 @@ public:
     Gradient withMultipliedAlpha(float mult) const {
         Gradient result = *this;
 
-        for (int i = 0; i < colors_.size(); ++i) result.colors_[i] = colors_[i].withAlpha(colors_[i].alpha() * mult);
+        for (int i = 0; i < numColors(); ++i) result.colors_[i] = colors_[i].withAlpha(colors_[i].alpha() * mult);
 
         return result;
     }
@@ -180,7 +180,7 @@ private:
                   [&](int a, int b) { return Color::compare(colors_[a], colors_[b]) < 0; });
         std::vector<Color> sorted_colors(colors_.size());
         std::vector<float> sorted_positions(colors_.size());
-        for (int i = 0; i < colors_.size(); ++i) {
+        for (int i = 0; i < numColors(); ++i) {
             sorted_colors[i] = colors_[indices[i]];
             sorted_positions[i] = positions_[indices[i]];
         }

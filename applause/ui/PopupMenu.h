@@ -70,7 +70,7 @@ public:
         return *this;
     }
 
-    const int nativeShortcutModifiers() const { return shortcut_modifiers_; }
+    int nativeShortcutModifiers() const { return shortcut_modifiers_; }
     const std::string& nativeShortcutCharacter() const { return shortcut_character_; }
 
     bool enabled() const { return enabled_; }
