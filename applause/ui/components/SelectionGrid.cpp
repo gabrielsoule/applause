@@ -8,67 +8,43 @@
 
 namespace applause {
 
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionGridCell, ApplauseSelectionGridCellBackground, 0x00000000);
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionGridCell, ApplauseSelectionGridCellBackgroundHover, 0x11ffffff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionGridCell, ApplauseSelectionGridCellBackgroundPressed, 0xff1d1d22);
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionGridCell, ApplauseSelectionGridCellGlowSelected, 0x559966ff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionGridCell, ApplauseSelectionGridCellBorder, 0x00000000);
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionGridCell, ApplauseSelectionGridCellBorderSelected, 0xff9966ff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionGridCell, ApplauseSelectionGridCellContent, 0xffa0a0a8);
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionGridCell, ApplauseSelectionGridCellContentHover, 0xffd0d0d8);
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionGridCell, ApplauseSelectionGridCellContentSelected, 0xffaa77ff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionGridCell, ApplauseSelectionGridCellContentSelectedHover, 0xffc6a6ff);
-
-APPLAUSE_THEME_IMPLEMENT_VALUE(SelectionGridCell, ApplauseSelectionGridCellRounding, 4.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(SelectionGridCell, ApplauseSelectionGridCellBorderWidth, 1.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(SelectionGridCell, ApplauseSelectionGridCellContentPadding, 6.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(SelectionGridCell, ApplauseSelectionGridCellGlowCenterAmount, 0.35f);
-
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionGrid, ApplauseSelectionGridBackground, 0xff141418);
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionGrid, ApplauseSelectionGridBorder, 0xff2a2a2e);
-APPLAUSE_THEME_IMPLEMENT_VALUE(SelectionGrid, ApplauseSelectionGridGap, 4.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(SelectionGrid, ApplauseSelectionGridPadding, 4.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(SelectionGrid, ApplauseSelectionGridRounding, 8.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(SelectionGrid, ApplauseSelectionGridBorderWidth, 1.0f);
-
 void SelectionGridCell::draw(applause::Canvas& canvas) {
     const float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
-    const float rounding = canvas.value(ApplauseSelectionGridCellRounding);
+    const float rounding = value(*this, kRounding);
     if (isPressed())
-        canvas.setColor(ApplauseSelectionGridCellBackgroundPressed);
+        canvas.setColor(color(*this, kBackgroundPressed));
     else
-        canvas.setColor(ApplauseSelectionGridCellBackground);
+        canvas.setColor(color(*this, kBackground));
 
     canvas.roundedRectangle(0.0f, 0.0f, width(), height(), rounding);
 
     if (selected()) {
-        applause::Color glow = canvas.color(ApplauseSelectionGridCellGlowSelected).gradient().sample(0.0f);
-        applause::Color center_glow =
-            glow.withAlpha(glow.alpha() * canvas.value(ApplauseSelectionGridCellGlowCenterAmount));
+        applause::Color glow = color(*this, kGlowSelected);
+        applause::Color center_glow = glow.withMultipliedAlpha(value(*this, kGlowCenterAmount));
         applause::Point center = {width() * 0.5f, height() * 0.5f};
         canvas.setColor(applause::Brush::radial(center_glow, glow, center, width() * 1.0f, height() * 1.0f));
         canvas.roundedRectangle(0.0f, 0.0f, width(), height(), rounding);
     }
 
     if (selected() && !isPressed() && hover_amount > 0.0f) {
-        canvas.setColor(canvas.color(ApplauseSelectionGridCellBackgroundHover).withMultipliedAlpha(hover_amount));
+        const applause::Color hover = color(*this, kBackgroundHover);
+        canvas.setColor(hover.withMultipliedAlpha(hover_amount));
         canvas.roundedRectangle(0.0f, 0.0f, width(), height(), rounding);
     }
 
-    canvas.setColor(selected() ? ApplauseSelectionGridCellBorderSelected : ApplauseSelectionGridCellBorder);
-    canvas.roundedRectangleBorder(0.0f, 0.0f, width(), height(), rounding,
-                                  canvas.value(ApplauseSelectionGridCellBorderWidth));
+    canvas.setColor(color(*this, selected() ? kBorderSelected : kBorder));
+    canvas.roundedRectangleBorder(0.0f, 0.0f, width(), height(), rounding, value(*this, kBorderWidth));
 
-    const float padding = std::max(0.0f, canvas.value(ApplauseSelectionGridCellContentPadding));
+    const float padding = std::max(0.0f, value(*this, kContentPadding));
     canvas.saveState();
     canvas.trimClampBounds(padding, padding, std::max(0.0f, width() - 2.0f * padding),
                            std::max(0.0f, height() - 2.0f * padding));
     drawContent(canvas, hover_amount);
     canvas.restoreState();
 
-    const float hover_glow = hover_amount * canvas.value(ApplauseButtonGlowAmount);
+    const float hover_glow = hover_amount * value(*this, kGlowAmount);
     if (hover_glow > 0.0f) {
-        const applause::Color accent = canvas.color(ApplauseButtonGlow).gradient().sample(0.0f);
+        const applause::Color accent = color(*this, kGlow);
         const applause::Point center = {width() * 0.5f, height() * 0.5f};
         canvas.setColor(applause::Brush::radial(accent.withAlpha(hover_glow), applause::Color(0x00000000), center,
                                                 width() * 0.5f, height() * 0.5f));
@@ -92,12 +68,12 @@ void TextSelectionGridCell::setFont(const applause::Font& font) {
 }
 
 void TextSelectionGridCell::drawContent(applause::Canvas& canvas, float hover_amount) {
-    const float padding = std::max(0.0f, canvas.value(ApplauseSelectionGridCellContentPadding));
+    const float padding = std::max(0.0f, value(*this, kContentPadding));
     if (selected())
-        canvas.setBlendedColor(ApplauseSelectionGridCellContentSelected, ApplauseSelectionGridCellContentSelectedHover,
-                               hover_amount);
+        canvas.setColor(
+            color(*this, kContentSelected).interpolateWith(color(*this, kContentSelectedHover), hover_amount));
     else
-        canvas.setBlendedColor(ApplauseSelectionGridCellContent, ApplauseSelectionGridCellContentHover, hover_amount);
+        canvas.setColor(color(*this, kContent).interpolateWith(color(*this, kContentHover), hover_amount));
     canvas.text(&text_, padding, padding, std::max(0.0f, width() - 2.0f * padding),
                 std::max(0.0f, height() - 2.0f * padding));
 }
@@ -179,26 +155,26 @@ void SelectionGrid::rebuildChildren() {
 }
 
 void SelectionGrid::draw(applause::Canvas& canvas) {
-    const float rounding = std::max(0.0f, canvas.value(ApplauseSelectionGridRounding));
+    const float rounding = std::max(0.0f, value(*this, kRounding));
 
-    canvas.setColor(ApplauseSelectionGridBackground);
+    canvas.setColor(color(*this, kBackground));
     canvas.roundedRectangle(0.0f, 0.0f, width(), height(), rounding);
 
-    const float border_width = std::max(0.0f, canvas.value(ApplauseSelectionGridBorderWidth));
+    const float border_width = std::max(0.0f, value(*this, kBorderWidth));
     if (border_width > 0.0f) {
-        canvas.setColor(ApplauseSelectionGridBorder);
+        canvas.setColor(color(*this, kBorder));
         canvas.roundedRectangleBorder(0.0f, 0.0f, width(), height(), rounding, border_width);
     }
 }
 
 void SelectionGrid::resized() {
-    const float padding = std::max(0.0f, paletteValue(ApplauseSelectionGridPadding));
+    const float padding = std::max(0.0f, value(*this, kPadding));
     const float horizontal_padding = std::min(padding, std::max(0.0f, width() * 0.5f));
     const float vertical_padding = std::min(padding, std::max(0.0f, height() * 0.5f));
     const float content_width = std::max(0.0f, width() - 2.0f * horizontal_padding);
     const float content_height = std::max(0.0f, height() - 2.0f * vertical_padding);
 
-    float gap = std::max(0.0f, paletteValue(ApplauseSelectionGridGap));
+    float gap = std::max(0.0f, value(*this, kGap));
     if (columns_ > 1) gap = std::min(gap, content_width / static_cast<float>(columns_ - 1));
     if (rows_ > 1) gap = std::min(gap, content_height / static_cast<float>(rows_ - 1));
 

@@ -8,16 +8,15 @@
 #include <applause/graphics/Font.h>
 #include <applause/graphics/Gradient.h>
 #include <applause/graphics/Image.h>
-#include <applause/graphics/Palette.h>
 #include <applause/graphics/Path.h>
 #include <applause/graphics/Text.h>
-#include <applause/graphics/Theme.h>
 #include <applause/ui/ApplicationWindow.h>
 #include <applause/ui/Events.h>
 #include <applause/ui/Frame.h>
 #include <applause/ui/Layout.h>
 #include <applause/ui/ScrollBar.h>
 #include <applause/ui/SvgFrame.h>
+#include <applause/ui/Theme.h>
 #include <applause/ui/UndoHistory.h>
 #include <applause/util/Defines.h>
 #include <applause/util/Dimension.h>

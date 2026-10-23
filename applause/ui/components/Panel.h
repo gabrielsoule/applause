@@ -11,13 +11,13 @@ namespace applause {
  */
 class Panel : public applause::Frame {
 public:
-    APPLAUSE_THEME_DEFINE_COLOR(ApplausePanelBackground);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplausePanelBorder);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplausePanelTitleText);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplausePanelRounding);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplausePanelBorderWidth);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplausePanelTitleHeight);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplausePanelContentMargin);
+    static inline const ColorToken kBackground{"panel.background", 0xff1a1a1f};
+    static inline const ColorToken kBorder{"panel.border", 0xff2e2e34};
+    static inline const ColorToken kTitleText{"panel.titleText", 0xffcccccc};
+    static inline const ValueToken kRounding{"panel.rounding", 6.0f};
+    static inline const ValueToken kBorderWidth{"panel.borderWidth", 1.0f};
+    static inline const ValueToken kTitleHeight{"panel.titleHeight", 40.0f};
+    static inline const ValueToken kContentMargin{"panel.contentMargin", 4.0f};
 
     // Titleless variant. the content frame fills the full panel (minus the standard inner margin).
     Panel();

@@ -10,10 +10,6 @@
 
 namespace applause {
 
-APPLAUSE_THEME_IMPLEMENT_COLOR(TooltipDisplay, TooltipBackground, 0xee1e1e24);
-APPLAUSE_THEME_IMPLEMENT_COLOR(TooltipDisplay, TooltipText, 0xffcccccc);
-APPLAUSE_THEME_IMPLEMENT_COLOR(TooltipDisplay, TooltipBorder, 0xff3a3a42);
-
 namespace {
 
 struct TooltipBinding {
@@ -124,14 +120,14 @@ void TooltipDisplay::draw(applause::Canvas& canvas) {
 
     const auto& bounds = tooltip_bounds_;
 
-    canvas.setColor(TooltipBackground);
+    canvas.setColor(color(*this, kBackground));
     canvas.roundedRectangle(bounds.x(), bounds.y(), bounds.width(), bounds.height(), kCornerRadius);
 
-    canvas.setColor(TooltipBorder);
+    canvas.setColor(color(*this, kBorder));
     canvas.roundedRectangleBorder(bounds.x(), bounds.y(), bounds.width(), bounds.height(), kCornerRadius,
                                   kBorderWidth);
 
-    canvas.setColor(TooltipText);
+    canvas.setColor(color(*this, kText));
     canvas.text(&text_, bounds.x(), bounds.y(), bounds.width(), bounds.height());
 }
 

@@ -16,12 +16,12 @@ namespace applause {
 
 class ModMatrixComponent : public applause::ScrollableFrame {
 public:
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseModMatrixRowHeight);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseModMatrixRowGap);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseModMatrixPadding);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseModMatrixColumnGap);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseModMatrixToggleWidth);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseModMatrixDeleteWidth);
+    static inline const ValueToken kRowHeight{"modMatrix.rowHeight", 30.0f};
+    static inline const ValueToken kRowGap{"modMatrix.rowGap", 7.0f};  // Between rows.
+    static inline const ValueToken kPadding{"modMatrix.padding", 20.0f};  // Around the matrix.
+    static inline const ValueToken kColumnGap{"modMatrix.columnGap", 16.0f};
+    static inline const ValueToken kToggleWidth{"modMatrix.toggleWidth", 30.0f};  // The bipolar toggle.
+    static inline const ValueToken kDeleteWidth{"modMatrix.deleteWidth", 30.0f};
 
     /**
      * A single row in the mod matrix UI, representing one modulation connection.
@@ -33,6 +33,8 @@ public:
 
         void bindToConnection(const ModConnection& conn);
         void setFont(const applause::Font& font);
+        // Reads the theme's sizes into the row's layout.
+        void updateLayout();
 
         bool is_dummy;
         int src_list_id = -1;  // ModMatrix source index, or -1 if unset

@@ -21,9 +21,7 @@
 
 #include <applause/graphics/Canvas.h>
 
-#include <applause/graphics/Palette.h>
 #include <applause/graphics/Renderer.h>
-#include <applause/graphics/Theme.h>
 
 #include <bgfx/bgfx.h>
 
@@ -144,37 +142,6 @@ void Canvas::removeFromPackedLayer(const Region* region, int layer_index) {
 void Canvas::changePackedLayer(Region* region, int from, int to) {
     removeFromPackedLayer(region, from);
     addToPackedLayer(region, to);
-}
-
-Brush Canvas::color(theme::ColorId color_id) {
-    if (palette_) {
-        Brush result;
-        theme::OverrideId last_check;
-        for (auto it = state_memory_.rbegin(); it != state_memory_.rend(); ++it) {
-            theme::OverrideId override_id = it->palette_override;
-            if (override_id.id != last_check.id && palette_->color(override_id, color_id, result)) return result;
-            last_check = override_id;
-        }
-        if (palette_->color({}, color_id, result)) return result;
-    }
-
-    return Brush::solid(theme::ColorId::defaultColor(color_id));
-}
-
-float Canvas::value(theme::ValueId value_id) {
-    if (palette_) {
-        float result = 0.0f;
-        theme::OverrideId last_check;
-        for (auto it = state_memory_.rbegin(); it != state_memory_.rend(); ++it) {
-            theme::OverrideId override_id = it->palette_override;
-            if (override_id.id != last_check.id && palette_->value(override_id, value_id, result)) return result;
-
-            last_check = override_id;
-        }
-        if (palette_->value({}, value_id, result)) return result;
-    }
-
-    return theme::ValueId::defaultValue(value_id);
 }
 
 std::vector<std::string> Canvas::debugInfo() const {

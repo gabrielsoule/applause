@@ -17,9 +17,9 @@ namespace applause {
  */
 class SimpleCurve : public applause::Frame {
 public:
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTraceLine);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTraceFill);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseTraceLineWidth);
+    static inline const ColorToken kLine{"simpleCurve.line", theme::kAccent};
+    static inline const ColorToken kFill{"simpleCurve.fill", kLine, 0.19f};
+    static inline const ValueToken kLineWidth{"simpleCurve.lineWidth", 2.0f};
 
     SimpleCurve();
 
@@ -39,11 +39,11 @@ private:
  */
 class PlotView : public applause::Frame {
 public:
-    APPLAUSE_THEME_DEFINE_COLOR(ApplausePlotBackground);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplausePlotGrid);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplausePlotBorder);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplausePlotRounding);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplausePlotBorderWidth);
+    static inline const ColorToken kBackground{"plotView.background", 0xff15151a};
+    static inline const ColorToken kBorder{"plotView.border", 0xff2e2e34};
+    static inline const ColorToken kGrid{"plotView.grid", kBorder, 0.55f};
+    static inline const ValueToken kRounding{"plotView.rounding", 4.0f};
+    static inline const ValueToken kBorderWidth{"plotView.borderWidth", 1.0f};
 
     PlotView();
 

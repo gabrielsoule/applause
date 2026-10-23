@@ -39,28 +39,27 @@ public:
 
     enum class DeadKey { None, AcuteAccent, GraveAccent, Tilde, Umlaut, Circumflex };
 
-    // Base colors. One-to-one with Visage's original TextEditor IDs, renamed
-    // into the Applause namespace so the inspector groups them under this
-    // class instead of colliding with Visage's "text_editor" group.
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorBackground);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorBorder);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorText);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorDefaultText);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorCaret);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorSelection);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorBackgroundFocused);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorBorderFocused);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorBackgroundHover);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorBorderHover);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorBackgroundDisabled);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorBorderDisabled);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseTextEditorTextDisabled);
+    static inline const ColorToken kBackground{"textEditor.background", 0x00000000};
+    static inline const ColorToken kBorder{"textEditor.border", 0x00000000};
+    static inline const ColorToken kText{"textEditor.text", 0xffffffff};
+    static inline const ColorToken kDefaultText{"textEditor.defaultText", 0xff999999};
+    static inline const ColorToken kCaret{"textEditor.caret", 0xffffffff};
+    static inline const ColorToken kSelection{"textEditor.selection", 0x22ffffff};
+    // State variants follow the base colors, so an editor only changes on focus, hover, or disable where a theme sets
+    // them.
+    static inline const ColorToken kBackgroundFocused{"textEditor.backgroundFocused", kBackground};
+    static inline const ColorToken kBorderFocused{"textEditor.borderFocused", kBorder};
+    static inline const ColorToken kBackgroundHover{"textEditor.backgroundHover", kBackground};
+    static inline const ColorToken kBorderHover{"textEditor.borderHover", kBorder};
+    static inline const ColorToken kBackgroundDisabled{"textEditor.backgroundDisabled", kBackground};
+    static inline const ColorToken kBorderDisabled{"textEditor.borderDisabled", kBorder};
+    static inline const ColorToken kTextDisabled{"textEditor.textDisabled", 0xff999999};
 
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseTextEditorRounding);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseTextEditorMarginX);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseTextEditorMarginY);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseTextEditorBorderWidth);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseTextEditorCaretWidth);
+    static inline const ValueToken kRounding{"textEditor.rounding", 0.0f};
+    static inline const ValueToken kMarginX{"textEditor.marginX", 9.0f};
+    static inline const ValueToken kMarginY{"textEditor.marginY", 9.0f};
+    static inline const ValueToken kBorderWidth{"textEditor.borderWidth", 0.0f};
+    static inline const ValueToken kCaretWidth{"textEditor.caretWidth", 1.0f};
 
     explicit TextEditor(const std::string& name = "");
     ~TextEditor() override = default;
@@ -93,7 +92,7 @@ public:
 
     void resized() override {
         applause::ScrollableFrame::resized();
-        setBackgroundRounding(paletteValue(ApplauseTextEditorRounding));
+        setBackgroundRounding(value(*this, kRounding));
         setLineBreaks();
         makeCaretVisible();
     }
@@ -158,8 +157,7 @@ public:
         return 0;
     }
     float yMargin() const {
-        if (text_.justification() & applause::Font::kTop)
-            return set_y_margin_ ? set_y_margin_ : paletteValue(ApplauseTextEditorMarginY);
+        if (text_.justification() & applause::Font::kTop) return set_y_margin_ ? set_y_margin_ : value(*this, kMarginY);
         return 0;
     }
 
@@ -218,60 +216,27 @@ public:
     const applause::Font& font() const { return text_.font(); }
     applause::Font::Justification justification() const { return text_.justification(); }
 
-    // Per-instance color-ID redirects. The "main" setters (setBackgroundColorId,
-    // setBorderColorId, setTextColorId) propagate to their state variants too,
-    // so the common case — "this editor's background is just one color across
-    // every state" — is a single call. Consumers who actually want a distinct
-    // focused/hover/disabled appearance call the variant setter AFTER the main
-    // setter; explicit variant routes override the propagated base ID.
-    void setBackgroundColorId(applause::theme::ColorId id) {
-        background_color_id_ = id;
-        background_focused_color_id_ = id;
-        background_hover_color_id_ = id;
-        background_disabled_color_id_ = id;
-    }
-    void setBorderColorId(applause::theme::ColorId id) {
-        border_color_id_ = id;
-        border_focused_color_id_ = id;
-        border_hover_color_id_ = id;
-        border_disabled_color_id_ = id;
-    }
-    void setTextColorId(applause::theme::ColorId id) {
-        text_color_id_ = id;
-        text_disabled_color_id_ = id;
-    }
-    void setDefaultTextColorId(applause::theme::ColorId id) { default_text_color_id_ = id; }
-    void setCaretColorId(applause::theme::ColorId id) { caret_color_id_ = id; }
-    void setSelectionColorId(applause::theme::ColorId id) { selection_color_id_ = id; }
-    void setBackgroundFocusedColorId(applause::theme::ColorId id) { background_focused_color_id_ = id; }
-    void setBorderFocusedColorId(applause::theme::ColorId id) { border_focused_color_id_ = id; }
-    void setBackgroundHoverColorId(applause::theme::ColorId id) { background_hover_color_id_ = id; }
-    void setBorderHoverColorId(applause::theme::ColorId id) { border_hover_color_id_ = id; }
-    void setBackgroundDisabledColorId(applause::theme::ColorId id) { background_disabled_color_id_ = id; }
-    void setBorderDisabledColorId(applause::theme::ColorId id) { border_disabled_color_id_ = id; }
-    void setTextDisabledColorId(applause::theme::ColorId id) { text_disabled_color_id_ = id; }
-
 protected:
-    float xMarginSize() const { return set_x_margin_ ? set_x_margin_ : paletteValue(ApplauseTextEditorMarginX); }
+    float xMarginSize() const { return set_x_margin_ ? set_x_margin_ : value(*this, kMarginX); }
     void addUndoPosition() { undo_history_.emplace_back(text_.text(), caret_position_); }
 
-    // Resolve the background / border / text ColorIds for the current state
+    // The background / border / text tokens for the current state
     // (active vs disabled vs focused vs hover). Centralized here so both
     // drawBackground and draw stay consistent and subclasses can override the
     // policy by overriding the draw helpers.
-    applause::theme::ColorId resolvedBackgroundColorId() const {
-        if (!active_) return background_disabled_color_id_;
-        if (hasKeyboardFocus()) return background_focused_color_id_;
-        if (hovered_) return background_hover_color_id_;
-        return background_color_id_;
+    const ColorToken& backgroundToken() const {
+        if (!active_) return kBackgroundDisabled;
+        if (hasKeyboardFocus()) return kBackgroundFocused;
+        if (hovered_) return kBackgroundHover;
+        return kBackground;
     }
-    applause::theme::ColorId resolvedBorderColorId() const {
-        if (!active_) return border_disabled_color_id_;
-        if (hasKeyboardFocus()) return border_focused_color_id_;
-        if (hovered_) return border_hover_color_id_;
-        return border_color_id_;
+    const ColorToken& borderToken() const {
+        if (!active_) return kBorderDisabled;
+        if (hasKeyboardFocus()) return kBorderFocused;
+        if (hovered_) return kBorderHover;
+        return kBorder;
     }
-    applause::theme::ColorId resolvedTextColorId() const { return active_ ? text_color_id_ : text_disabled_color_id_; }
+    const ColorToken& textToken() const { return active_ ? kText : kTextDisabled; }
 
     applause::CallbackList<void()> on_text_change_;
     applause::CallbackList<void()> on_enter_key_;
@@ -292,20 +257,6 @@ protected:
     bool mouse_focus_ = false;
     bool hovered_ = false;
     bool active_ = true;
-
-    applause::theme::ColorId background_color_id_ = ApplauseTextEditorBackground;
-    applause::theme::ColorId border_color_id_ = ApplauseTextEditorBorder;
-    applause::theme::ColorId text_color_id_ = ApplauseTextEditorText;
-    applause::theme::ColorId default_text_color_id_ = ApplauseTextEditorDefaultText;
-    applause::theme::ColorId caret_color_id_ = ApplauseTextEditorCaret;
-    applause::theme::ColorId selection_color_id_ = ApplauseTextEditorSelection;
-    applause::theme::ColorId background_focused_color_id_ = ApplauseTextEditorBackgroundFocused;
-    applause::theme::ColorId border_focused_color_id_ = ApplauseTextEditorBorderFocused;
-    applause::theme::ColorId background_hover_color_id_ = ApplauseTextEditorBackgroundHover;
-    applause::theme::ColorId border_hover_color_id_ = ApplauseTextEditorBorderHover;
-    applause::theme::ColorId background_disabled_color_id_ = ApplauseTextEditorBackgroundDisabled;
-    applause::theme::ColorId border_disabled_color_id_ = ApplauseTextEditorBorderDisabled;
-    applause::theme::ColorId text_disabled_color_id_ = ApplauseTextEditorTextDisabled;
 
     float background_rounding_ = 1.0f;
     float set_x_margin_ = 0.0f;

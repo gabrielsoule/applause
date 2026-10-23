@@ -33,12 +33,12 @@ public:
 protected:
     void drawContent(applause::Canvas& canvas, float hover_amount) override {
         if (selected())
-            canvas.setBlendedColor(ApplauseSelectionGridCellContentSelected,
-                                   ApplauseSelectionGridCellContentSelectedHover, hover_amount);
+            canvas.setColor(applause::color(*this, kContentSelected)
+                                .interpolateWith(applause::color(*this, kContentSelectedHover), hover_amount));
         else
-            canvas.setBlendedColor(ApplauseSelectionGridCellContent, ApplauseSelectionGridCellContentHover,
-                                   hover_amount);
-        const auto bounds = localBounds().reduced(paletteValue(ApplauseSelectionGridCellContentPadding));
+            canvas.setColor(
+                applause::color(*this, kContent).interpolateWith(applause::color(*this, kContentHover), hover_amount));
+        const auto bounds = localBounds().reduced(applause::value(*this, kContentPadding));
         const float line_width = 2.0f;
         const float x_inset =
             std::min(line_width * 0.5f + 0.5f / canvas.dpiScale(), bounds.width() * 0.5f);

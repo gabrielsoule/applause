@@ -34,31 +34,6 @@
 namespace applause {
 
 
-APPLAUSE_THEME_IMPLEMENT_COLOR(TextEditor, ApplauseTextEditorBackground, 0x00000000);  // Transparent
-APPLAUSE_THEME_IMPLEMENT_COLOR(TextEditor, ApplauseTextEditorBorder, 0x00000000);  // No border
-APPLAUSE_THEME_IMPLEMENT_COLOR(TextEditor, ApplauseTextEditorText, 0xffffffff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(TextEditor, ApplauseTextEditorDefaultText, 0xff999999);
-APPLAUSE_THEME_IMPLEMENT_COLOR(TextEditor, ApplauseTextEditorCaret, 0xffffffff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(TextEditor, ApplauseTextEditorSelection, 0x22ffffff);
-
-// State variants default to the same values as the base IDs — so a vanilla
-// editor doesn't visibly change on focus/hover/disable. Opt into
-// distinct state appearances either by overriding these in the palette OR by
-// calling the per-instance variant setters (setBackgroundHoverColorId etc.).
-APPLAUSE_THEME_IMPLEMENT_COLOR(TextEditor, ApplauseTextEditorBackgroundFocused, 0x00000000);
-APPLAUSE_THEME_IMPLEMENT_COLOR(TextEditor, ApplauseTextEditorBorderFocused, 0x00000000);
-APPLAUSE_THEME_IMPLEMENT_COLOR(TextEditor, ApplauseTextEditorBackgroundHover, 0x00000000);
-APPLAUSE_THEME_IMPLEMENT_COLOR(TextEditor, ApplauseTextEditorBorderHover, 0x00000000);
-APPLAUSE_THEME_IMPLEMENT_COLOR(TextEditor, ApplauseTextEditorBackgroundDisabled, 0x00000000);
-APPLAUSE_THEME_IMPLEMENT_COLOR(TextEditor, ApplauseTextEditorBorderDisabled, 0x00000000);
-APPLAUSE_THEME_IMPLEMENT_COLOR(TextEditor, ApplauseTextEditorTextDisabled, 0xff999999);
-
-APPLAUSE_THEME_IMPLEMENT_VALUE(TextEditor, ApplauseTextEditorRounding, 0.0f);  // No rounding
-APPLAUSE_THEME_IMPLEMENT_VALUE(TextEditor, ApplauseTextEditorMarginX, 9.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(TextEditor, ApplauseTextEditorMarginY, 9.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(TextEditor, ApplauseTextEditorBorderWidth, 0.0f);  // No border
-APPLAUSE_THEME_IMPLEMENT_VALUE(TextEditor, ApplauseTextEditorCaretWidth, 1.0f);
-
 namespace {
 
 char32_t acuteAccentDeadKey(char32_t original) {
@@ -117,11 +92,10 @@ TextEditor::TextEditor(const std::string& name) : applause::ScrollableFrame(name
 }
 
 void TextEditor::drawBackground(applause::Canvas& canvas) const {
-    canvas.setColor(resolvedBackgroundColorId());
+    canvas.setColor(color(*this, backgroundToken()));
     canvas.roundedRectangle(0, 0, width(), height(), background_rounding_);
-    canvas.setColor(resolvedBorderColorId());
-    canvas.roundedRectangleBorder(0, 0, width(), height(), background_rounding_,
-                                  paletteValue(ApplauseTextEditorBorderWidth));
+    canvas.setColor(color(*this, borderToken()));
+    canvas.roundedRectangleBorder(0, 0, width(), height(), background_rounding_, value(*this, kBorderWidth));
 }
 
 void TextEditor::selectionRectangle(applause::Canvas& canvas, float x, float y, float w, float h) const {
@@ -135,7 +109,7 @@ void TextEditor::selectionRectangle(applause::Canvas& canvas, float x, float y, 
 void TextEditor::drawSelection(applause::Canvas& canvas) const {
     int selection_start = selectionStart();
     float line_height = font().lineHeight();
-    float caret_width = paletteValue(ApplauseTextEditorCaretWidth);
+    float caret_width = value(*this, kCaretWidth);
 
     std::pair<float, float> start_position = selection_start_point_;
     std::pair<float, float> end_position = selection_end_point_;
@@ -150,7 +124,7 @@ void TextEditor::drawSelection(applause::Canvas& canvas) const {
         y_offset = (height() - num_lines * line_height) * 0.5f - yPosition();
     }
 
-    canvas.setColor(caret_color_id_);
+    canvas.setColor(color(*this, kCaret));
     if (caret_position_ == selection_start)
         selectionRectangle(canvas, start_position.first - x_position_, start_position.second + y_offset, caret_width,
                            line_height);
@@ -158,7 +132,7 @@ void TextEditor::drawSelection(applause::Canvas& canvas) const {
         selectionRectangle(canvas, end_position.first - x_position_, end_position.second + y_offset, caret_width,
                            line_height);
 
-    canvas.setColor(selection_color_id_);
+    canvas.setColor(color(*this, kSelection));
     if (start_position.second == end_position.second) {
         float width = end_position.first - start_position.first;
         selectionRectangle(canvas, start_position.first - x_position_, start_position.second + y_offset, width,
@@ -190,12 +164,12 @@ void TextEditor::draw(applause::Canvas& canvas) {
     if (text_.text().isEmpty()) {
         bool center = (justification() & applause::Font::kLeft) == 0 && (justification() & applause::Font::kRight) == 0;
         if (!default_text_.text().isEmpty() && (!center || !hasKeyboardFocus())) {
-            canvas.setColor(default_text_color_id_);
+            canvas.setColor(color(*this, kDefaultText));
             canvas.text(&default_text_, x_margin - x_position_, -yPosition(), x_position_ + text_bounds.width(),
                         text_bounds.height());
         }
     } else {
-        canvas.setColor(resolvedTextColorId());
+        canvas.setColor(color(*this, textToken()));
         if (justification() & applause::Font::kLeft) {
             canvas.text(&text_, x_margin - x_position_, -yPosition(), x_position_ + text_bounds.width(),
                         text_bounds.height());

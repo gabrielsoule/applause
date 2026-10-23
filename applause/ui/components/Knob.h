@@ -3,6 +3,7 @@
 #include <applause/ui/ApplauseUI.h>
 
 #include <functional>
+#include <numbers>
 #include <vector>
 
 namespace applause {
@@ -18,16 +19,17 @@ class Knob : public applause::Frame {
 public:
     using IndicatorProvider = std::function<void(std::vector<float>&, float&, float&)>;
 
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseKnobBodyTop);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseKnobBodyBottom);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseKnobBodyBorder);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseKnobArcTrack);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseKnobAccent);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseKnobShadow);
+    static inline const ColorToken kBodyTop{"knob.bodyTop", 0xff333338};
+    static inline const ColorToken kBodyBottom{"knob.bodyBottom", 0xff1a1a1e};
+    static inline const ColorToken kBodyBorder{"knob.bodyBorder", 0xff444444};
+    static inline const ColorToken kArcTrack{"knob.arcTrack", 0xff2a2a2e};
+    static inline const ColorToken kAccent{"knob.accent", theme::kAccent};
+    static inline const ColorToken kShadow{"knob.shadow", 0x88000000};
 
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseKnobArcThickness);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseKnobTrackInset);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseKnobSweep);
+    static inline const ValueToken kArcThickness{"knob.arcThickness", 3.0f};
+    static inline const ValueToken kTrackInset{"knob.trackInset", 1.5f};
+    // In radians.
+    static inline const ValueToken kSweep{"knob.sweep", 300.0f * std::numbers::pi_v<float> / 180.0f};
 
     Knob();
     ~Knob() override = default;

@@ -7,10 +7,10 @@ namespace applause {
 /// A square toggle with an optional label. 
 class Checkbox : public ToggleButton {
 public:
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseCheckboxSize);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseCheckboxTextGap);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseCheckboxBorderWidth);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseCheckboxRounding);
+    static inline const ValueToken kSize{"checkbox.size", 16.0f};
+    static inline const ValueToken kTextGap{"checkbox.textGap", 8.0f};
+    static inline const ValueToken kBorderWidth{"checkbox.borderWidth", 1.5f};
+    static inline const ValueToken kRounding{"checkbox.rounding", 3.0f};
 
     explicit Checkbox(std::string text = {});
 

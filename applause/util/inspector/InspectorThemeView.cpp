@@ -16,17 +16,8 @@
 #include <map>
 #include <set>
 #include <string>
-#include <unordered_set>
 
 namespace applause::inspector {
-
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorThemeView, ApplauseInspectorThemeText,                  0xffd8d8dc);
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorThemeView, ApplauseInspectorThemeTextMuted,             0xff7a7a80);
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorThemeView, ApplauseInspectorThemeRowHover,              0x22ffffff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorThemeView, ApplauseInspectorThemeRowSelected,           0x4466bbff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorThemeView, ApplauseInspectorThemeGroupBackgroundActive, 0xff262630);
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorThemeView, ApplauseInspectorThemeSwatchBorder,          0xff3a3a40);
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorThemeView, ApplauseInspectorThemePickerBackground,      0xff141418);
 
 namespace {
 
@@ -46,6 +37,59 @@ bool containsCI(const std::string& haystack_norm, const std::string& needle_norm
     return !needle_norm.empty() && haystack_norm.find(needle_norm) != std::string::npos;
 }
 
+// Tokens are named "group.token"; a name without a dot belongs to the "theme" group.
+std::string groupOf(const std::string& name) {
+    const auto dot = name.find('.');
+    return dot == std::string::npos ? "theme" : name.substr(0, dot);
+}
+
+std::string labelOf(const std::string& name) {
+    const auto dot = name.find('.');
+    return dot == std::string::npos ? name : name.substr(dot + 1);
+}
+
+std::set<std::string> tokenGroups() {
+    std::set<std::string> groups;
+    for (const ColorToken* token : ColorToken::all()) groups.insert(groupOf(token->name()));
+    for (const ValueToken* token : ValueToken::all()) groups.insert(groupOf(token->name()));
+    return groups;
+}
+
+// What a token's default follows, like "follows accent at 21%"; empty for a fixed default. A token in the same group is
+// named without its group.
+template <typename T>
+std::string followHint(const Token<T>& token) {
+    if (!token.base()) return {};
+    const std::string name = token.name();
+    const std::string base = token.base()->name();
+    std::string hint = "follows " + (groupOf(base) == groupOf(name) ? labelOf(base) : base);
+    if (token.alpha() != 1.0f) hint += " at " + std::to_string(std::lround(token.alpha() * 100.0f)) + "%";
+    return hint;
+}
+
+constexpr float kStatusGap = 8.0f;
+constexpr float kResetWidth = 32.0f;
+
+// Draws, ending at `right`, "reset" when the target sets the token, and otherwise what its default follows. Returns
+// where it starts, so the label can stop short of it.
+template <typename T>
+float drawStatus(applause::Canvas& canvas, InspectorThemeView& view, const Token<T>& token, float right, float height) {
+    const bool set_here = view.target().find(token);
+    const std::string text = set_here ? "reset" : followHint(token);
+    if (text.empty()) return right;
+
+    const float width = set_here ? kResetWidth : right * 0.5f;
+    canvas.setColor(color(view, set_here ? InspectorThemeView::kText : InspectorThemeView::kTextMuted));
+    canvas.text(applause::String(text), view.labelFont(), applause::Font::kRight, right - width, 0, width, height);
+    return right - width - kStatusGap;
+}
+
+// Whether a click at `x` hits the "reset" drawn by drawStatus.
+template <typename T>
+bool hitsReset(InspectorThemeView& view, const Token<T>& token, float x, float right) {
+    return view.target().find(token) && x >= right - kResetWidth && x <= right;
+}
+
 std::string formatValue(float v) {
     char buf[24];
     std::snprintf(buf, sizeof(buf), "%g", v);
@@ -63,12 +107,9 @@ void detachFromParent(applause::Frame* f) {
 
 class ThemeColorRow : public TreeRow {
 public:
-    ThemeColorRow(applause::theme::ColorId id, InspectorThemeView& view)
-        : id_(id), view_(view) {}
+    ThemeColorRow(const ColorToken& token, InspectorThemeView& view) : token_(token), view_(view) {}
 
-    std::string stableKey() const override {
-        return "color:" + std::to_string(id_.id);
-    }
+    std::string stableKey() const override { return std::string("color:") + token_.name(); }
 
     float headerHeight() const override { return InspectorThemeView::kRowHeight; }
 
@@ -83,50 +124,47 @@ public:
                     const RowContext&) override {
         const bool editing = isEditing();
         if (editing) {
-            canvas.setColor(InspectorThemeView::ApplauseInspectorThemeRowSelected);
+            canvas.setColor(color(view_, InspectorThemeView::kRowSelected));
             canvas.rectangle(0, 0, bounds.width(), bounds.height());
         }
 
-        applause::Brush brush;
-        if (!view_.window().palette().color({}, id_, brush))
-            brush = applause::Brush::solid(applause::theme::ColorId::defaultColor(id_));
-
         const float swatch_x = InspectorThemeView::kIndent + InspectorThemeView::kPaddingX;
         const float swatch_y = (bounds.height() - InspectorThemeView::kSwatchSize) * 0.5f;
-        canvas.setColor(brush);
+        canvas.setColor(color(view_.target(), token_));
         canvas.roundedRectangle(swatch_x, swatch_y,
                                 InspectorThemeView::kSwatchSize,
                                 InspectorThemeView::kSwatchSize, 2.0f);
-        canvas.setColor(InspectorThemeView::ApplauseInspectorThemeSwatchBorder);
+        canvas.setColor(color(view_, InspectorThemeView::kSwatchBorder));
         canvas.roundedRectangleBorder(swatch_x, swatch_y,
                                       InspectorThemeView::kSwatchSize,
                                       InspectorThemeView::kSwatchSize, 2.0f, 1.0f);
 
-        canvas.setColor(InspectorThemeView::ApplauseInspectorThemeText);
+        const float status_x = drawStatus(canvas, view_, token_, statusRight(bounds.width()), bounds.height());
+        canvas.setColor(color(view_, InspectorThemeView::kText));
         const float text_x = swatch_x + InspectorThemeView::kSwatchSize + 6.0f;
-        canvas.text(applause::String(applause::theme::ColorId::name(id_)),
-                    view_.labelFont(), applause::Font::kLeft,
-                    text_x, 0,
-                    bounds.width() - text_x - InspectorThemeView::kPaddingX,
-                    bounds.height());
+        canvas.text(applause::String(labelOf(token_.name())), view_.labelFont(), applause::Font::kLeft, text_x, 0,
+                    std::max(0.0f, status_x - text_x), bounds.height());
     }
 
     void drawInlineDetail(applause::Canvas& canvas,
                           applause::Bounds bounds,
                           const RowContext&) override {
-        canvas.setColor(InspectorThemeView::ApplauseInspectorThemePickerBackground);
+        canvas.setColor(color(view_, InspectorThemeView::kPickerBackground));
         canvas.rectangle(0, bounds.y(), bounds.width(), bounds.height());
     }
 
-    void onHeaderClick(applause::Point, const RowContext&) override {
-        if (isEditing()) view_.clearEditingColor();
-        else             view_.setEditingColor(id_);
+    void onHeaderClick(applause::Point local, const RowContext&) override {
+        if (hitsReset(view_, token_, local.x, statusRight(width_)))
+            view_.reset(token_);
+        else if (isEditing())
+            view_.clearEditingColor();
+        else
+            view_.setEditingColor(token_);
     }
 
-    void layoutContent(applause::Frame& row_frame,
-                       applause::Bounds /*header*/,
-                       applause::Bounds detail,
+    void layoutContent(applause::Frame& row_frame, applause::Bounds header, applause::Bounds detail,
                        bool expanded) override {
+        width_ = header.width();
         auto* picker = view_.colorPicker();
         if (!picker) return;
         if (expanded) {
@@ -145,60 +183,56 @@ public:
     }
 
 private:
-    bool isEditing() const {
-        const auto e = view_.editingColor();
-        return e.isValid() && e.id == id_.id;
-    }
+    bool isEditing() const { return view_.editingColor() == &token_; }
+    static float statusRight(float width) { return width - InspectorThemeView::kPaddingX; }
 
-    applause::theme::ColorId id_;
+    const ColorToken& token_;
     InspectorThemeView& view_;
+    float width_ = 0.0f;  // The header's, from the last layout.
 };
 
 // ---- ThemeValueRow -------------------------------------------------------
 
 class ThemeValueRow : public TreeRow {
 public:
-    ThemeValueRow(applause::theme::ValueId id, InspectorThemeView& view)
-        : id_(id), view_(view),
-          editor_(std::make_unique<applause::TextEditor>("inspector_value_editor")) {
+    ThemeValueRow(const ValueToken& token, InspectorThemeView& view) :
+        token_(token), view_(view), editor_(std::make_unique<applause::TextEditor>("inspector_value_editor")) {
         editor_->setNumberEntry();
         editor_->setMaxCharacters(10);
         editor_->setFont(applause::Font(InspectorThemeView::kLabelFontSize,
                                         applause::fonts::Barlow_Medium_ttf));
-        editor_->onEnterKey() += [this]() {
-            view_.applyValue(id_, editor_->text().toUtf8());
-        };
+        editor_->onEnterKey() += [this]() { view_.applyValue(token_, editor_->text().toUtf8()); };
         editor_->onEscapeKey() += [this]() {
-            // Rebuild so layoutContent refreshes our text from the palette.
+            // Rebuild so layoutContent refreshes our text from the editor.
             if (auto* t = tree()) t->rebuild();
         };
     }
 
     ~ThemeValueRow() override = default;
 
-    std::string stableKey() const override {
-        return "value:" + std::to_string(id_.id);
-    }
+    std::string stableKey() const override { return std::string("value:") + token_.name(); }
 
     float headerHeight() const override { return InspectorThemeView::kRowHeight; }
 
     void drawHeader(applause::Canvas& canvas,
                     applause::Bounds bounds,
                     const RowContext&) override {
-        canvas.setColor(InspectorThemeView::ApplauseInspectorThemeText);
+        const float status_x = drawStatus(canvas, view_, token_, statusRight(bounds.width()), bounds.height());
+        canvas.setColor(color(view_, InspectorThemeView::kText));
         const float text_x = InspectorThemeView::kIndent + InspectorThemeView::kPaddingX;
-        const float text_w = std::max(
-            0.0f,
-            bounds.width() - text_x - InspectorThemeView::kValueEditorW - 2.0f * InspectorThemeView::kPaddingX);
-        canvas.text(applause::String(applause::theme::ValueId::name(id_)),
-                    view_.labelFont(), applause::Font::kLeft,
-                    text_x, 0, text_w, bounds.height());
+        canvas.text(applause::String(labelOf(token_.name())), view_.labelFont(), applause::Font::kLeft, text_x, 0,
+                    std::max(0.0f, status_x - text_x), bounds.height());
+    }
+
+    void onHeaderClick(applause::Point local, const RowContext&) override {
+        if (hitsReset(view_, token_, local.x, statusRight(width_))) view_.reset(token_);
     }
 
     void layoutContent(applause::Frame& row_frame,
                        applause::Bounds header,
                        applause::Bounds /*detail*/,
                        bool /*expanded*/) override {
+        width_ = header.width();
         if (editor_->parent() != &row_frame) {
             detachFromParent(editor_.get());
             row_frame.addChild(editor_.get());
@@ -210,21 +244,21 @@ public:
                            InspectorThemeView::kValueEditorW,
                            header.height() - 4.0f);
 
-        // Re-pull the current value from the palette when the user isn't
+        // Re-pull the current value from the target when the user isn't
         // mid-edit; otherwise the in-progress text gets clobbered.
-        if (!editor_->hasKeyboardFocus()) {
-            float current = 0.0f;
-            if (view_.window().palette().value({}, id_, current))
-                editor_->setText(formatValue(current));
-            else
-                editor_->setText(formatValue(applause::theme::ValueId::defaultValue(id_)));
-        }
+        if (!editor_->hasKeyboardFocus()) editor_->setText(formatValue(value(view_.target(), token_)));
     }
 
 private:
-    applause::theme::ValueId id_;
+    // The status sits just left of the value field.
+    static float statusRight(float width) {
+        return width - InspectorThemeView::kValueEditorW - 2.0f * InspectorThemeView::kPaddingX;
+    }
+
+    const ValueToken& token_;
     InspectorThemeView& view_;
     std::unique_ptr<applause::TextEditor> editor_;
+    float width_ = 0.0f;  // The header's, from the last layout.
 };
 
 // ---- ThemeGroupRow -------------------------------------------------------
@@ -242,17 +276,11 @@ public:
 
     std::vector<std::unique_ptr<TreeRow>> buildChildren() override {
         std::vector<std::unique_ptr<TreeRow>> out;
-        const int num_colors = applause::theme::ColorId::numColorIds();
-        for (int i = 0; i < num_colors; ++i) {
-            applause::theme::ColorId id(static_cast<unsigned int>(i));
-            if (applause::theme::ColorId::groupName(id) == group_)
-                out.push_back(std::make_unique<ThemeColorRow>(id, view_));
+        for (const ColorToken* token : ColorToken::all()) {
+            if (groupOf(token->name()) == group_) out.push_back(std::make_unique<ThemeColorRow>(*token, view_));
         }
-        const int num_values = applause::theme::ValueId::numValueIds();
-        for (int i = 0; i < num_values; ++i) {
-            applause::theme::ValueId id(static_cast<unsigned int>(i));
-            if (applause::theme::ValueId::groupName(id) == group_)
-                out.push_back(std::make_unique<ThemeValueRow>(id, view_));
+        for (const ValueToken* token : ValueToken::all()) {
+            if (groupOf(token->name()) == group_) out.push_back(std::make_unique<ThemeValueRow>(*token, view_));
         }
         return out;
     }
@@ -269,14 +297,14 @@ public:
         // matching the component tree's flat look. The active variant remains
         // a deliberate visual cue.
         if (active) {
-            canvas.setColor(InspectorThemeView::ApplauseInspectorThemeGroupBackgroundActive);
+            canvas.setColor(color(view_, InspectorThemeView::kGroupBackgroundActive));
             canvas.rectangle(0, 0, bounds.width(), bounds.height());
         }
 
         const float tri_x = InspectorThemeView::kPaddingX;
         const float tri_cy = bounds.height() * 0.5f;
         const float t = InspectorThemeView::kTriangleSize;
-        canvas.setColor(InspectorThemeView::ApplauseInspectorThemeTextMuted);
+        canvas.setColor(color(view_, InspectorThemeView::kTextMuted));
         if (ctx.expanded) {
             canvas.triangle(tri_x,            tri_cy - t * 0.3f,
                             tri_x + t,        tri_cy - t * 0.3f,
@@ -287,7 +315,7 @@ public:
                             tri_x,            tri_cy + t * 0.5f);
         }
 
-        canvas.setColor(InspectorThemeView::ApplauseInspectorThemeText);
+        canvas.setColor(color(view_, InspectorThemeView::kText));
         const float text_x = tri_x + t + 6.0f;
         canvas.text(applause::String(group_),
                     view_.labelFont(), applause::Font::kLeft,
@@ -303,32 +331,30 @@ private:
 
 // ---- ThemeRootRow --------------------------------------------------------
 
-// Synthetic root that enumerates all registered theme groups. headerHeight
-// of 0 keeps it invisible in the list; the tree always traverses into it
-// since "theme:root" is kept in expanded_keys_.
+// Synthetic root that enumerates every token group. Its header names the
+// frame edits go to; the tree always traverses into it since "theme:root"
+// is kept in expanded_keys_, and clicking it doesn't collapse it.
 class ThemeRootRow : public TreeRow {
 public:
     explicit ThemeRootRow(InspectorThemeView& view) : view_(view) {}
 
     std::string stableKey() const override { return "theme:root"; }
     bool isBranch() const override { return true; }
-    float headerHeight() const override { return 0.0f; }
-    void drawHeader(applause::Canvas&, applause::Bounds, const RowContext&) override {}
+    float headerHeight() const override { return InspectorThemeView::kHeaderHeight; }
+    void onHeaderClick(applause::Point, const RowContext&) override {}
+
+    void drawHeader(applause::Canvas& canvas, applause::Bounds bounds, const RowContext&) override {
+        const applause::Frame& target = view_.target();
+        std::string text = "Editing " + frameTypeName(target);
+        if (!target.name().empty()) text += " \"" + target.name() + "\"";
+        canvas.setColor(color(view_, InspectorThemeView::kTextMuted));
+        canvas.text(applause::String(text), view_.labelFont(), applause::Font::kLeft, InspectorThemeView::kPaddingX, 0,
+                    bounds.width() - 2.0f * InspectorThemeView::kPaddingX, bounds.height());
+    }
 
     std::vector<std::unique_ptr<TreeRow>> buildChildren() override {
-        // Collect every group name registered on either ColorId or ValueId.
-        // std::set gives us alphabetical order across the union.
-        std::set<std::string> groups;
-        const int num_colors = applause::theme::ColorId::numColorIds();
-        for (int i = 0; i < num_colors; ++i) {
-            applause::theme::ColorId id(static_cast<unsigned int>(i));
-            groups.insert(applause::theme::ColorId::groupName(id));
-        }
-        const int num_values = applause::theme::ValueId::numValueIds();
-        for (int i = 0; i < num_values; ++i) {
-            applause::theme::ValueId id(static_cast<unsigned int>(i));
-            groups.insert(applause::theme::ValueId::groupName(id));
-        }
+        // std::set gives us alphabetical order.
+        const std::set<std::string> groups = tokenGroups();
         std::vector<std::unique_ptr<TreeRow>> out;
         out.reserve(groups.size());
         for (const auto& g : groups)
@@ -363,6 +389,8 @@ InspectorThemeView::InspectorThemeView(InspectorWindow& window)
     // overlaps the selected frame's dynamic class name; the user's manual
     // expansions stay open across selections.
     window_.onSelectionChanged() += [this](applause::Frame* f) {
+        // The selection is the new target, so an open picker would edit the wrong frame.
+        editing_color_ = nullptr;
         applySelectionExpansion(f);
         rebuild();
     };
@@ -370,27 +398,37 @@ InspectorThemeView::InspectorThemeView(InspectorWindow& window)
 
 InspectorThemeView::~InspectorThemeView() = default;
 
-void InspectorThemeView::setEditingColor(applause::theme::ColorId id) {
-    editing_color_id_ = id;
+void InspectorThemeView::setEditingColor(const ColorToken& token) {
+    editing_color_ = &token;
+    seedPicker();
+    rebuild();
+}
 
-    // Seed the picker with the current resolved color without re-firing
-    // onColorChange (which would write the same value back to the palette
-    // and trigger spurious editor redraws).
-    applause::Brush b;
-    applause::Color current;
-    if (window_.palette().color({}, id, b))
-        current = b.gradient().sample(0.0f);
-    else
-        current = applause::Color(applause::theme::ColorId::defaultColor(id));
+void InspectorThemeView::seedPicker() {
+    // Without re-firing onColorChange, which would set the same value on the
+    // target and trigger spurious redraws.
     suppress_picker_callback_ = true;
-    color_picker_->setColor(current);
+    color_picker_->setColor(color(target(), *editing_color_));
     suppress_picker_callback_ = false;
+}
 
+applause::Frame& InspectorThemeView::target() const {
+    return window_.selectedFrame() ? *window_.selectedFrame() : window_.editor();
+}
+
+void InspectorThemeView::reset(const ColorToken& token) {
+    target().unset(token);
+    if (editing_color_ == &token) seedPicker();
+    rebuild();
+}
+
+void InspectorThemeView::reset(const ValueToken& token) {
+    target().unset(token);
     rebuild();
 }
 
 void InspectorThemeView::clearEditingColor() {
-    editing_color_id_ = applause::theme::ColorId();
+    editing_color_ = nullptr;
     // Drop any keyboard focus held by the picker's text editors before they
     // become invisible — otherwise typing would go to a hidden field.
     requestKeyboardFocus();
@@ -398,27 +436,25 @@ void InspectorThemeView::clearEditingColor() {
 }
 
 void InspectorThemeView::applyEditedColor(const applause::Color& color) {
-    if (!editing_color_id_.isValid()) return;
-    window_.palette().setColor({}, editing_color_id_, color);
-    window_.editor().redrawAll();
-    redraw();
+    if (!editing_color_) return;
+    target().set(*editing_color_, color);
+    // Every row, so the edited one shows its reset.
+    redrawAll();
 }
 
-void InspectorThemeView::applyValue(applause::theme::ValueId id, const std::string& text) {
+void InspectorThemeView::applyValue(const ValueToken& token, const std::string& text) {
     auto trimmed = text;
     while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.front())))
         trimmed.erase(0, 1);
     while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.back())))
         trimmed.pop_back();
     if (trimmed.empty()) {
-        window_.palette().removeValue({}, id);
+        target().unset(token);
     } else {
         char* end = nullptr;
         float v = std::strtof(trimmed.c_str(), &end);
-        if (end != trimmed.c_str())
-            window_.palette().setValue({}, id, v);
+        if (end != trimmed.c_str()) target().set(token, v);
     }
-    window_.editor().redrawAll();
     rebuild();
 }
 
@@ -430,31 +466,11 @@ std::vector<std::string> InspectorThemeView::matchingGroupsFor(applause::Frame* 
         candidates.push_back(normalize(frame->name()));
 
     std::vector<std::string> matches;
-    std::unordered_set<std::string> seen;
-    const int num_colors = applause::theme::ColorId::numColorIds();
-    for (int i = 0; i < num_colors; ++i) {
-        applause::theme::ColorId id(static_cast<unsigned int>(i));
-        const std::string& g = applause::theme::ColorId::groupName(id);
-        if (seen.count(g)) continue;
+    for (const auto& g : tokenGroups()) {
         std::string g_norm = normalize(g);
         for (const auto& cand : candidates) {
             if (containsCI(cand, g_norm)) {
                 matches.push_back(g);
-                seen.insert(g);
-                break;
-            }
-        }
-    }
-    const int num_values = applause::theme::ValueId::numValueIds();
-    for (int i = 0; i < num_values; ++i) {
-        applause::theme::ValueId id(static_cast<unsigned int>(i));
-        const std::string& g = applause::theme::ValueId::groupName(id);
-        if (seen.count(g)) continue;
-        std::string g_norm = normalize(g);
-        for (const auto& cand : candidates) {
-            if (containsCI(cand, g_norm)) {
-                matches.push_back(g);
-                seen.insert(g);
                 break;
             }
         }

@@ -12,32 +12,32 @@ namespace applause {
 class RadioGroup;
 class Button : public applause::Frame {
 public:
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonShadow);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonGlow);
+    static inline const ColorToken kShadow{"button.shadow", 0x88000000};
+    static inline const ColorToken kGlow{"button.glow", theme::kAccent};
 
     // Shared background gradient (normal, hover)
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonBackgroundTop);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonBackgroundBottom);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonBackgroundTopHover);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonBackgroundBottomHover);
+    static inline const ColorToken kBackgroundTop{"button.backgroundTop", 0xff333333};
+    static inline const ColorToken kBackgroundBottom{"button.backgroundBottom", 0xff222222};
+    static inline const ColorToken kBackgroundTopHover{"button.backgroundTopHover", 0xff3e3e42};
+    static inline const ColorToken kBackgroundBottomHover{"button.backgroundBottomHover", 0xff2e2e32};
 
     // Shared text colors
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonText);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonTextHover);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonTextPressed);
+    static inline const ColorToken kText{"button.text", 0xffcccccc};
+    static inline const ColorToken kTextHover{"button.textHover", 0xffdddddd};
+    static inline const ColorToken kTextPressed{"button.textPressed", 0xffffffff};
 
     // Shared border colors
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonBorder);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonBorderHover);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseButtonBorderPressed);
+    static inline const ColorToken kBorder{"button.border", 0xff444444};
+    static inline const ColorToken kBorderHover{"button.borderHover", 0xff5a5a60};
+    static inline const ColorToken kBorderPressed{"button.borderPressed", 0xff555555};
 
     // Shared values
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseButtonGlowAmount);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseButtonRounding);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseButtonHoverRoundingMult);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseButtonBorderWidth);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseButtonBorderWidthHover);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseButtonBorderWidthPressed);
+    static inline const ValueToken kGlowAmount{"button.glowAmount", 0.45f};
+    static inline const ValueToken kRounding{"button.rounding", 7.0f};
+    static inline const ValueToken kHoverRoundingMult{"button.hoverRoundingMult", 1.0f};
+    static inline const ValueToken kBorderWidth{"button.borderWidth", 1.5f};
+    static inline const ValueToken kBorderWidthHover{"button.borderWidthHover", kBorderWidth};
+    static inline const ValueToken kBorderWidthPressed{"button.borderWidthPressed", kBorderWidth};
 
     Button() {
         hover_amount_.setTargetValue(1.0f);
@@ -96,14 +96,15 @@ private:
 
 class UiButton : public Button {
 public:
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseActionButtonBackgroundTop);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseActionButtonBackgroundBottom);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseActionButtonBackgroundTopHover);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseActionButtonBackgroundBottomHover);
+    static inline const ColorToken kActionBackgroundTop{"uiButton.actionBackgroundTop", theme::kAccent};
+    static inline const ColorToken kActionBackgroundBottom{"uiButton.actionBackgroundBottom", kActionBackgroundTop};
+    static inline const ColorToken kActionBackgroundTopHover{"uiButton.actionBackgroundTopHover", kActionBackgroundTop};
+    static inline const ColorToken kActionBackgroundBottomHover{"uiButton.actionBackgroundBottomHover",
+                                                                kActionBackgroundBottom};
 
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseActionButtonBorder);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseActionButtonBorderHover);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseActionButtonBorderPressed);
+    static inline const ColorToken kActionBorder{"uiButton.actionBorder", theme::kAccent};
+    static inline const ColorToken kActionBorderHover{"uiButton.actionBorderHover", kActionBorder};
+    static inline const ColorToken kActionBorderPressed{"uiButton.actionBorderPressed", 0xffffffff};
 
     explicit UiButton(const std::string& text);
 
@@ -209,11 +210,11 @@ private:
 
 class ToggleButton : public Button {
 public:
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleButtonDisabled);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleButtonOff);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleButtonOffHover);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleButtonOn);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleButtonOnHover);
+    static inline const ColorToken kDisabled{"toggleButton.disabled", 0xff4c4f52};
+    static inline const ColorToken kOff{"toggleButton.off", 0xff848789};
+    static inline const ColorToken kOffHover{"toggleButton.offHover", 0xffaaacad};
+    static inline const ColorToken kOn{"toggleButton.on", theme::kAccent};
+    static inline const ColorToken kOnHover{"toggleButton.onHover", kOn};
 
     ToggleButton() = default;
 
@@ -326,14 +327,15 @@ private:
 
 class ToggleTextButton : public ToggleButton {
 public:
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOn);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonTextOnHover);
+    static inline const ColorToken kTextOn{"toggleTextButton.textOn", kOn, 0.87f};
+    static inline const ColorToken kTextOnHover{"toggleTextButton.textOnHover", kOnHover};
 
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonGlow);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseToggleTextButtonGlowCenterAmount);
+    static inline const ColorToken kGlowOn{"toggleTextButton.glowOn", theme::kAccent, 0.21f};
+    // Fraction of the toggled glow's alpha kept at the center, so it doesn't fall off to nothing.
+    static inline const ValueToken kGlowOnCenterAmount{"toggleTextButton.glowOnCenterAmount", 0.0f};
 
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBorderOn);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseToggleTextButtonBorderOnHover);
+    static inline const ColorToken kBorderOn{"toggleTextButton.borderOn", kOn, 0.73f};
+    static inline const ColorToken kBorderOnHover{"toggleTextButton.borderOnHover", kOnHover, 0.87f};
 
     explicit ToggleTextButton(const std::string& name);
     explicit ToggleTextButton(const std::string& name, const applause::Font& font);

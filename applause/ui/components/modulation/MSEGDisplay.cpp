@@ -8,16 +8,6 @@
 
 namespace applause {
 
-APPLAUSE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayLine, 0xff9966ff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayFill, 0x309966ff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayPoint, 0xffdddddd);
-APPLAUSE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayPointHover, 0xffffffff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayMidpoint, 0x99aaaaaa);
-APPLAUSE_THEME_IMPLEMENT_COLOR(MSEGDisplay, MSEGDisplayMidpointHover, 0xccdddddd);
-APPLAUSE_THEME_IMPLEMENT_VALUE(MSEGDisplay, MSEGDisplayLineWidth, 2.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(MSEGDisplay, MSEGDisplayPointRadius, 5.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(MSEGDisplay, MSEGDisplayMidpointRadius, 3.5f);
-
 static constexpr int kSamplesPerSegment = 32;
 static constexpr float kPointEpsilon = 0.001f;
 static constexpr float kMaxCurvature = 32.0f;
@@ -40,7 +30,7 @@ float MSEGDisplay::screenYToCurve(float sy) const {
 
 int MSEGDisplay::hitTestPoint(float sx, float sy) const {
     if (!curve_) return -1;
-    float hit_radius = paletteValue(MSEGDisplayPointRadius) * 1.5f;
+    float hit_radius = value(*this, kPointRadius) * 1.5f;
     float hit_r2 = hit_radius * hit_radius;
     for (int i = 0; i < curve_->num_points; i++) {
         float px = curveXToScreen(curve_->points[i].first);
@@ -54,7 +44,7 @@ int MSEGDisplay::hitTestPoint(float sx, float sy) const {
 
 int MSEGDisplay::hitTestMidpoint(float sx, float sy) const {
     if (!curve_ || curve_->num_points < 2) return -1;
-    float hit_radius = paletteValue(MSEGDisplayMidpointRadius) * 1.5f;
+    float hit_radius = value(*this, kMidpointRadius) * 1.5f;
     float hit_r2 = hit_radius * hit_radius;
     for (int s = 0; s < curve_->num_points - 1; s++) {
         float mid_x = (curve_->points[s].first + curve_->points[s + 1].first) * 0.5f;
@@ -72,8 +62,8 @@ void MSEGDisplay::draw(applause::Canvas& canvas) {
     if (!curve_ || curve_->num_points < 2) return;
 
     int n = curve_->num_points;
-    float line_width = canvas.value(MSEGDisplayLineWidth);
-    float point_radius = canvas.value(MSEGDisplayPointRadius);
+    float line_width = value(*this, kLineWidth);
+    float point_radius = value(*this, kPointRadius);
 
     // Build polyline samples by evaluating the curve at many points
     samples_.clear();
@@ -100,17 +90,17 @@ void MSEGDisplay::draw(applause::Canvas& canvas) {
     fill_path.lineTo(samples_[0].x, static_cast<float>(height()));
     fill_path.close();
 
-    applause::Color fill_color = canvas.color(MSEGDisplayFill).gradient().sample(0.0f);
+    applause::Color fill_color = color(*this, kFill);
     canvas.setColor(applause::Brush::vertical(fill_color, fill_color.withAlpha(0.0f)));
     canvas.fill(fill_path);
 
     // Stroke the curve line as segments
-    canvas.setColor(MSEGDisplayLine);
+    canvas.setColor(color(*this, kLine));
     for (size_t i = 0; i + 1 < samples_.size(); i++)
         canvas.segment(samples_[i].x, samples_[i].y, samples_[i + 1].x, samples_[i + 1].y, line_width, true);
 
     // Draw midpoint handles for curvature adjustment
-    float midpoint_radius = canvas.value(MSEGDisplayMidpointRadius);
+    float midpoint_radius = value(*this, kMidpointRadius);
     float midpoint_diameter = midpoint_radius * 2.0f;
     for (int s = 0; s < n - 1; s++) {
         float mid_x = (curve_->points[s].first + curve_->points[s + 1].first) * 0.5f;
@@ -119,9 +109,9 @@ void MSEGDisplay::draw(applause::Canvas& canvas) {
         float py = curveYToScreen(mid_y);
 
         if (s == hovered_midpoint_ || s == dragged_segment_)
-            canvas.setColor(MSEGDisplayMidpointHover);
+            canvas.setColor(color(*this, kMidpointHover));
         else
-            canvas.setColor(MSEGDisplayMidpoint);
+            canvas.setColor(color(*this, kMidpoint));
 
         canvas.circle(px - midpoint_radius, py - midpoint_radius, midpoint_diameter);
     }
@@ -133,9 +123,9 @@ void MSEGDisplay::draw(applause::Canvas& canvas) {
         float py = curveYToScreen(curve_->points[i].second);
 
         if (i == hovered_point_ || i == dragged_point_)
-            canvas.setColor(MSEGDisplayPointHover);
+            canvas.setColor(color(*this, kPointHover));
         else
-            canvas.setColor(MSEGDisplayPoint);
+            canvas.setColor(color(*this, kPoint));
 
         canvas.circle(px - point_radius, py - point_radius, diameter);
     }

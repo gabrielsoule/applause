@@ -30,7 +30,6 @@
 #include <applause/graphics/ShapeBatcher.h>
 #include <applause/graphics/Svg.h>
 #include <applause/graphics/Text.h>
-#include <applause/graphics/Theme.h>
 #include <applause/util/Dimension.h>
 #include <applause/util/Space.h>
 #include <applause/util/TimeUtils.h>
@@ -38,7 +37,6 @@
 #include <limits>
 
 namespace applause {
-class Palette;
 class Shader;
 
 class Canvas {
@@ -51,7 +49,6 @@ public:
         float x = 0;
         float y = 0;
         float scale = 1.0f;
-        theme::OverrideId palette_override;
         Brush set_brush;
         const PackedBrush* brush = nullptr;
         ClampBounds clamp;
@@ -113,11 +110,6 @@ public:
     void setColor(const Brush& brush) { setBrush(brush); }
     void setColor(unsigned int color) { setBrush(Brush::solid(color)); }
     void setColor(const Color& color) { setBrush(Brush::solid(color)); }
-    void setColor(theme::ColorId color_id) { setBrush(color(color_id)); }
-
-    void setBlendedColor(theme::ColorId color_from, theme::ColorId color_to, float t) {
-        setBrush(blendedColor(color_from, color_to, t));
-    }
 
     void fill() {
         addShape(Fill(state_.clamp, state_.brush, state_.x, state_.y, state_.clamp.right - state_.clamp.left,
@@ -516,9 +508,6 @@ public:
 
     void endRegion() { restoreState(); }
 
-    void setPalette(Palette* palette) { palette_ = palette; }
-    void setPaletteOverride(theme::OverrideId override_id) { state_.palette_override = override_id; }
-
     void setClampBounds(float x, float y, float width, float height) {
         APPLAUSE_ASSERT(width >= 0);
         APPLAUSE_ASSERT(height >= 0);
@@ -536,12 +525,6 @@ public:
     const ClampBounds& currentClampBounds() const { return state_.clamp; }
     bool totallyClamped() const { return state_.clamp.totallyClamped(); }
 
-    Brush color(theme::ColorId color_id);
-    Brush blendedColor(theme::ColorId color_from, theme::ColorId color_to, float t) {
-        return color(color_from).interpolateWith(color(color_to), t);
-    }
-
-    float value(theme::ValueId value_id);
     std::vector<std::string> debugInfo() const;
 
     PathAtlas* pathAtlas() { return &path_atlas_; }
@@ -766,7 +749,6 @@ private:
             HeatMapWrapper(state_.clamp, state_.brush, state_.x + x, state_.y + y, width, height, data, dataAtlas()));
     }
 
-    Palette* palette_ = nullptr;
     float dpi_scale_ = 1.0f;
     double render_time_ = 0.0;
     double delta_time_ = 0.0;

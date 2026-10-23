@@ -21,8 +21,6 @@
 
 #include <applause/ui/Frame.h>
 
-#include <applause/graphics/Theme.h>
-
 namespace applause {
 void Frame::setVisible(bool visible) {
     if (visible_ != visible) {
@@ -66,7 +64,6 @@ void Frame::addChild(Frame* child, bool make_visible) {
     children_.push_back(child);
     child->parent_ = this;
     child->setEventHandler(event_handler_);
-    if (palette_) child->setPalette(palette_);
 
     if (!make_visible) child->setVisible(false);
 
@@ -154,14 +151,26 @@ void Frame::setBounds(Bounds bounds) {
     bounds_ = bounds;
     native_bounds_ = new_native_bounds;
     region_.setBounds(native_bounds_.x(), native_bounds_.y(), native_bounds_.width(), native_bounds_.height());
+    runLayout();
+    if (parent_) parent_->on_child_bounds_changed_.callback(this);
+    redraw();
+}
+
+void Frame::runLayout() {
     computeLayout();
     if (layout_ == nullptr || !layout_->flex()) {
         for (Frame* child : children_) computeLayout(child);
     }
 
     on_resize_.callback();
-    if (parent_) parent_->on_child_bounds_changed_.callback(this);
+}
+
+void Frame::runLayoutRecursively() {
+    runLayout();
     redraw();
+    // Copied, since laying a frame out may add or remove its children.
+    const std::vector<Frame*> children = children_;
+    for (Frame* child : children) child->runLayoutRecursively();
 }
 
 void Frame::setNativeBounds(IBounds native_bounds) { setBounds(Bounds(native_bounds) * (1.0f / dpi_scale_)); }
@@ -309,10 +318,6 @@ void Frame::drawToRegion(Canvas& canvas) {
     }
 
     canvas.beginRegion(&region_);
-
-    if (!palette_override_.isDefault()) canvas.setPaletteOverride(palette_override_);
-    if (palette_) canvas.setPalette(palette_);
-
     on_draw_.callback(canvas);
     if (alpha_transparency_ != 1.0f) {
         canvas.setBlendMode(BlendMode::Mult);
@@ -362,35 +367,68 @@ void Frame::removeBackdropEffect() {
     redrawAll();
 }
 
-float Frame::paletteValue(theme::ValueId value_id) const {
-    if (palette_) {
-        const Frame* frame = this;
-        float result = 0.0f;
-        while (frame) {
-            theme::OverrideId override_id = frame->palette_override_;
-            if (!override_id.isDefault() && palette_->value(override_id, value_id, result)) return result;
-            frame = frame->parent_;
-        }
-        if (palette_->value({}, value_id, result)) return result;
-    }
-
-    return theme::ValueId::defaultValue(value_id);
+// Colors are only read while drawing, so a color change redraws. Values can also be read during layout, so a value
+// change lays out again.
+void Frame::set(const ColorToken& token, Color color) {
+    theme_colors_[&token] = color;
+    redrawAll();
 }
 
-Brush Frame::paletteColor(theme::ColorId color_id) const {
-    if (palette_) {
-        Brush result;
-        const Frame* frame = this;
-        while (frame) {
-            theme::OverrideId override_id = frame->palette_override_;
-            if (!override_id.isDefault() && palette_->color(override_id, color_id, result)) return result;
-            frame = frame->parent_;
-        }
-        if (palette_->color({}, color_id, result)) return result;
-    }
-
-    return Brush::solid(theme::ColorId::defaultColor(color_id));
+void Frame::set(const ValueToken& token, float value) {
+    theme_values_[&token] = value;
+    runLayoutRecursively();
 }
+
+void Frame::set(const ColorToken& token, const ColorToken& source) {
+    APPLAUSE_ASSERT(&source != &token);
+    theme_colors_[&token] = &source;
+    redrawAll();
+}
+
+void Frame::set(const ValueToken& token, const ValueToken& source) {
+    APPLAUSE_ASSERT(&source != &token);
+    theme_values_[&token] = &source;
+    runLayoutRecursively();
+}
+
+void Frame::unset(const ColorToken& token) {
+    if (theme_colors_.erase(&token)) redrawAll();
+}
+
+void Frame::unset(const ValueToken& token) {
+    if (theme_values_.erase(&token)) runLayoutRecursively();
+}
+
+const Setting<Color>* Frame::find(const ColorToken& token) const {
+    auto it = theme_colors_.find(&token);
+    return it == theme_colors_.end() ? nullptr : &it->second;
+}
+
+const Setting<float>* Frame::find(const ValueToken& token) const {
+    auto it = theme_values_.find(&token);
+    return it == theme_values_.end() ? nullptr : &it->second;
+}
+
+template <typename T>
+T Token<T>::resolve(const Frame& frame) const {
+    for (const Frame* f = &frame; f; f = f->parent()) {
+        if (const Setting<T>* setting = f->find(*this)) {
+            if (const T* value = std::get_if<T>(setting)) return *value;
+            return std::get<const Token*>(*setting)->resolve(frame);
+        }
+    }
+    if (!base_) return value_;
+
+    T base = base_->resolve(frame);
+    if constexpr (std::same_as<T, Color>)
+        return base.withMultipliedAlpha(alpha_);
+    else
+        return base;
+}
+
+Color color(const Frame& frame, const ColorToken& token) { return token.resolve(frame); }
+
+float value(const Frame& frame, const ValueToken& token) { return token.resolve(frame); }
 
 void Frame::addUndoableAction(std::unique_ptr<UndoableAction> action) const {
     UndoHistory* history = findParent<UndoHistory>();

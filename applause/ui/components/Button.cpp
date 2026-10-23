@@ -31,56 +31,11 @@
 #include <embedded/applause_fonts.h>
 
 namespace applause {
-// Button base class — shared colors and values
-APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonShadow, 0x88000000);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonGlow, 0xff9966ff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonBackgroundTop, 0xff333333);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonBackgroundBottom, 0xff222222);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonBackgroundTopHover, 0xff3e3e42);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonBackgroundBottomHover, 0xff2e2e32);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonText, 0xffcccccc);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonTextHover, 0xffdddddd);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonTextPressed, 0xffffffff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonBorder, 0xff444444);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonBorderHover, 0xff5a5a60);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Button, ApplauseButtonBorderPressed, 0xff555555);
-APPLAUSE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonGlowAmount, 0.45f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonRounding, 7.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonHoverRoundingMult, 1.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonBorderWidth, 1.5f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonBorderWidthHover, 1.5f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(Button, ApplauseButtonBorderWidthPressed, 1.5f);
-
-// ToggleButton theme colors
-APPLAUSE_THEME_IMPLEMENT_COLOR(ToggleButton, ApplauseToggleButtonDisabled, 0xff4c4f52);
-APPLAUSE_THEME_IMPLEMENT_COLOR(ToggleButton, ApplauseToggleButtonOff, 0xff848789);
-APPLAUSE_THEME_IMPLEMENT_COLOR(ToggleButton, ApplauseToggleButtonOffHover, 0xffaaacad);
-APPLAUSE_THEME_IMPLEMENT_COLOR(ToggleButton, ApplauseToggleButtonOn, 0xff9966ff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(ToggleButton, ApplauseToggleButtonOnHover, 0xffaa77ff);
-
-// UiButton — action-specific colors only
-APPLAUSE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseActionButtonBackgroundTop, 0xff8855ee);
-APPLAUSE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseActionButtonBackgroundBottom, 0xff6633cc);
-APPLAUSE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseActionButtonBackgroundTopHover, 0xff9966ff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseActionButtonBackgroundBottomHover, 0xff7744dd);
-APPLAUSE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseActionButtonBorder, 0xff9966ee);
-APPLAUSE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseActionButtonBorderHover, 0xffaa77ff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(UiButton, ApplauseActionButtonBorderPressed, 0xffffffff);
-
-// ToggleTextButton — ON-state accent colors only
-APPLAUSE_THEME_IMPLEMENT_COLOR(ToggleTextButton, ApplauseToggleTextButtonTextOn, 0xdd9966ff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(ToggleTextButton, ApplauseToggleTextButtonTextOnHover, 0xffaa77ff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(ToggleTextButton, ApplauseToggleTextButtonGlow, 0x359966ff);
-// Fraction of the toggled glow's alpha kept at the center, so it doesn't fall off to nothing.
-APPLAUSE_THEME_IMPLEMENT_VALUE(ToggleTextButton, ApplauseToggleTextButtonGlowCenterAmount, 0.0f);
-APPLAUSE_THEME_IMPLEMENT_COLOR(ToggleTextButton, ApplauseToggleTextButtonBorderOn, 0xbb9966ff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(ToggleTextButton, ApplauseToggleTextButtonBorderOnHover, 0xddaa77ff);
-
 namespace {
 void drawGlow(Button& button, applause::Canvas& canvas, float hover) {
-    float glow = hover * canvas.value(Button::ApplauseButtonGlowAmount);
+    float glow = hover * value(button, Button::kGlowAmount);
     if (glow > 0.0f) {
-        applause::Color accent = canvas.color(Button::ApplauseButtonGlow).gradient().sample(0.0f);
+        applause::Color accent = color(button, Button::kGlow);
         applause::Point center = {button.width() * 0.5f, button.height() * 0.5f};
         canvas.setColor(applause::Brush::radial(accent.withAlpha(glow), applause::Color(0x00000000), center,
                                                 button.width() * 0.5f, button.height() * 0.5f));
@@ -140,64 +95,59 @@ UiButton::UiButton(const std::string& text, const applause::Font& font) : text_(
 void UiButton::drawBackground(applause::Canvas& canvas, float hover_amount) {
     int w = width();
     int h = height();
-    float rounding = canvas.value(ApplauseButtonRounding);
-    float mult = hover_amount * canvas.value(ApplauseButtonHoverRoundingMult) + (1.0f - hover_amount);
+    float rounding = value(*this, kRounding);
+    float mult = hover_amount * value(*this, kHoverRoundingMult) + (1.0f - hover_amount);
     float r = rounding * mult;
-
-    auto sample = [&](auto id) { return canvas.color(id).gradient().sample(0.0f); };
 
     if (!isActive()) {
         constexpr float kInactiveDim = 0.2f;
         applause::Color black(0xff000000);
         canvas.setColor(
-            applause::Brush::vertical(sample(ApplauseButtonBackgroundTop).interpolateWith(black, kInactiveDim),
-                                      sample(ApplauseButtonBackgroundBottom).interpolateWith(black, kInactiveDim)));
+            applause::Brush::vertical(color(*this, kBackgroundTop).interpolateWith(black, kInactiveDim),
+                                      color(*this, kBackgroundBottom).interpolateWith(black, kInactiveDim)));
         canvas.roundedRectangle(0, 0, w, h, r);
-        canvas.setColor(sample(ApplauseButtonBorder).interpolateWith(black, kInactiveDim));
-        canvas.roundedRectangleBorder(0, 0, w, h, r, canvas.value(ApplauseButtonBorderWidth));
+        canvas.setColor(color(*this, kBorder).interpolateWith(black, kInactiveDim));
+        canvas.roundedRectangleBorder(0, 0, w, h, r, value(*this, kBorderWidth));
         return;
     }
 
     if (isPressed()) {
         if (action_) {
             // Action pressed: invert the action gradient
-            canvas.setColor(applause::Brush::vertical(sample(ApplauseActionButtonBackgroundBottom),
-                                                      sample(ApplauseActionButtonBackgroundTop)));
+            canvas.setColor(
+                applause::Brush::vertical(color(*this, kActionBackgroundBottom), color(*this, kActionBackgroundTop)));
         } else {
             // Regular pressed: invert the shared gradient
-            canvas.setColor(
-                applause::Brush::vertical(sample(ApplauseButtonBackgroundBottom), sample(ApplauseButtonBackgroundTop)));
+            canvas.setColor(applause::Brush::vertical(color(*this, kBackgroundBottom), color(*this, kBackgroundTop)));
         }
     } else {
         if (action_) {
-            applause::Brush normal = applause::Brush::vertical(sample(ApplauseActionButtonBackgroundTop),
-                                                               sample(ApplauseActionButtonBackgroundBottom));
-            applause::Brush hover = applause::Brush::vertical(sample(ApplauseActionButtonBackgroundTopHover),
-                                                              sample(ApplauseActionButtonBackgroundBottomHover));
+            applause::Brush normal =
+                applause::Brush::vertical(color(*this, kActionBackgroundTop), color(*this, kActionBackgroundBottom));
+            applause::Brush hover = applause::Brush::vertical(color(*this, kActionBackgroundTopHover),
+                                                              color(*this, kActionBackgroundBottomHover));
             canvas.setColor(normal.interpolateWith(hover, hover_amount));
         } else {
             applause::Brush normal =
-                applause::Brush::vertical(sample(ApplauseButtonBackgroundTop), sample(ApplauseButtonBackgroundBottom));
-            applause::Brush hover = applause::Brush::vertical(sample(ApplauseButtonBackgroundTopHover),
-                                                              sample(ApplauseButtonBackgroundBottomHover));
+                applause::Brush::vertical(color(*this, kBackgroundTop), color(*this, kBackgroundBottom));
+            applause::Brush hover =
+                applause::Brush::vertical(color(*this, kBackgroundTopHover), color(*this, kBackgroundBottomHover));
             canvas.setColor(normal.interpolateWith(hover, hover_amount));
         }
     }
     canvas.roundedRectangle(0, 0, w, h, r);
 
     if (isPressed()) {
-        if (action_)
-            canvas.setColor(ApplauseActionButtonBorderPressed);
-        else
-            canvas.setColor(ApplauseButtonBorderPressed);
-        canvas.roundedRectangleBorder(0, 0, w, h, r, canvas.value(ApplauseButtonBorderWidthPressed));
+        canvas.setColor(color(*this, action_ ? kActionBorderPressed : kBorderPressed));
+        canvas.roundedRectangleBorder(0, 0, w, h, r, value(*this, kBorderWidthPressed));
     } else {
         if (action_)
-            canvas.setBlendedColor(ApplauseActionButtonBorder, ApplauseActionButtonBorderHover, hover_amount);
+            canvas.setColor(
+                color(*this, kActionBorder).interpolateWith(color(*this, kActionBorderHover), hover_amount));
         else
-            canvas.setBlendedColor(ApplauseButtonBorder, ApplauseButtonBorderHover, hover_amount);
-        float border_width = hover_amount * canvas.value(ApplauseButtonBorderWidthHover) +
-            (1.0f - hover_amount) * canvas.value(ApplauseButtonBorderWidth);
+            canvas.setColor(color(*this, kBorder).interpolateWith(color(*this, kBorderHover), hover_amount));
+        float border_width =
+            hover_amount * value(*this, kBorderWidthHover) + (1.0f - hover_amount) * value(*this, kBorderWidth);
         canvas.roundedRectangleBorder(0, 0, w, h, r, border_width);
     }
 }
@@ -206,13 +156,12 @@ void UiButton::draw(applause::Canvas& canvas) {
     float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
     drawBackground(canvas, hover_amount);
 
-    if (!isActive()) {
-        applause::Color text_color = canvas.color(ApplauseButtonText).gradient().sample(0.0f);
-        canvas.setColor(text_color.interpolateWith(applause::Color(0xff000000), 0.5f));
-    } else if (isPressed())
-        canvas.setColor(ApplauseButtonTextPressed);
+    if (!isActive())
+        canvas.setColor(color(*this, kText).interpolateWith(applause::Color(0xff000000), 0.5f));
+    else if (isPressed())
+        canvas.setColor(color(*this, kTextPressed));
     else
-        canvas.setBlendedColor(ApplauseButtonText, ApplauseButtonTextHover, hover_amount);
+        canvas.setColor(color(*this, kText).interpolateWith(color(*this, kTextHover), hover_amount));
 
     canvas.text(&text_, 0, 0, width(), height());
     drawGlow(*this, canvas, hover_amount);
@@ -221,14 +170,14 @@ void UiButton::draw(applause::Canvas& canvas) {
 
 void IconButton::draw(applause::Canvas& canvas) {
     float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
-    const auto shadow_color = canvas.color(Button::ApplauseButtonShadow);
+    const auto shadow_color = applause::Brush::solid(color(*this, kShadow));
     shadow_.setFillBrush(shadow_color);
     shadow_.setStrokeBrush(shadow_color);
 
-    const auto icon_color = isActive()
-        ? canvas.blendedColor(ToggleButton::ApplauseToggleButtonOff,
-                              ToggleButton::ApplauseToggleButtonOffHover, hover_amount)
-        : canvas.color(ToggleButton::ApplauseToggleButtonDisabled);
+    const auto icon_color = applause::Brush::solid(
+        isActive()
+            ? color(*this, ToggleButton::kOff).interpolateWith(color(*this, ToggleButton::kOffHover), hover_amount)
+            : color(*this, ToggleButton::kDisabled));
     icon_.setFillBrush(icon_color);
     icon_.setStrokeBrush(icon_color);
 
@@ -270,13 +219,13 @@ bool ToggleButton::toggle() {
 
 void ToggleIconButton::draw(applause::Canvas& canvas) {
     float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
-    const auto shadow_color = canvas.color(Button::ApplauseButtonShadow);
+    const auto shadow_color = applause::Brush::solid(color(*this, kShadow));
     shadow_.setFillBrush(shadow_color);
     shadow_.setStrokeBrush(shadow_color);
 
-    const auto icon_color = toggled()
-        ? canvas.blendedColor(ApplauseToggleButtonOn, ApplauseToggleButtonOnHover, hover_amount)
-        : canvas.blendedColor(ApplauseToggleButtonOff, ApplauseToggleButtonOffHover, hover_amount);
+    const auto icon_color =
+        applause::Brush::solid(toggled() ? color(*this, kOn).interpolateWith(color(*this, kOnHover), hover_amount)
+                                         : color(*this, kOff).interpolateWith(color(*this, kOffHover), hover_amount));
     icon_.setFillBrush(icon_color);
     icon_.setStrokeBrush(icon_color);
 
@@ -293,56 +242,51 @@ ToggleTextButton::ToggleTextButton(const std::string& name, const applause::Font
 void ToggleTextButton::drawBackground(applause::Canvas& canvas, float hover_amount) {
     int w = width();
     int h = height();
-    float rounding = canvas.value(ApplauseButtonRounding);
-    float mult = hover_amount * canvas.value(ApplauseButtonHoverRoundingMult) + (1.0f - hover_amount);
+    float rounding = value(*this, kRounding);
+    float mult = hover_amount * value(*this, kHoverRoundingMult) + (1.0f - hover_amount);
     float r = rounding * mult;
-
-    // super annoying workaround for getting a color out of a Brush. There's not a better way right now.
-    auto sample = [&](auto id) { return canvas.color(id).gradient().sample(0.0f); };
 
     if (!isActive()) {
         constexpr float kInactiveDim = 0.2f;
         applause::Color black(0xff000000);
         canvas.setColor(
-            applause::Brush::vertical(sample(ApplauseButtonBackgroundTop).interpolateWith(black, kInactiveDim),
-                                      sample(ApplauseButtonBackgroundBottom).interpolateWith(black, kInactiveDim)));
+            applause::Brush::vertical(color(*this, kBackgroundTop).interpolateWith(black, kInactiveDim),
+                                      color(*this, kBackgroundBottom).interpolateWith(black, kInactiveDim)));
         canvas.roundedRectangle(0, 0, w, h, r);
-        canvas.setColor(sample(ApplauseButtonBorder).interpolateWith(black, kInactiveDim));
-        canvas.roundedRectangleBorder(0, 0, w, h, r, canvas.value(ApplauseButtonBorderWidth));
+        canvas.setColor(color(*this, kBorder).interpolateWith(black, kInactiveDim));
+        canvas.roundedRectangleBorder(0, 0, w, h, r, value(*this, kBorderWidth));
         return;
     }
 
     if (isPressed()) {
-        canvas.setColor(
-            applause::Brush::vertical(sample(ApplauseButtonBackgroundBottom), sample(ApplauseButtonBackgroundTop)));
+        canvas.setColor(applause::Brush::vertical(color(*this, kBackgroundBottom), color(*this, kBackgroundTop)));
     } else {
         applause::Brush normal =
-            applause::Brush::vertical(sample(ApplauseButtonBackgroundTop), sample(ApplauseButtonBackgroundBottom));
-        applause::Brush hover = applause::Brush::vertical(sample(ApplauseButtonBackgroundTopHover),
-                                                          sample(ApplauseButtonBackgroundBottomHover));
+            applause::Brush::vertical(color(*this, kBackgroundTop), color(*this, kBackgroundBottom));
+        applause::Brush hover =
+            applause::Brush::vertical(color(*this, kBackgroundTopHover), color(*this, kBackgroundBottomHover));
         canvas.setColor(normal.interpolateWith(hover, hover_amount));
     }
     canvas.roundedRectangle(0, 0, w, h, r);
 
     if (toggled()) {
         applause::Point center = {w * 0.5f, h * 0.5f};
-        applause::Color glow_color = canvas.color(ApplauseToggleTextButtonGlow).gradient().sample(0.0f);
-        applause::Color center_color =
-            glow_color.withAlpha(glow_color.alpha() * canvas.value(ApplauseToggleTextButtonGlowCenterAmount));
+        applause::Color glow_color = color(*this, kGlowOn);
+        applause::Color center_color = glow_color.withMultipliedAlpha(value(*this, kGlowOnCenterAmount));
         canvas.setColor(applause::Brush::radial(center_color, glow_color, center, w * 0.5f, h * 0.5f));
         canvas.roundedRectangle(0, 0, w, h, r);
     }
 
     if (toggled())
-        canvas.setBlendedColor(ApplauseToggleTextButtonBorderOn, ApplauseToggleTextButtonBorderOnHover, hover_amount);
+        canvas.setColor(color(*this, kBorderOn).interpolateWith(color(*this, kBorderOnHover), hover_amount));
     else if (isPressed())
-        canvas.setColor(ApplauseButtonBorderPressed);
+        canvas.setColor(color(*this, kBorderPressed));
     else
-        canvas.setBlendedColor(ApplauseButtonBorder, ApplauseButtonBorderHover, hover_amount);
+        canvas.setColor(color(*this, kBorder).interpolateWith(color(*this, kBorderHover), hover_amount));
 
-    float border_width = hover_amount * canvas.value(ApplauseButtonBorderWidthHover) +
-        (1.0f - hover_amount) * canvas.value(ApplauseButtonBorderWidth);
-    if (isPressed()) border_width = canvas.value(ApplauseButtonBorderWidthPressed);
+    float border_width =
+        hover_amount * value(*this, kBorderWidthHover) + (1.0f - hover_amount) * value(*this, kBorderWidth);
+    if (isPressed()) border_width = value(*this, kBorderWidthPressed);
     canvas.roundedRectangleBorder(0, 0, w, h, r, border_width);
 }
 
@@ -350,15 +294,14 @@ void ToggleTextButton::draw(applause::Canvas& canvas) {
     float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
     if (draw_background_) drawBackground(canvas, hover_amount);
 
-    if (!isActive()) {
-        applause::Color text_color = canvas.color(ApplauseButtonText).gradient().sample(0.0f);
-        canvas.setColor(text_color.interpolateWith(applause::Color(0xff000000), 0.5f));
-    } else if (toggled())
-        canvas.setBlendedColor(ApplauseToggleTextButtonTextOn, ApplauseToggleTextButtonTextOnHover, hover_amount);
+    if (!isActive())
+        canvas.setColor(color(*this, kText).interpolateWith(applause::Color(0xff000000), 0.5f));
+    else if (toggled())
+        canvas.setColor(color(*this, kTextOn).interpolateWith(color(*this, kTextOnHover), hover_amount));
     else if (isPressed())
-        canvas.setColor(ApplauseButtonTextPressed);
+        canvas.setColor(color(*this, kTextPressed));
     else
-        canvas.setBlendedColor(ApplauseButtonText, ApplauseButtonTextHover, hover_amount);
+        canvas.setColor(color(*this, kText).interpolateWith(color(*this, kTextHover), hover_amount));
 
     canvas.text(&text_, 0, 0, width(), height());
     drawGlow(*this, canvas, hover_amount);

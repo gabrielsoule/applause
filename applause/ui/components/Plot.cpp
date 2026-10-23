@@ -4,16 +4,6 @@
 
 namespace applause {
 
-APPLAUSE_THEME_IMPLEMENT_COLOR(SimpleCurve, ApplauseTraceLine, 0xff9966ff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(SimpleCurve, ApplauseTraceFill, 0x309966ff);
-APPLAUSE_THEME_IMPLEMENT_VALUE(SimpleCurve, ApplauseTraceLineWidth, 2.0f);
-
-APPLAUSE_THEME_IMPLEMENT_COLOR(PlotView, ApplausePlotBackground, 0xff15151a);
-APPLAUSE_THEME_IMPLEMENT_COLOR(PlotView, ApplausePlotGrid, 0x8c2e2e34);
-APPLAUSE_THEME_IMPLEMENT_COLOR(PlotView, ApplausePlotBorder, 0xff2e2e34);
-APPLAUSE_THEME_IMPLEMENT_VALUE(PlotView, ApplausePlotRounding, 4.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(PlotView, ApplausePlotBorderWidth, 1.0f);
-
 SimpleCurve::SimpleCurve() { setIgnoresMouseEvents(true, false); }
 
 void SimpleCurve::setSamples(std::span<const float> samples) {
@@ -27,18 +17,18 @@ void SimpleCurve::setSamples(std::span<const float> samples) {
 void SimpleCurve::draw(applause::Canvas& canvas) {
     if (source_data_.numPoints() < 2 || width() <= 0.0f || height() <= 0.0f || canvas.totallyClamped()) return;
 
-    const float line_width = std::max(0.0f, canvas.value(ApplauseTraceLineWidth));
+    const float line_width = std::max(0.0f, value(*this, kLineWidth));
     // Visage's graph coordinates include one native pixel of edge antialiasing.
     const float pixel = 1.0f / canvas.dpiScale();
     const float inset = std::min((line_width * 0.5f + pixel) / (height() + pixel), 0.5f);
     const float scale = 1.0f - 2.0f * inset;
     for (int i = 0; i < data_.numPoints(); ++i) data_[i] = inset + source_data_[i] * scale;
 
-    const applause::Color fill_color = canvas.color(ApplauseTraceFill).gradient().sample(0.0f);
+    const applause::Color fill_color = color(*this, kFill);
     canvas.setColor(applause::Brush::vertical(fill_color, fill_color.withAlpha(0.0f)));
     canvas.graphFill(data_, 0.0f, 0.0f, width(), height(), 1.0f);
 
-    canvas.setColor(ApplauseTraceLine);
+    canvas.setColor(color(*this, kLine));
     canvas.graphLine(data_, 0.0f, 0.0f, width(), height(), line_width);
 }
 
@@ -51,15 +41,15 @@ void PlotView::setGridDivisions(int columns, int rows) {
 }
 
 void PlotView::draw(applause::Canvas& canvas) {
-    const float rounding = canvas.value(ApplausePlotRounding);
+    const float rounding = value(*this, kRounding);
 
-    canvas.setColor(ApplausePlotBackground);
+    canvas.setColor(color(*this, kBackground));
     if (rounding > 0.0f)
         canvas.roundedRectangle(0.0f, 0.0f, width(), height(), rounding);
     else
         canvas.fill(0.0f, 0.0f, width(), height());
 
-    canvas.setColor(ApplausePlotGrid);
+    canvas.setColor(color(*this, kGrid));
     for (int column = 1; column < columns_; ++column) {
         const float x = width() * column / columns_;
         canvas.segment(x, 0.0f, x, height(), 1.0f, false);
@@ -69,9 +59,9 @@ void PlotView::draw(applause::Canvas& canvas) {
         canvas.segment(0.0f, y, width(), y, 1.0f, false);
     }
 
-    const float border_width = canvas.value(ApplausePlotBorderWidth);
+    const float border_width = value(*this, kBorderWidth);
     if (border_width > 0.0f) {
-        canvas.setColor(ApplausePlotBorder);
+        canvas.setColor(color(*this, kBorder));
         if (rounding > 0.0f)
             canvas.roundedRectangleBorder(0.0f, 0.0f, width(), height(), rounding, border_width);
         else

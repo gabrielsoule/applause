@@ -27,10 +27,10 @@ class SelectionHighlightFrame;
 class InspectorWindow : public applause::ApplicationWindow,
                         public applause::EventTimer {
 public:
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorWindowBackground);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorWindowBorder);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorToolbarBackground);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorToolbarText);
+    static inline const ColorToken kBackground{"inspectorWindow.background", 0xff111115};
+    static inline const ColorToken kBorder{"inspectorWindow.border", 0xff2a2a2e};
+    static inline const ColorToken kToolbarBackground{"inspectorWindow.toolbarBackground", 0xff222226};
+    static inline const ColorToken kToolbarText{"inspectorWindow.toolbarText", 0xff9a9aa0};
 
     static constexpr int kPollIntervalMs = 100;
     static constexpr float kDefaultWidth = 1020.0f;
@@ -72,10 +72,6 @@ public:
 
     applause::Frame& editor() { return editor_; }
 
-    // The editor's palette. The inspector edits this in place; it does not
-    // own a palette of its own. Safe to call any time after construction —
-    // ApplauseEditor installs its palette before constructing the inspector.
-    applause::Palette& palette() { return *editor_.palette(); }
 
     // True for frames the inspector itself parents onto the editor (the
     // transient pick-capture overlay and the selection-outline overlay). The

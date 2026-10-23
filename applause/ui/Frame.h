@@ -22,14 +22,14 @@
 #pragma once
 
 #include <applause/graphics/Canvas.h>
-#include <applause/graphics/Palette.h>
-#include <applause/graphics/Theme.h>
 #include <applause/ui/Events.h>
 #include <applause/ui/Layout.h>
+#include <applause/ui/Theme.h>
 #include <applause/ui/UndoHistory.h>
 #include <applause/util/Space.h>
 
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace applause {
@@ -112,20 +112,18 @@ public:
     virtual std::string startDragDropSource() { return ""; }
     virtual void cleanupDragDropSource() {}
 
-    void setPalette(Palette* palette) {
-        palette_ = palette;
-        for (Frame* child : children_) child->setPalette(palette);
-    }
-
-    Palette* palette() const { return palette_; }
-
-    void setPaletteOverride(theme::OverrideId override_id, bool recursive = true) {
-        palette_override_ = override_id;
-        if (recursive) {
-            for (Frame* child : children_) child->setPaletteOverride(override_id, true);
-        }
-    }
-    theme::OverrideId paletteOverride() const { return palette_override_; }
+    // Theme values set here apply to this frame and every frame under it, including frames added later, except where a
+    // frame nearer the reader sets the same token. Read them with color() and value().
+    void set(const ColorToken& token, Color color);
+    void set(const ValueToken& token, float value);
+    // Makes a token follow another here, as if that were its default.
+    void set(const ColorToken& token, const ColorToken& source);
+    void set(const ValueToken& token, const ValueToken& source);
+    void unset(const ColorToken& token);
+    void unset(const ValueToken& token);
+    // What this frame itself sets a token to, or null.
+    const Setting<Color>* find(const ColorToken& token) const;
+    const Setting<float>* find(const ValueToken& token) const;
 
     bool initialized() const { return initialized_; }
     void redraw() {
@@ -202,9 +200,7 @@ public:
     int indexOfChild(const Frame* child) const;
     void setParent(Frame* parent) {
         APPLAUSE_ASSERT(parent != this);
-
         parent_ = parent;
-        if (parent && parent->palette()) setPalette(parent->palette());
     }
     Frame* parent() const { return parent_; }
     const std::vector<Frame*>& children() const { return children_; }
@@ -357,9 +353,6 @@ public:
     bool processKeyRelease(const KeyEvent& e) { return on_key_release_.callback(e); }
     void processTextInput(const std::string& text) { textInput(text); }
 
-    float paletteValue(theme::ValueId value_id) const;
-    Brush paletteColor(theme::ColorId color_id) const;
-
     void addUndoableAction(std::unique_ptr<UndoableAction> action) const;
     void triggerUndo() const;
     void triggerRedo() const;
@@ -391,6 +384,10 @@ private:
     void initChildren();
     void destroyChildren();
     void eraseChild(Frame* child);
+    // Positions the children and calls resized(), as a size change does.
+    void runLayout();
+    // Runs layout again on this frame and every frame under it, so value tokens read during layout take effect.
+    void runLayoutRecursively();
 
     bool requiresLayer() const {
         return post_effect_ || backdrop_effect_ || cached_ || masked_ || alpha_transparency_ != 1.0f;
@@ -435,8 +432,8 @@ private:
     FrameEventHandler* event_handler_ = nullptr;
 
     float dpi_scale_ = 1.0f;
-    Palette* palette_ = nullptr;
-    theme::OverrideId palette_override_;
+    std::unordered_map<const ColorToken*, Setting<Color>> theme_colors_;
+    std::unordered_map<const ValueToken*, Setting<float>> theme_values_;
     bool initialized_ = false;
 
     PostEffect* post_effect_ = nullptr;

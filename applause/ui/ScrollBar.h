@@ -28,6 +28,11 @@
 namespace applause {
 class ScrollBar : public Frame {
 public:
+    static inline const ColorToken kColor{"scrollBar.color", 0x22ffffff};
+    static inline const ColorToken kColorDown{"scrollBar.colorDown", 0x55ffffff};
+    // Read by the ScrollableFrame that holds the bar.
+    static inline const ValueToken kWidth{"scrollBar.width", 20.0f};
+
     ScrollBar() :
         color_(Animation<float>::kRegularTime, Animation<float>::kEaseOut, Animation<float>::kEaseOut),
         width_(Animation<float>::kRegularTime, Animation<float>::kEaseOut, Animation<float>::kEaseOut) {

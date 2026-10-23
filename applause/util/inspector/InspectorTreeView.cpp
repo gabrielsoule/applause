@@ -12,12 +12,6 @@
 
 namespace applause::inspector {
 
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorTreeView, ApplauseInspectorRowSelectedBackground, 0x4466bbff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorTreeView, ApplauseInspectorRowHoverBackground,    0x22ffffff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorTreeView, ApplauseInspectorRowText,               0xffd8d8dc);
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorTreeView, ApplauseInspectorRowTextMuted,          0xff7a7a80);
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorTreeView, ApplauseInspectorRowAccent,             0xff66bbff);
-
 namespace {
 
 std::string frameKey(const applause::Frame* f) {
@@ -63,10 +57,10 @@ public:
         if (!frame_) return;
 
         if (ctx.selected) {
-            canvas.setColor(InspectorTreeView::ApplauseInspectorRowSelectedBackground);
+            canvas.setColor(color(*tree(), InspectorTreeView::kRowSelectedBackground));
             canvas.rectangle(0, 0, bounds.width(), bounds.height());
         } else if (ctx.hovered) {
-            canvas.setColor(InspectorTreeView::ApplauseInspectorRowHoverBackground);
+            canvas.setColor(color(*tree(), InspectorTreeView::kRowHoverBackground));
             canvas.rectangle(0, 0, bounds.width(), bounds.height());
         }
 
@@ -76,9 +70,8 @@ public:
         const bool has_children = isBranch();
 
         if (has_children) {
-            canvas.setColor(ctx.selected
-                            ? InspectorTreeView::ApplauseInspectorRowText
-                            : InspectorTreeView::ApplauseInspectorRowTextMuted);
+            canvas.setColor(
+                color(*tree(), ctx.selected ? InspectorTreeView::kRowText : InspectorTreeView::kRowTextMuted));
             const float t = InspectorTreeView::kTriangleSize;
             if (ctx.expanded) {
                 // Down-pointing triangle.
@@ -93,9 +86,7 @@ public:
             }
         }
 
-        canvas.setColor(ctx.selected
-                        ? InspectorTreeView::ApplauseInspectorRowAccent
-                        : InspectorTreeView::ApplauseInspectorRowText);
+        canvas.setColor(color(*tree(), ctx.selected ? InspectorTreeView::kRowAccent : InspectorTreeView::kRowText));
         const float text_x = tri_x + InspectorTreeView::kTriangleSize + 6.0f;
         canvas.text(applause::String(frameTypeName(*frame_)),
                     label_font_, applause::Font::kLeft,

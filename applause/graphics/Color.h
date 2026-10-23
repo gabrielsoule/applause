@@ -313,6 +313,7 @@ public:
     }
 
     Color withAlpha(float alpha) const { return {alpha, values_[kRed], values_[kGreen], values_[kBlue], hdr_}; }
+    Color withMultipliedAlpha(float mult) const { return withAlpha(values_[kAlpha] * mult); }
 
     std::string toARGBHexString() const {
         return floatToHexString(values_[kAlpha]) + floatToHexString(values_[kRed]) + floatToHexString(values_[kGreen]) +

@@ -40,6 +40,19 @@ class PopupMenu {
 public:
     static constexpr int kNotSet = INT_MIN;
 
+    static inline const ColorToken kBackground{"popupMenu.background", 0xff262a2e};
+    static inline const ColorToken kBorder{"popupMenu.border", 0xff606265};
+    static inline const ColorToken kText{"popupMenu.text", 0xffeeeeee};
+    static inline const ColorToken kDisabledText{"popupMenu.disabledText", 0xff888888};
+    static inline const ColorToken kSelection{"popupMenu.selection", theme::kAccent};
+    static inline const ColorToken kSelectionText{"popupMenu.selectionText", 0xffffffff};
+
+    static inline const ValueToken kOptionHeight{"popupMenu.optionHeight", 22.0f};
+    static inline const ValueToken kMinWidth{"popupMenu.minWidth", 175.0f};
+    static inline const ValueToken kTextPadding{"popupMenu.textPadding", 9.0f};
+    static inline const ValueToken kFontSize{"popupMenu.fontSize", 14.0f};
+    static inline const ValueToken kSelectionPadding{"popupMenu.selectionPadding", 4.0f};
+
     PopupMenu() = default;
     PopupMenu(const String& name, int id = -1, std::vector<PopupMenu> options = {}, bool is_break = false) :
         name_(name), id_(id), is_break_(is_break), options_(std::move(options)) {}

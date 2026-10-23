@@ -7,8 +7,6 @@
 
 namespace applause {
 
-APPLAUSE_THEME_IMPLEMENT_COLOR(ParamKnob, ApplauseParamKnobText, 0xffcccccc);
-
 ParamKnob::ParamKnob(ParamInfo& paramInfo, const ModDestination* dst) :
     param_info_(paramInfo), paramValueText_(paramInfo) {
     setReceiveChildMouseEvents(true);
@@ -24,7 +22,9 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo, const ModDestination* dst) :
     paramNameText_.setText(param_info_.shortName);
     paramNameText_.setIgnoresMouseEvents(true, false);
     paramNameText_.setMargin(0, 0);
-    paramNameText_.setTextColorId(ApplauseParamKnobText);
+    // The name is an inactive editor, so its text follows the knob's in both states.
+    paramNameText_.set(TextEditor::kText, kText);
+    paramNameText_.set(TextEditor::kTextDisabled, kText);
     addChild(&paramNameText_);
 
     // Push the parameter's default position into the knob (normalized to 0-1).

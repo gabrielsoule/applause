@@ -2,10 +2,6 @@
 
 #include <applause/ui/ApplauseUI.h>
 
-// visage palette depends on gradient/theme definitions; keep include order.
-// clang-format off
-// clang-format on
-
 #include <applause/extensions/ParamsExtension.h>
 #include <applause/util/thirdparty/rocket.hpp>
 

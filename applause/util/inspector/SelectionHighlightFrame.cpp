@@ -10,17 +10,6 @@
 
 namespace applause::inspector {
 
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionHighlightFrame,
-                               ApplauseInspectorSelectionOutline,      0xff66bbff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionHighlightFrame,
-                               ApplauseInspectorSelectionDistanceLine, 0xaa66bbff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionHighlightFrame,
-                               ApplauseInspectorSelectionDistanceText, 0xffe6f4ff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionHighlightFrame,
-                               ApplauseInspectorResizeHandle,          0xffffffff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(SelectionHighlightFrame,
-                               ApplauseInspectorResizeHandleBorder,    0xff1a3a5a);
-
 namespace {
 
 bool boundsEqual(const applause::Bounds& a, const applause::Bounds& b) {
@@ -100,9 +89,9 @@ void SelectionHighlightFrame::ResizeHandle::mouseExit(const applause::MouseEvent
 }
 
 void SelectionHighlightFrame::ResizeHandle::draw(applause::Canvas& canvas) {
-    canvas.setColor(owner_.ApplauseInspectorResizeHandle);
+    canvas.setColor(color(*this, kResizeHandle));
     canvas.rectangle(0, 0, width(), height());
-    canvas.setColor(owner_.ApplauseInspectorResizeHandleBorder);
+    canvas.setColor(color(*this, kResizeHandleBorder));
     canvas.rectangle(0,            0,             width(), 1.0f);
     canvas.rectangle(0,            height() - 1,  width(), 1.0f);
     canvas.rectangle(0,            0,             1.0f,    height());
@@ -217,7 +206,7 @@ void SelectionHighlightFrame::draw(applause::Canvas& canvas) {
     const float w = selected_.width();
     const float h = selected_.height();
 
-    canvas.setColor(ApplauseInspectorSelectionOutline);
+    canvas.setColor(color(*this, kOutline));
     canvas.rectangle(x, y, w, kThickness);
     canvas.rectangle(x, y + h - kThickness, w, kThickness);
     canvas.rectangle(x, y, kThickness, h);
@@ -236,13 +225,13 @@ void SelectionHighlightFrame::draw(applause::Canvas& canvas) {
     const float cx = x + w * 0.5f;
     const float cy = y + h * 0.5f;
 
-    canvas.setColor(ApplauseInspectorSelectionDistanceLine);
+    canvas.setColor(color(*this, kDistanceLine));
     if (top_gap    > 0.5f) drawVDash(canvas, p_top,    y,        cx);
     if (bottom_gap > 0.5f) drawVDash(canvas, y + h,    p_bottom, cx);
     if (left_gap   > 0.5f) drawHDash(canvas, p_left,   x,        cy);
     if (right_gap  > 0.5f) drawHDash(canvas, x + w,    p_right,  cy);
 
-    canvas.setColor(ApplauseInspectorSelectionDistanceText);
+    canvas.setColor(color(*this, kDistanceText));
     constexpr float kLabelW = 32.0f;
     constexpr float kLabelH = 12.0f;
     auto drawLabel = [&](float center_x, float center_y, float gap) {

@@ -11,14 +11,6 @@ using namespace applause::dimension;
 
 namespace applause {
 
-APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowHeight, 30.0f);  // height of each row
-APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixRowGap, 7.0f);  // vertical spacing between rows
-APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixPadding, 20.0f);  // outer padding of the matrix
-APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixColumnGap,
-                               16.0f);  // horizontal gap between columns
-APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixToggleWidth, 30.0f);  // bipolar toggle button width
-APPLAUSE_THEME_IMPLEMENT_VALUE(ModMatrixComponent, ApplauseModMatrixDeleteWidth, 30.0f);  // delete button width
-
 static std::string connectionLabel(const ModMatrixControl& matrix, const ModConnection& conn) {
     return matrix.getSource(conn.src_idx).name + " -> " + conn.destination()->name;
 }
@@ -26,8 +18,9 @@ static std::string connectionLabel(const ModMatrixControl& matrix, const ModConn
 ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(owner), is_dummy(is_dummy) {
     setFlexLayout(true);
     layout().setFlexRows(false);
-    layout().setFlexGap(paletteValue(ApplauseModMatrixColumnGap));
     layout().setFlexItemAlignment(applause::Layout::ItemAlignment::Stretch);
+    layout().setFlexGrow(0.0f);
+    layout().setFlexShrink(0.0f);
 
     src_menu_.on_build_menu_ = [this](NativePopupMenu& menu) {
         for (uint16_t i = 0; i < owner_.matrix_.getSourceCount(); ++i) {
@@ -66,7 +59,6 @@ ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(
     dst_menu_.layout().setFlexGrow(1.0f);
 
     addChild(&bipolar_toggle_);
-    bipolar_toggle_.layout().setWidth(paletteValue(ApplauseModMatrixToggleWidth));
     bipolar_toggle_.layout().setFlexGrow(0.0f);
     bipolar_toggle_.layout().setFlexShrink(0.0f);
 
@@ -75,7 +67,6 @@ ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(
     depth_slider_.setBipolar(true);
 
     addChild(&delete_button_);
-    delete_button_.layout().setWidth(paletteValue(ApplauseModMatrixDeleteWidth));
     delete_button_.layout().setFlexGrow(0.0f);
     delete_button_.layout().setFlexShrink(0.0f);
 
@@ -171,6 +162,13 @@ void ModMatrixComponent::Row::setControlsActive(bool active) {
     delete_button_.setActive(active);
 }
 
+void ModMatrixComponent::Row::updateLayout() {
+    layout().setHeight(value(*this, kRowHeight));
+    layout().setFlexGap(value(*this, kColumnGap));
+    bipolar_toggle_.layout().setWidth(value(*this, kToggleWidth));
+    delete_button_.layout().setWidth(value(*this, kDeleteWidth));
+}
+
 void ModMatrixComponent::Row::setFont(const applause::Font& font) {
     src_menu_.setFont(font);
     dst_menu_.setFont(font);
@@ -182,9 +180,6 @@ ModMatrixComponent::ModMatrixComponent(applause::ModMatrixControl& matrix) :
     matrix_(matrix), header_font_(11, applause::fonts::Barlow_Medium_ttf) {
     scrollableLayout().setFlex(true);
     scrollableLayout().setFlexRows(true);
-    scrollableLayout().setFlexGap(paletteValue(ApplauseModMatrixRowGap));
-    scrollableLayout().setPaddingLeft(paletteValue(ApplauseModMatrixPadding));
-    scrollableLayout().setPaddingRight(paletteValue(ApplauseModMatrixPadding));
     scrollableLayout().setFlexItemAlignment(applause::Layout::ItemAlignment::Stretch);
 
     setScrollBarRounding(5.0f);
@@ -197,9 +192,7 @@ ModMatrixComponent::ModMatrixComponent(applause::ModMatrixControl& matrix) :
 void ModMatrixComponent::buildHeader() {
     header_.setFlexLayout(true);
     header_.layout().setFlexRows(false);
-    header_.layout().setFlexGap(paletteValue(ApplauseModMatrixColumnGap));
     header_.layout().setFlexItemAlignment(applause::Layout::ItemAlignment::Stretch);
-    header_.layout().setHeight(paletteValue(ApplauseModMatrixRowHeight));
     header_.layout().setFlexGrow(0.0f);
     header_.layout().setFlexShrink(0.0f);
 
@@ -224,7 +217,6 @@ void ModMatrixComponent::buildHeader() {
     setupLabel(header_dest_, "DESTINATION");
 
     header_.addChild(&header_polarity_);
-    header_polarity_.layout().setWidth(paletteValue(ApplauseModMatrixToggleWidth));
     header_polarity_.layout().setFlexGrow(0.0f);
     header_polarity_.layout().setFlexShrink(0.0f);
     setupLabel(header_polarity_, "POL.");
@@ -234,7 +226,6 @@ void ModMatrixComponent::buildHeader() {
     setupLabel(header_amount_, "AMOUNT");
 
     header_.addChild(&header_delete_);
-    header_delete_.layout().setWidth(paletteValue(ApplauseModMatrixDeleteWidth));
     header_delete_.layout().setFlexGrow(0.0f);
     header_delete_.layout().setFlexShrink(0.0f);
 }
@@ -256,9 +247,6 @@ void ModMatrixComponent::rebuildRows() {
     for (auto& conn : matrix_.getConnections()) {
         auto row = std::make_unique<Row>(*this, false);
         if (font_override_) row->setFont(*font_override_);
-        row->layout().setHeight(paletteValue(ApplauseModMatrixRowHeight));
-        row->layout().setFlexGrow(0.0f);
-        row->layout().setFlexShrink(0.0f);
         row->bindToConnection(conn);
         addScrolledChild(row.get());
         rows_.push_back(std::move(row));
@@ -270,6 +258,16 @@ void ModMatrixComponent::rebuildRows() {
 }
 
 void ModMatrixComponent::resized() {
+    // Theme values can change after construction, so every layout reads them again.
+    scrollableLayout().setFlexGap(value(*this, kRowGap));
+    scrollableLayout().setPaddingLeft(value(*this, kPadding));
+    scrollableLayout().setPaddingRight(value(*this, kPadding));
+    header_.layout().setFlexGap(value(*this, kColumnGap));
+    header_.layout().setHeight(value(*this, kRowHeight));
+    header_polarity_.layout().setWidth(value(*this, kToggleWidth));
+    header_delete_.layout().setWidth(value(*this, kDeleteWidth));
+    for (auto& row : rows_) row->updateLayout();
+
     ScrollableFrame::resized();
 
     int bar_width = 10;
@@ -287,9 +285,6 @@ void ModMatrixComponent::resized() {
 void ModMatrixComponent::addDummyRow() {
     auto row = std::make_unique<Row>(*this, true);
     if (font_override_) row->setFont(*font_override_);
-    row->layout().setHeight(paletteValue(ApplauseModMatrixRowHeight));
-    row->layout().setFlexGrow(0.0f);
-    row->layout().setFlexShrink(0.0f);
 
     addScrolledChild(row.get());
     rows_.push_back(std::move(row));

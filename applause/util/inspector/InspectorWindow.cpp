@@ -18,11 +18,6 @@
 
 namespace applause::inspector {
 
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorWindow, ApplauseInspectorWindowBackground,  0xff111115);
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorWindow, ApplauseInspectorWindowBorder,      0xff2a2a2e);
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorWindow, ApplauseInspectorToolbarBackground, 0xff222226);
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorWindow, ApplauseInspectorToolbarText,       0xff9a9aa0);
-
 InspectorWindow::InspectorWindow(applause::Frame& editor)
     : editor_(editor),
       metric_font_(kMetricFontSize, applause::fonts::Barlow_Medium_ttf) {
@@ -213,10 +208,10 @@ bool InspectorWindow::isInternalFrame(const applause::Frame* f) const {
 }
 
 void InspectorWindow::draw(applause::Canvas& canvas) {
-    canvas.setColor(ApplauseInspectorWindowBackground);
+    canvas.setColor(color(*this, kBackground));
     canvas.rectangle(0, 0, width(), height());
 
-    canvas.setColor(ApplauseInspectorToolbarBackground);
+    canvas.setColor(color(*this, kToolbarBackground));
     canvas.rectangle(0, 0, width(), kToolbarHeight);
 
     // BGFX is initialized lazily by Visage on first window show, so we can
@@ -281,7 +276,7 @@ void InspectorWindow::draw(applause::Canvas& canvas) {
         kMetricSlotWidth,  // frames
     };
 
-    canvas.setColor(ApplauseInspectorToolbarText);
+    canvas.setColor(color(*this, kToolbarText));
     float x = 6.0f + kPickButtonWidth + 10.0f;
     for (int i = 0; i < 7; ++i) {
         canvas.text(applause::String(buf[i]), metric_font_, applause::Font::kLeft,
@@ -289,7 +284,7 @@ void InspectorWindow::draw(applause::Canvas& canvas) {
         x += slot_widths[i];
     }
 
-    canvas.setColor(ApplauseInspectorWindowBorder);
+    canvas.setColor(color(*this, kBorder));
     canvas.rectangle(0, kToolbarHeight, width(), 1.0f);
 }
 

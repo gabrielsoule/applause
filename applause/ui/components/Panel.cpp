@@ -6,14 +6,6 @@
 
 namespace applause {
 
-APPLAUSE_THEME_IMPLEMENT_COLOR(Panel, ApplausePanelBackground, 0xff1a1a1f);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Panel, ApplausePanelBorder, 0xff2e2e34);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Panel, ApplausePanelTitleText, 0xffcccccc);
-APPLAUSE_THEME_IMPLEMENT_VALUE(Panel, ApplausePanelRounding, 6.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(Panel, ApplausePanelBorderWidth, 1.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(Panel, ApplausePanelTitleHeight, 40.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(Panel, ApplausePanelContentMargin, 4.0f);
-
 Panel::Panel() : has_title_(false) { addChild(&content_); }
 
 Panel::Panel(const std::string& title) :
@@ -24,25 +16,25 @@ Panel::Panel(const std::string& title) :
 void Panel::draw(applause::Canvas& canvas) {
     float w = width();
     float h = height();
-    float rounding = canvas.value(ApplausePanelRounding);
-    float border_width = canvas.value(ApplausePanelBorderWidth);
+    float rounding = value(*this, kRounding);
+    float border_width = value(*this, kBorderWidth);
 
-    canvas.setColor(ApplausePanelBackground);
+    canvas.setColor(color(*this, kBackground));
     canvas.roundedRectangle(0, 0, w, h, rounding);
 
-    canvas.setColor(ApplausePanelBorder);
+    canvas.setColor(color(*this, kBorder));
     canvas.roundedRectangleBorder(0, 0, w, h, rounding, border_width);
 
     if (has_title_) {
-        float title_h = canvas.value(ApplausePanelTitleHeight);
-        canvas.setColor(ApplausePanelTitleText);
+        float title_h = value(*this, kTitleHeight);
+        canvas.setColor(color(*this, kTitleText));
         canvas.text(&title_, 0, 0, w, title_h);
     }
 }
 
 void Panel::resized() {
-    const float margin = paletteValue(ApplausePanelContentMargin);
-    const float top = has_title_ ? paletteValue(ApplausePanelTitleHeight) : margin;
+    const float margin = value(*this, kContentMargin);
+    const float top = has_title_ ? value(*this, kTitleHeight) : margin;
     content_.setBounds(margin, top, width() - 2 * margin, height() - top - margin);
 }
 

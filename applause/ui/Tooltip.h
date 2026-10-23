@@ -21,9 +21,9 @@ public:
     static constexpr int kFadeInMs = 120;
     static constexpr int kAnimFrameMs = 16;
 
-    APPLAUSE_THEME_DEFINE_COLOR(TooltipBackground);
-    APPLAUSE_THEME_DEFINE_COLOR(TooltipText);
-    APPLAUSE_THEME_DEFINE_COLOR(TooltipBorder);
+    static inline const ColorToken kBackground{"tooltip.background", 0xee1e1e24};
+    static inline const ColorToken kText{"tooltip.text", 0xffcccccc};
+    static inline const ColorToken kBorder{"tooltip.border", 0xff3a3a42};
 
     TooltipDisplay();
 

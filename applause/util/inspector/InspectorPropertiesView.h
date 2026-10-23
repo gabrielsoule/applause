@@ -19,8 +19,8 @@ class InspectorWindow;
 // mutations (resize, animation) propagate into the editors.
 class InspectorPropertiesView : public applause::Frame {
 public:
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorPropertiesKey);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorPropertiesValue);
+    static inline const ColorToken kKey{"inspectorPropertiesView.key", 0xff7a7a80};
+    static inline const ColorToken kValue{"inspectorPropertiesView.value", 0xffd8d8dc};
 
     static constexpr float kRowHeight = 22.0f;
     static constexpr float kPaddingX = 8.0f;

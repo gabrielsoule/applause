@@ -20,21 +20,21 @@ class SelectionGrid;
 /// Override drawContent() to provide custom visuals.
 class SelectionGridCell : public ToggleButton {
 public:
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSelectionGridCellBackground);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSelectionGridCellBackgroundHover);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSelectionGridCellBackgroundPressed);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSelectionGridCellGlowSelected);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSelectionGridCellBorder);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSelectionGridCellBorderSelected);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSelectionGridCellContent);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSelectionGridCellContentHover);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSelectionGridCellContentSelected);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSelectionGridCellContentSelectedHover);
+    static inline const ColorToken kBackground{"selectionGridCell.background", 0x00000000};
+    static inline const ColorToken kBackgroundHover{"selectionGridCell.backgroundHover", 0x11ffffff};
+    static inline const ColorToken kBackgroundPressed{"selectionGridCell.backgroundPressed", 0xff1d1d22};
+    static inline const ColorToken kGlowSelected{"selectionGridCell.glowSelected", theme::kAccent, 0.33f};
+    static inline const ColorToken kBorder{"selectionGridCell.border", 0x00000000};
+    static inline const ColorToken kBorderSelected{"selectionGridCell.borderSelected", theme::kAccent};
+    static inline const ColorToken kContent{"selectionGridCell.content", 0xffa0a0a8};
+    static inline const ColorToken kContentHover{"selectionGridCell.contentHover", 0xffd0d0d8};
+    static inline const ColorToken kContentSelected{"selectionGridCell.contentSelected", theme::kAccent};
+    static inline const ColorToken kContentSelectedHover{"selectionGridCell.contentSelectedHover", kContentSelected};
 
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseSelectionGridCellRounding);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseSelectionGridCellBorderWidth);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseSelectionGridCellContentPadding);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseSelectionGridCellGlowCenterAmount);
+    static inline const ValueToken kRounding{"selectionGridCell.rounding", 4.0f};
+    static inline const ValueToken kBorderWidth{"selectionGridCell.borderWidth", 1.0f};
+    static inline const ValueToken kContentPadding{"selectionGridCell.contentPadding", 6.0f};
+    static inline const ValueToken kGlowCenterAmount{"selectionGridCell.glowCenterAmount", 0.35f};
 
     [[nodiscard]] bool selected() const noexcept { return toggled(); }
     /// Returns the cell's index in its grid.
@@ -77,13 +77,13 @@ private:
 /// Supply text labels or use emplaceCell() to add your own cell visuals.
 class SelectionGrid : public applause::Frame {
 public:
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSelectionGridBackground);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSelectionGridBorder);
+    static inline const ColorToken kBackground{"selectionGrid.background", 0xff141418};
+    static inline const ColorToken kBorder{"selectionGrid.border", 0xff2a2a2e};
 
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseSelectionGridGap);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseSelectionGridPadding);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseSelectionGridRounding);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseSelectionGridBorderWidth);
+    static inline const ValueToken kGap{"selectionGrid.gap", 4.0f};
+    static inline const ValueToken kPadding{"selectionGrid.padding", 4.0f};
+    static inline const ValueToken kRounding{"selectionGrid.rounding", 8.0f};
+    static inline const ValueToken kBorderWidth{"selectionGrid.borderWidth", 1.0f};
 
     /// Creates a fixed grid of empty cells, with cell 0 selected.
     /// Rows and columns must be positive.

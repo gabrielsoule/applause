@@ -18,17 +18,17 @@ void drawToggleIndicator(ToggleButton& button, applause::Canvas& canvas, applaus
     rounding = std::clamp(rounding, 0.0f, size * 0.5f);
 
     if (size > 0.0f) {
-        canvas.setBlendedColor(Button::ApplauseButtonBackgroundTop, Button::ApplauseButtonBackgroundTopHover, hover);
+        canvas.setColor(
+            color(button, Button::kBackgroundTop).interpolateWith(color(button, Button::kBackgroundTopHover), hover));
         if (radio)
             canvas.circle(0.0f, y, size);
         else
             canvas.roundedRectangle(0.0f, y, size, size, rounding);
 
-        const float glow = button.isActive()
-                               ? std::min(1.0f, 1.75f * hover * canvas.value(Button::ApplauseButtonGlowAmount))
-                               : 0.0f;
+        const float glow =
+            button.isActive() ? std::min(1.0f, 1.75f * hover * value(button, Button::kGlowAmount)) : 0.0f;
         if (glow > 0.0f) {
-            const auto accent = canvas.color(Button::ApplauseButtonGlow).gradient().sample(0.0f);
+            const auto accent = color(button, Button::kGlow);
             const applause::Point center{size * 0.5f, y + size * 0.5f};
             canvas.setColor(applause::Brush::radial(accent.withAlpha(glow), applause::Color(0x00000000), center,
                                                   size * 0.65f));
@@ -39,15 +39,15 @@ void drawToggleIndicator(ToggleButton& button, applause::Canvas& canvas, applaus
         }
 
         if (!button.isActive())
-            canvas.setColor(ToggleButton::ApplauseToggleButtonDisabled);
+            canvas.setColor(color(button, ToggleButton::kDisabled));
         else if (button.isPressed())
-            canvas.setColor(Button::ApplauseButtonTextPressed);
+            canvas.setColor(color(button, Button::kTextPressed));
         else if (button.toggled())
-            canvas.setBlendedColor(ToggleButton::ApplauseToggleButtonOn, ToggleButton::ApplauseToggleButtonOnHover,
-                                   hover);
+            canvas.setColor(
+                color(button, ToggleButton::kOn).interpolateWith(color(button, ToggleButton::kOnHover), hover));
         else
-            canvas.setBlendedColor(ToggleButton::ApplauseToggleButtonOff, ToggleButton::ApplauseToggleButtonOffHover,
-                                   hover);
+            canvas.setColor(
+                color(button, ToggleButton::kOff).interpolateWith(color(button, ToggleButton::kOffHover), hover));
 
         if (radio)
             canvas.ring(0.0f, y, size, border);
@@ -68,11 +68,11 @@ void drawToggleIndicator(ToggleButton& button, applause::Canvas& canvas, applaus
     }
 
     if (!button.isActive())
-        canvas.setColor(ToggleButton::ApplauseToggleButtonDisabled);
+        canvas.setColor(color(button, ToggleButton::kDisabled));
     else if (button.isPressed())
-        canvas.setColor(Button::ApplauseButtonTextPressed);
+        canvas.setColor(color(button, Button::kTextPressed));
     else
-        canvas.setBlendedColor(Button::ApplauseButtonText, Button::ApplauseButtonTextHover, hover);
+        canvas.setColor(color(button, Button::kText).interpolateWith(color(button, Button::kTextHover), hover));
 
     const float text_x = size + std::max(0.0f, text_gap);
     const float text_width = std::max(0.0f, button.width() - text_x);
@@ -81,11 +81,6 @@ void drawToggleIndicator(ToggleButton& button, applause::Canvas& canvas, applaus
 }
 
 }  // namespace
-
-APPLAUSE_THEME_IMPLEMENT_VALUE(Checkbox, ApplauseCheckboxSize, 16.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(Checkbox, ApplauseCheckboxTextGap, 8.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(Checkbox, ApplauseCheckboxBorderWidth, 1.5f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(Checkbox, ApplauseCheckboxRounding, 3.0f);
 
 Checkbox::Checkbox(std::string text) :
     ToggleButton(text), text_(text, applause::Font(12, applause::fonts::Barlow_Medium_ttf), applause::Font::kLeft) {}
@@ -102,15 +97,10 @@ void Checkbox::setFont(const applause::Font& font) {
 
 void Checkbox::draw(applause::Canvas& canvas) {
     const float hover = isActive() ? hover_amount_.update() : 0.0f;
-    drawToggleIndicator(*this, canvas, text_, hover, canvas.value(ApplauseCheckboxSize),
-                        canvas.value(ApplauseCheckboxTextGap), canvas.value(ApplauseCheckboxBorderWidth),
-                        canvas.value(ApplauseCheckboxRounding), false);
+    drawToggleIndicator(*this, canvas, text_, hover, value(*this, kSize), value(*this, kTextGap),
+                        value(*this, kBorderWidth), value(*this, kRounding), false);
     if (isActive() && hover_amount_.isAnimating()) redraw();
 }
-
-APPLAUSE_THEME_IMPLEMENT_VALUE(RadioButton, ApplauseRadioButtonSize, 16.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(RadioButton, ApplauseRadioButtonTextGap, 8.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(RadioButton, ApplauseRadioButtonBorderWidth, 1.5f);
 
 RadioButton::RadioButton(std::string text) :
     ToggleButton(text), text_(text, applause::Font(12, applause::fonts::Barlow_Medium_ttf), applause::Font::kLeft) {}
@@ -127,8 +117,8 @@ void RadioButton::setFont(const applause::Font& font) {
 
 void RadioButton::draw(applause::Canvas& canvas) {
     const float hover = isActive() ? hover_amount_.update() : 0.0f;
-    drawToggleIndicator(*this, canvas, text_, hover, canvas.value(ApplauseRadioButtonSize),
-                        canvas.value(ApplauseRadioButtonTextGap), canvas.value(ApplauseRadioButtonBorderWidth), 0.0f, true);
+    drawToggleIndicator(*this, canvas, text_, hover, value(*this, kSize), value(*this, kTextGap),
+                        value(*this, kBorderWidth), 0.0f, true);
     if (isActive() && hover_amount_.isAnimating()) redraw();
 }
 

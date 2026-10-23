@@ -13,11 +13,11 @@ class InspectorWindow;
 // children = frame children) lives in FrameTreeRow inside the .cpp.
 class InspectorTreeView : public CollapsibleTreeView {
 public:
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorRowSelectedBackground);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorRowHoverBackground);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorRowText);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorRowTextMuted);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorRowAccent);
+    static inline const ColorToken kRowAccent{"inspectorTreeView.rowAccent", 0xff66bbff};
+    static inline const ColorToken kRowSelectedBackground{"inspectorTreeView.rowSelectedBackground", kRowAccent, 0.27f};
+    static inline const ColorToken kRowHoverBackground{"inspectorTreeView.rowHoverBackground", 0x22ffffff};
+    static inline const ColorToken kRowText{"inspectorTreeView.rowText", 0xffd8d8dc};
+    static inline const ColorToken kRowTextMuted{"inspectorTreeView.rowTextMuted", 0xff7a7a80};
 
     static constexpr float kRowHeightDefault = 20.0f;
     static constexpr float kIndentPx = 14.0f;

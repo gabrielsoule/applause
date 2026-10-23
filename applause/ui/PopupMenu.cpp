@@ -21,23 +21,9 @@
 
 #include <applause/ui/PopupMenu.h>
 
-#include <applause/graphics/Theme.h>
 #include <embedded/applause_fonts.h>
 
 namespace applause {
-APPLAUSE_THEME_COLOR(PopupMenuBackground, 0xff262a2e);
-APPLAUSE_THEME_COLOR(PopupMenuBorder, 0xff606265);
-APPLAUSE_THEME_COLOR(PopupMenuText, 0xffeeeeee);
-APPLAUSE_THEME_COLOR(PopupMenuDisabledText, 0xff888888);
-APPLAUSE_THEME_COLOR(PopupMenuSelection, 0xffaa88ff);
-APPLAUSE_THEME_COLOR(PopupMenuSelectionText, 0xffffffff);
-
-APPLAUSE_THEME_VALUE(PopupOptionHeight, 22.0f);
-APPLAUSE_THEME_VALUE(PopupMinWidth, 175.0f);
-APPLAUSE_THEME_VALUE(PopupTextPadding, 9.0f);
-APPLAUSE_THEME_VALUE(PopupFontSize, 14.0f);
-APPLAUSE_THEME_VALUE(PopupSelectionPadding, 4.0f);
-
 void PopupMenu::show(Frame* source, Point position) {
     std::unique_ptr<PopupMenuFrame> frame = std::make_unique<PopupMenuFrame>(*this);
     PopupMenuFrame* frame_ptr = frame.get();
@@ -45,14 +31,14 @@ void PopupMenu::show(Frame* source, Point position) {
 }
 
 float PopupList::renderHeight() const {
-    float popup_height = paletteValue(PopupOptionHeight);
-    float selection_padding = paletteValue(PopupSelectionPadding);
+    float popup_height = value(*this, PopupMenu::kOptionHeight);
+    float selection_padding = value(*this, PopupMenu::kSelectionPadding);
     return options_.size() * popup_height + 2.0f * selection_padding;
 }
 
 float PopupList::renderWidth() const {
-    float width = paletteValue(PopupMinWidth);
-    float x_padding = paletteValue(PopupSelectionPadding) + paletteValue(PopupTextPadding);
+    float width = value(*this, PopupMenu::kMinWidth);
+    float x_padding = value(*this, PopupMenu::kSelectionPadding) + value(*this, PopupMenu::kTextPadding);
     for (const PopupMenu& option : options_) {
         float string_width = font_.stringWidth(option.name().c_str(), option.name().size()) + 2 * x_padding;
         width = std::max(width, string_width);
@@ -62,7 +48,7 @@ float PopupList::renderWidth() const {
 }
 
 int PopupList::yForIndex(int index) const {
-    return paletteValue(PopupSelectionPadding) + index * paletteValue(PopupOptionHeight);
+    return value(*this, PopupMenu::kSelectionPadding) + index * value(*this, PopupMenu::kOptionHeight);
 }
 
 void PopupList::selectHoveredIndex() {
@@ -78,9 +64,9 @@ void PopupList::selectHoveredIndex() {
 }
 
 void PopupList::setHoverFromPosition(Point position) {
-    int y = paletteValue(PopupSelectionPadding);
+    int y = value(*this, PopupMenu::kSelectionPadding);
 
-    int option_height = paletteValue(PopupOptionHeight);
+    int option_height = value(*this, PopupMenu::kOptionHeight);
     for (int i = 0; i < options_.size(); ++i) {
         if (!options_[i].isBreak() && options_[i].enabled() && position.y >= y && position.y < y + option_height) {
             hover_index_ = i;
@@ -101,29 +87,29 @@ void PopupList::selectFromPosition(Point position) {
 void PopupList::draw(Canvas& canvas) {
     static constexpr float kTriangleWidthRatio = 0.25f;
 
-    Brush background = canvas.color(PopupMenuBackground).withMultipliedAlpha(opacity_);
-    Brush border = canvas.color(PopupMenuBorder).withMultipliedAlpha(opacity_);
+    Color background = color(*this, PopupMenu::kBackground).withMultipliedAlpha(opacity_);
+    Color border = color(*this, PopupMenu::kBorder).withMultipliedAlpha(opacity_);
     canvas.setColor(background);
     canvas.roundedRectangle(0, 0, width(), height(), 8.0f);
 
     canvas.setColor(border);
     canvas.roundedRectangleBorder(0, 0, width(), height(), 8.0f, 1);
 
-    int selection_padding = paletteValue(PopupSelectionPadding);
-    int x_padding = selection_padding + paletteValue(PopupTextPadding);
-    int option_height = paletteValue(PopupOptionHeight);
+    int selection_padding = value(*this, PopupMenu::kSelectionPadding);
+    int x_padding = selection_padding + value(*this, PopupMenu::kTextPadding);
+    int option_height = value(*this, PopupMenu::kOptionHeight);
     int y = selection_padding - yPosition();
 
-    Brush text = canvas.color(PopupMenuText).withMultipliedAlpha(opacity_);
-    Brush disabled_text = canvas.color(PopupMenuDisabledText).withMultipliedAlpha(opacity_);
-    Brush selected_text = canvas.color(PopupMenuSelectionText).withMultipliedAlpha(opacity_);
+    Color text = color(*this, PopupMenu::kText).withMultipliedAlpha(opacity_);
+    Color disabled_text = color(*this, PopupMenu::kDisabledText).withMultipliedAlpha(opacity_);
+    Color selected_text = color(*this, PopupMenu::kSelectionText).withMultipliedAlpha(opacity_);
     for (int i = 0; i < options_.size(); ++i) {
         if (y + option_height > 0 && y < height()) {
             if (options_[i].isBreak())
                 canvas.rectangle(x_padding, y + option_height / 2, width() - 2 * x_padding, 1);
             else {
                 if (i == hover_index_) {
-                    Brush selected = canvas.color(PopupMenuSelection).withMultipliedAlpha(opacity_);
+                    Color selected = color(*this, PopupMenu::kSelection).withMultipliedAlpha(opacity_);
                     canvas.setColor(selected);
                     canvas.roundedRectangle(selection_padding, y, width() - 2 * selection_padding, option_height, 4.0f);
                     canvas.setColor(selected_text);
@@ -132,7 +118,7 @@ void PopupList::draw(Canvas& canvas) {
                 else
                     canvas.setColor(disabled_text);
 
-                int popup_font_size = paletteValue(PopupFontSize);
+                int popup_font_size = value(*this, PopupMenu::kFontSize);
                 Font font = font_.withSize(popup_font_size);
                 canvas.text(options_[i].name(), font, Font::kLeft, x_padding, y, width(), option_height);
 
@@ -238,7 +224,7 @@ void PopupMenuFrame::show(std::unique_ptr<PopupMenuFrame> self, Frame* source, P
 
     for (int i = 1; i < kMaxSubMenus; ++i) lists_[i].setVisible(false);
 
-    font_ = font_.withSize(paletteValue(PopupFontSize));
+    font_ = font_.withSize(value(*this, PopupMenu::kFontSize));
     setListFonts(font_);
 
     lists_[0].setOptions(menu_.options());
@@ -394,10 +380,10 @@ void ValueDisplay::showDisplay(const String& text, Bounds bounds, Font::Justific
     setVisible(true);
     text_ = text;
 
-    Font font = font_.withSize(paletteValue(PopupFontSize));
-    int x_padding = paletteValue(PopupSelectionPadding) + paletteValue(PopupTextPadding);
+    Font font = font_.withSize(value(*this, PopupMenu::kFontSize));
+    int x_padding = value(*this, PopupMenu::kSelectionPadding) + value(*this, PopupMenu::kTextPadding);
     int width = font.stringWidth(text.c_str(), text.length()) + 2 * x_padding;
-    int height = paletteValue(PopupOptionHeight);
+    int height = value(*this, PopupMenu::kOptionHeight);
     int x = bounds.xCenter() - width / 2;
     int y = bounds.yCenter() - height / 2;
     if (justification & Font::kLeft)
@@ -414,15 +400,14 @@ void ValueDisplay::showDisplay(const String& text, Bounds bounds, Font::Justific
 }
 
 void ValueDisplay::draw(Canvas& canvas) {
-    Font font = font_.withSize(paletteValue(PopupFontSize));
-    canvas.setColor(PopupMenuBackground);
+    Font font = font_.withSize(value(*this, PopupMenu::kFontSize));
+    canvas.setColor(color(*this, PopupMenu::kBackground));
     canvas.roundedRectangle(0, 0, width(), height(), 8.0f);
 
-    canvas.setColor(PopupMenuBorder);
+    canvas.setColor(color(*this, PopupMenu::kBorder));
     canvas.roundedRectangleBorder(0, 0, width(), height(), 8.0f, 1.0f);
 
-    canvas.setColor(PopupMenuText);
-    canvas.setColor(canvas.color(PopupMenuText));
+    canvas.setColor(color(*this, PopupMenu::kText));
     canvas.text(text_, font, Font::kCenter, 0, 0, width(), height());
 }
 }  // namespace applause

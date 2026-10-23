@@ -21,14 +21,7 @@
 
 #include <applause/ui/ScrollBar.h>
 
-#include <applause/graphics/Theme.h>
-
 namespace applause {
-APPLAUSE_THEME_COLOR(ScrollBarDefault, 0x22ffffff);
-APPLAUSE_THEME_COLOR(ScrollBarDown, 0x55ffffff);
-
-APPLAUSE_THEME_VALUE(ScrollBarWidth, 20.0f);
-
 void ScrollBar::draw(Canvas& canvas) {
     if (!active_ || range_ <= 0) return;
 
@@ -36,7 +29,7 @@ void ScrollBar::draw(Canvas& canvas) {
     float height_ratio = view_height_ * 1.0f / range_;
     int h = height();
 
-    canvas.setBlendedColor(ScrollBarDefault, ScrollBarDown, color_.update());
+    canvas.setColor(color(*this, kColor).interpolateWith(color(*this, kColorDown), color_.update()));
     float w = width_.update();
 
     float rounding = std::min(width_.sourceValue() / 2.0f, rounding_);
@@ -121,7 +114,7 @@ void ScrollableFrame::updateScrollableHeight() {
 }
 
 void ScrollableFrame::resized() {
-    int scroll_bar_width = paletteValue(ScrollBarWidth);
+    int scroll_bar_width = value(*this, ScrollBar::kWidth);
     int x = scroll_bar_left_ ? 0 : width() - scroll_bar_width;
     smooth_position_ = y_position_;
     scroll_bar_.setBounds(x, 0, scroll_bar_width, height());

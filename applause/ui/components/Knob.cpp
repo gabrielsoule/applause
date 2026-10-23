@@ -9,17 +9,6 @@
 
 namespace applause {
 
-APPLAUSE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobBodyTop, 0xFF333338);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobBodyBottom, 0xFF1a1a1e);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobBodyBorder, 0xFF444444);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobArcTrack, 0xFF2a2a2e);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobAccent, 0xff9966ff);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Knob, ApplauseKnobShadow, 0x88000000);
-
-APPLAUSE_THEME_IMPLEMENT_VALUE(Knob, ApplauseKnobArcThickness, 3.0f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(Knob, ApplauseKnobTrackInset, 1.5f);
-APPLAUSE_THEME_IMPLEMENT_VALUE(Knob, ApplauseKnobSweep, 300.0f * (static_cast<float>(M_PI) / 180.0f));
-
 Knob::Knob() {
     glow_amount_.setSourceValue(0.0f);
     glow_amount_.setTargetValue(1.0f);
@@ -48,9 +37,9 @@ void Knob::draw(applause::Canvas& canvas) {
     float radius = size * 0.5f;
 
     constexpr float kTopCenter = 1.5f * static_cast<float>(M_PI);  // 270° = 3π/2
-    float sweep = canvas.value(ApplauseKnobSweep);
-    float arcThickness = canvas.value(ApplauseKnobArcThickness);
-    float trackCenter = radius - canvas.value(ApplauseKnobTrackInset);
+    float sweep = value(*this, kSweep);
+    float arcThickness = value(*this, kArcThickness);
+    float trackCenter = radius - value(*this, kTrackInset);
     float halfSweep = sweep * 0.5f;
     float startAngle = kTopCenter - halfSweep;
     float bodyRadius = radius - 6.0f;
@@ -60,24 +49,23 @@ void Knob::draw(applause::Canvas& canvas) {
     float shadowOffset = 4.0f;
     float shadowPad = 3.0f;
     float shadowDiameter = bodyDiameter + shadowPad * 2.0f;
-    canvas.setColor(ApplauseKnobShadow);
+    canvas.setColor(color(*this, kShadow));
     canvas.fadeCircle(centerX - bodyRadius - shadowPad, centerY - bodyRadius - shadowPad + shadowOffset, shadowDiameter,
                       10.0f);
 
     // Draw knob body
     float bodyX = centerX - bodyRadius;
     float bodyY = centerY - bodyRadius;
-    auto sample = [&](auto id) { return canvas.color(id).gradient().sample(0.0f); };
-    canvas.setColor(applause::Brush::vertical(sample(ApplauseKnobBodyTop), sample(ApplauseKnobBodyBottom)));
+    canvas.setColor(applause::Brush::vertical(color(*this, kBodyTop), color(*this, kBodyBottom)));
     canvas.circle(bodyX, bodyY, bodyDiameter);
-    canvas.setColor(ApplauseKnobBodyBorder);
+    canvas.setColor(color(*this, kBodyBorder));
     canvas.ring(bodyX, bodyY, bodyDiameter, 1.0f);
 
     // Animated radial glow over body center
     glow_amount_.update();
     float glowAlpha = glow_amount_.value();
     if (glowAlpha > 0.0f) {
-        applause::Color accent = sample(ApplauseKnobAccent);
+        applause::Color accent = color(*this, kAccent);
         applause::Gradient glow;
         glow.addColorStop(accent.withAlpha(glowAlpha * 0.35f), 0.0f);
         glow.addColorStop(accent.withAlpha(glowAlpha * 0.15f), 0.6f);
@@ -92,12 +80,12 @@ void Knob::draw(applause::Canvas& canvas) {
     if (value_ != default_value_) {
         float accentCenter = startAngle + (value_ + default_value_) * 0.5f * sweep;
         float accentHalfSpan = std::abs(value_ - default_value_) * 0.5f * sweep;
-        canvas.setColor(ApplauseKnobAccent);
+        canvas.setColor(color(*this, kAccent));
         canvas.arc(bodyX, bodyY, bodyDiameter, 1.0f, accentCenter, accentHalfSpan, false);
     }
 
     // Draw arc track
-    canvas.setColor(ApplauseKnobArcTrack);
+    canvas.setColor(color(*this, kArcTrack));
     float trackDiameter = trackCenter * 2.0f;
     canvas.arc(centerX - trackCenter, centerY - trackCenter, trackDiameter, arcThickness, kTopCenter, halfSweep, true);
 
@@ -110,13 +98,13 @@ void Knob::draw(applause::Canvas& canvas) {
         arc_max = std::clamp(arc_max, 0.0f, 1.0f);
         const float ac = startAngle + (arc_min + arc_max) * 0.5f * sweep;
         const float ah = (arc_max - arc_min) * 0.5f * sweep;
-        canvas.setColor(canvas.color(ApplauseKnobAccent).gradient().sample(0.0f).withAlpha(0.35f));
+        canvas.setColor(color(*this, kAccent).withAlpha(0.35f));
         canvas.arc(centerX - trackCenter, centerY - trackCenter, trackDiameter, arcThickness, ac, ah, true);
     }
 
     const float dotDiameter = arcThickness;
     const float dotTrackRadius = trackCenter - arcThickness * 0.5f;
-    canvas.setColor(ApplauseKnobAccent);
+    canvas.setColor(color(*this, kAccent));
 
     auto drawDot = [&](float v) {
         v = std::clamp(v, 0.0f, 1.0f);
@@ -143,7 +131,7 @@ void Knob::draw(applause::Canvas& canvas) {
     float needleStartRadius = 5.0f;
     float lineStartX = centerX + static_cast<float>(std::cos(angle)) * needleStartRadius;
     float lineStartY = centerY + static_cast<float>(std::sin(angle)) * needleStartRadius;
-    canvas.setColor(ApplauseKnobAccent);
+    canvas.setColor(color(*this, kAccent));
     canvas.segment(lineStartX, lineStartY, lineEndX, lineEndY, 3.0f, true);
 }
 

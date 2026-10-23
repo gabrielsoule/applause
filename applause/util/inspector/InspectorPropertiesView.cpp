@@ -12,9 +12,6 @@
 
 namespace applause::inspector {
 
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorPropertiesView, ApplauseInspectorPropertiesKey,   0xff7a7a80);
-APPLAUSE_THEME_IMPLEMENT_COLOR(InspectorPropertiesView, ApplauseInspectorPropertiesValue, 0xffd8d8dc);
-
 namespace {
 
 constexpr int kRowType         = 0;
@@ -161,10 +158,10 @@ void InspectorPropertiesView::commitBoundsFromEditors() {
 void InspectorPropertiesView::drawRow(applause::Canvas& canvas, int row,
                                       const char* key, const std::string& value) {
     float y = static_cast<float>(row) * kRowHeight;
-    canvas.setColor(ApplauseInspectorPropertiesKey);
+    canvas.setColor(color(*this, kKey));
     canvas.text(applause::String(key), label_font_, applause::Font::kLeft,
                 kPaddingX, y, kKeyColumn, kRowHeight);
-    canvas.setColor(ApplauseInspectorPropertiesValue);
+    canvas.setColor(color(*this, kValue));
     float vx = kPaddingX + kKeyColumn;
     canvas.text(applause::String(value), label_font_, applause::Font::kLeft,
                 vx, y, width() - vx - kPaddingX, kRowHeight);
@@ -173,7 +170,7 @@ void InspectorPropertiesView::drawRow(applause::Canvas& canvas, int row,
 void InspectorPropertiesView::draw(applause::Canvas& canvas) {
     auto* sel = window_.selectedFrame();
     if (!sel) {
-        canvas.setColor(ApplauseInspectorPropertiesKey);
+        canvas.setColor(color(*this, kKey));
         canvas.text(applause::String("(no selection — click a row or use Pick mode)"),
                     label_font_, applause::Font::kCenter,
                     0, 0, width(), height());
@@ -186,7 +183,7 @@ void InspectorPropertiesView::draw(applause::Canvas& canvas) {
 
     // Bounds / visible / on-top / ignores-mouse: only the key label here;
     // the value area is covered by the live child editors / toggles.
-    canvas.setColor(ApplauseInspectorPropertiesKey);
+    canvas.setColor(color(*this, kKey));
     auto drawKeyOnly = [&](int row, const char* key) {
         canvas.text(applause::String(key), label_font_, applause::Font::kLeft,
                     kPaddingX, static_cast<float>(row) * kRowHeight,

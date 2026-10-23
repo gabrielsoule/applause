@@ -9,11 +9,11 @@ namespace applause {
  */
 class Slider : public applause::Frame {
 public:
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSliderThumbTop);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSliderThumbBottom);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSliderThumbBorder);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSliderTrack);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseSliderAccent);
+    static inline const ColorToken kThumbTop{"slider.thumbTop", 0xff333338};
+    static inline const ColorToken kThumbBottom{"slider.thumbBottom", 0xff1a1a1e};
+    static inline const ColorToken kThumbBorder{"slider.thumbBorder", 0xff444444};
+    static inline const ColorToken kTrack{"slider.track", 0xff2a2a2e};
+    static inline const ColorToken kAccent{"slider.accent", theme::kAccent};
 
     Slider();
 

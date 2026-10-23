@@ -16,7 +16,7 @@ namespace applause {
  */
 class ParamKnob : public applause::Frame {
 public:
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseParamKnobText);
+    static inline const ColorToken kText{"paramKnob.text", 0xffcccccc};
 
     ParamKnob(ParamInfo& paramInfo, const ModDestination* dst = nullptr);
 

@@ -75,17 +75,17 @@ TEST_CASE("SelectionGrid validates dimensions and labels", "[ui][selection-grid]
     REQUIRE(dynamic_cast<const applause::TextSelectionGridCell&>(grid.cell(3)).text().toUtf8() == "D");
 }
 
-// Every section pins the gap and padding on a palette so the layout math is checked independently
+// Every section pins the gap and padding on the grid so the layout math is checked independently
 // of whatever the theme defaults happen to be.
 TEST_CASE("SelectionGrid lays cells out in row-major order with gaps", "[ui][selection-grid]") {
-    applause::Palette palette;
-    palette.initWithDefaults();
-    palette.setValue(applause::SelectionGrid::ApplauseSelectionGridGap, 5.0f);
-    palette.setValue(applause::SelectionGrid::ApplauseSelectionGridPadding, 5.0f);
+    const auto pin = [](applause::SelectionGrid& grid, float padding = 5.0f) {
+        grid.set(applause::SelectionGrid::kGap, 5.0f);
+        grid.set(applause::SelectionGrid::kPadding, padding);
+    };
 
     SECTION("two-dimensional grid") {
         applause::SelectionGrid grid(2, 2);
-        grid.setPalette(&palette);
+        pin(grid);
         grid.setBounds(0.0f, 0.0f, 105.0f, 55.0f);
 
         const auto& first = grid.cell(0).bounds();
@@ -107,7 +107,7 @@ TEST_CASE("SelectionGrid lays cells out in row-major order with gaps", "[ui][sel
 
     SECTION("single row") {
         applause::SelectionGrid grid(3, 1);
-        grid.setPalette(&palette);
+        pin(grid);
         grid.setBounds(0.0f, 0.0f, 110.0f, 20.0f);
 
         REQUIRE(grid.cell(0).x() == Approx(5.0f));
@@ -119,7 +119,7 @@ TEST_CASE("SelectionGrid lays cells out in row-major order with gaps", "[ui][sel
 
     SECTION("single column") {
         applause::SelectionGrid grid(1, 3);
-        grid.setPalette(&palette);
+        pin(grid);
         grid.setBounds(0.0f, 0.0f, 20.0f, 110.0f);
 
         REQUIRE(grid.cell(0).y() == Approx(5.0f));
@@ -130,10 +130,8 @@ TEST_CASE("SelectionGrid lays cells out in row-major order with gaps", "[ui][sel
     }
 
     SECTION("theme controls the gap and outer padding") {
-        palette.setValue(applause::SelectionGrid::ApplauseSelectionGridPadding, 7.0f);
-
         applause::SelectionGrid grid(2, 1);
-        grid.setPalette(&palette);
+        pin(grid, 7.0f);
         grid.setBounds(0.0f, 0.0f, 105.0f, 30.0f);
 
         REQUIRE(grid.cell(0).x() == Approx(7.0f));
@@ -146,10 +144,8 @@ TEST_CASE("SelectionGrid lays cells out in row-major order with gaps", "[ui][sel
     }
 
     SECTION("oversized padding never creates negative cell bounds") {
-        palette.setValue(applause::SelectionGrid::ApplauseSelectionGridPadding, 100.0f);
-
         applause::SelectionGrid grid(2, 2);
-        grid.setPalette(&palette);
+        pin(grid, 100.0f);
         grid.setBounds(0.0f, 0.0f, 7.0f, 5.0f);
 
         for (int index = 0; index < 4; ++index) {

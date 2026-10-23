@@ -29,17 +29,6 @@ TEST_CASE("SimpleCurve keeps its stroke inside the normalized limits", "[ui][plo
     constexpr int width = 192;
     constexpr int height = 64;
 
-    applause::Palette palette;
-    palette.initWithDefaults();
-    palette.setColor(applause::SimpleCurve::ApplauseTraceLine, applause::Color(0xffffffff));
-    palette.setColor(applause::SimpleCurve::ApplauseTraceFill, applause::Color(0x00000000));
-    palette.setValue(applause::SimpleCurve::ApplauseTraceLineWidth, 4.0f);
-    palette.setColor(applause::PlotView::ApplausePlotBackground, applause::Color(0xff000000));
-    palette.setColor(applause::PlotView::ApplausePlotGrid, applause::Color(0x00000000));
-    palette.setColor(applause::PlotView::ApplausePlotBorder, applause::Color(0x00000000));
-    palette.setValue(applause::PlotView::ApplausePlotRounding, 0.0f);
-    palette.setValue(applause::PlotView::ApplausePlotBorderWidth, 0.0f);
-
     std::array<float, width> samples;
     for (int i = 0; i < width; ++i)
         samples[i] = i < width / 3 ? 1.0f : (i < 2 * width / 3 ? 0.5f : 0.0f);
@@ -47,8 +36,15 @@ TEST_CASE("SimpleCurve keeps its stroke inside the normalized limits", "[ui][plo
     applause::Canvas canvas;
     applause::PlotView plot;
     applause::SimpleCurve trace;
+    trace.set(applause::SimpleCurve::kLine, applause::Color(0xffffffff));
+    trace.set(applause::SimpleCurve::kFill, applause::Color(0x00000000));
+    trace.set(applause::SimpleCurve::kLineWidth, 4.0f);
+    plot.set(applause::PlotView::kBackground, applause::Color(0xff000000));
+    plot.set(applause::PlotView::kGrid, applause::Color(0x00000000));
+    plot.set(applause::PlotView::kBorder, applause::Color(0x00000000));
+    plot.set(applause::PlotView::kRounding, 0.0f);
+    plot.set(applause::PlotView::kBorderWidth, 0.0f);
     trace.setSamples(samples);
-    canvas.setPalette(&palette);
     canvas.setWindowless(width, height);
     plot.setBounds(0.0f, 0.0f, width, height);
     trace.setBounds(plot.localBounds());
@@ -87,19 +83,15 @@ TEST_CASE("SimpleCurve copies samples and maps low values toward the bottom", "[
 
     constexpr int size = 64;
 
-    applause::Palette palette;
-    palette.initWithDefaults();
-    palette.setColor(applause::SimpleCurve::ApplauseTraceLine, applause::Color(0xffffffff));
-    palette.setColor(applause::SimpleCurve::ApplauseTraceFill, applause::Color(0xff0000ff));
-    palette.setValue(applause::SimpleCurve::ApplauseTraceLineWidth, 2.0f);
-    palette.setColor(applause::PlotView::ApplausePlotBackground, applause::Color(0xff000000));
-    palette.setColor(applause::PlotView::ApplausePlotGrid, applause::Color(0xffff0000));
-    palette.setColor(applause::PlotView::ApplausePlotBorder, applause::Color(0xff000000));
-
     applause::Canvas canvas;
     applause::PlotView plot;
     applause::SimpleCurve trace;
-    canvas.setPalette(&palette);
+    trace.set(applause::SimpleCurve::kLine, applause::Color(0xffffffff));
+    trace.set(applause::SimpleCurve::kFill, applause::Color(0xff0000ff));
+    trace.set(applause::SimpleCurve::kLineWidth, 2.0f);
+    plot.set(applause::PlotView::kBackground, applause::Color(0xff000000));
+    plot.set(applause::PlotView::kGrid, applause::Color(0xffff0000));
+    plot.set(applause::PlotView::kBorder, applause::Color(0xff000000));
     canvas.setWindowless(size, size);
     plot.setBounds(0.0f, 0.0f, size, size);
     trace.setBounds(plot.localBounds());

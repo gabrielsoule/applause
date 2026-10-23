@@ -25,7 +25,6 @@
 #include <applause/util/Space.h>
 
 namespace applause {
-class Palette;
 class Shader;
 
 class Region {
@@ -150,7 +149,6 @@ private:
     int y_ = 0;
     int width_ = 0;
     int height_ = 0;
-    int palette_override_ = 0;
     bool visible_ = true;
     bool on_top_ = false;
     int layer_index_ = 0;

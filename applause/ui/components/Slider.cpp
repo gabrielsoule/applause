@@ -7,12 +7,6 @@
 
 namespace applause {
 
-APPLAUSE_THEME_IMPLEMENT_COLOR(Slider, ApplauseSliderThumbTop, 0xFF333338);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Slider, ApplauseSliderThumbBottom, 0xFF1a1a1e);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Slider, ApplauseSliderThumbBorder, 0xFF444444);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Slider, ApplauseSliderTrack, 0xFF2a2a2e);
-APPLAUSE_THEME_IMPLEMENT_COLOR(Slider, ApplauseSliderAccent, 0xff9966ff);
-
 Slider::Slider() {
     glow_amount_.setTargetValue(1.0f);
     glow_amount_.setSourceValue(0.0f);
@@ -132,7 +126,6 @@ void Slider::mouseExit(const applause::MouseEvent& event) {
 }
 
 void Slider::draw(applause::Canvas& canvas) {
-    auto sample = [&](auto id) { return canvas.color(id).gradient().sample(0.0f); };
 
     float usable = width() - kThumbDiameter;
     float trackY = (height() - kTrackHeight) * 0.5f;
@@ -155,33 +148,32 @@ void Slider::draw(applause::Canvas& canvas) {
         constexpr float kInactiveDim = 0.2f;
         applause::Color black(0xff000000);
 
-        canvas.setColor(sample(ApplauseSliderTrack).interpolateWith(black, kInactiveDim));
+        canvas.setColor(color(*this, kTrack).interpolateWith(black, kInactiveDim));
         canvas.roundedRectangle(0, trackY, width(), kTrackHeight, trackRounding);
 
         if (bipolar_) {
             float centerX = width() * 0.5f;
             float fillW = std::abs(tcx - centerX);
             if (fillW > 0.0f) {
-                canvas.setColor(sample(ApplauseSliderAccent).interpolateWith(black, kInactiveDim));
+                canvas.setColor(color(*this, kAccent).interpolateWith(black, kInactiveDim));
                 canvas.roundedRectangle(value_ > 0.0f ? centerX : tcx, trackY, fillW, kTrackHeight, trackRounding);
             }
         } else if (value_ > 0.0f) {
-            canvas.setColor(sample(ApplauseSliderAccent).interpolateWith(black, kInactiveDim));
+            canvas.setColor(color(*this, kAccent).interpolateWith(black, kInactiveDim));
             canvas.roundedRectangle(0, trackY, tcx, kTrackHeight, trackRounding);
         }
 
-        canvas.setColor(
-            applause::Brush::vertical(sample(ApplauseSliderThumbTop).interpolateWith(black, kInactiveDim),
-                                      sample(ApplauseSliderThumbBottom).interpolateWith(black, kInactiveDim)));
+        canvas.setColor(applause::Brush::vertical(color(*this, kThumbTop).interpolateWith(black, kInactiveDim),
+                                                  color(*this, kThumbBottom).interpolateWith(black, kInactiveDim)));
         canvas.circle(thumbX, thumbY, kThumbDiameter);
 
-        canvas.setColor(sample(ApplauseSliderThumbBorder).interpolateWith(black, kInactiveDim));
+        canvas.setColor(color(*this, kThumbBorder).interpolateWith(black, kInactiveDim));
         canvas.ring(thumbX, thumbY, kThumbDiameter, 1.0f);
         return;
     }
 
     // Track background
-    canvas.setColor(ApplauseSliderTrack);
+    canvas.setColor(color(*this, kTrack));
     canvas.roundedRectangle(0, trackY, width(), kTrackHeight, trackRounding);
 
     // Accent fill
@@ -190,19 +182,19 @@ void Slider::draw(applause::Canvas& canvas) {
         if (value_ > 0.0f) {
             float fillW = tcx - centerX;
             if (fillW > 0.0f) {
-                canvas.setColor(ApplauseSliderAccent);
+                canvas.setColor(color(*this, kAccent));
                 canvas.roundedRectangle(centerX, trackY, fillW, kTrackHeight, trackRounding);
             }
         } else if (value_ < 0.0f) {
             float fillW = centerX - tcx;
             if (fillW > 0.0f) {
-                canvas.setColor(ApplauseSliderAccent);
+                canvas.setColor(color(*this, kAccent));
                 canvas.roundedRectangle(tcx, trackY, fillW, kTrackHeight, trackRounding);
             }
         }
     } else {
         if (value_ > 0.0f) {
-            canvas.setColor(ApplauseSliderAccent);
+            canvas.setColor(color(*this, kAccent));
             canvas.roundedRectangle(0, trackY, tcx, kTrackHeight, trackRounding);
         }
     }
@@ -216,18 +208,18 @@ void Slider::draw(applause::Canvas& canvas) {
                       8.0f);
 
     // Thumb body (vertical gradient)
-    canvas.setColor(applause::Brush::vertical(sample(ApplauseSliderThumbTop), sample(ApplauseSliderThumbBottom)));
+    canvas.setColor(applause::Brush::vertical(color(*this, kThumbTop), color(*this, kThumbBottom)));
     canvas.circle(thumbX, thumbY, kThumbDiameter);
 
     // Thumb border ring
-    canvas.setColor(ApplauseSliderThumbBorder);
+    canvas.setColor(color(*this, kThumbBorder));
     canvas.ring(thumbX, thumbY, kThumbDiameter, 1.0f);
 
     // Animated glow overlay
     glow_amount_.update();
     float glowAlpha = glow_amount_.value();
     if (glowAlpha > 0.0f) {
-        applause::Color accent = sample(ApplauseSliderAccent);
+        applause::Color accent = color(*this, kAccent);
         applause::Gradient glow;
         glow.addColorStop(accent.withAlpha(glowAlpha * 0.35f), 0.0f);
         glow.addColorStop(accent.withAlpha(glowAlpha * 0.15f), 0.6f);

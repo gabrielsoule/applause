@@ -14,22 +14,26 @@ namespace applause::inspector {
 
 class InspectorWindow;
 
-// Theme browser: a CollapsibleTreeView over the global ColorId / ValueId
-// registry. Top-level rows are groups (one per source file the IDs live in);
-// expanding a group reveals colors then values from that source. Clicking a
-// color row reveals an inline applause::ColorPicker beneath it; typing into a
-// value row's text field commits to the palette. Selecting a frame in the
-// editor additively auto-expands any group whose name overlaps the frame's
-// dynamic class name (Phase 2 — user's manual expansions are preserved).
+// Theme browser: a CollapsibleTreeView over every color and value token.
+// Top-level rows are groups (the part of a token's name before the dot);
+// expanding a group reveals its colors then values. Edits go to the target:
+// the selected frame, or the nearest frame above it that can hold theme
+// values (the editor when nothing is selected), named in the top row.
+// Clicking a color row reveals an inline ColorPicker beneath it;
+// typing into a value row's text field sets it on the target. A row shows
+// "reset" where the target sets its token, and otherwise what the token's
+// default follows. Selecting a frame in the editor additively auto-expands
+// any group whose name overlaps the frame's dynamic class name (Phase 2 —
+// user's manual expansions are preserved).
 class InspectorThemeView : public CollapsibleTreeView {
 public:
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorThemeText);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorThemeTextMuted);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorThemeRowHover);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorThemeRowSelected);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorThemeGroupBackgroundActive);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorThemeSwatchBorder);
-    APPLAUSE_THEME_DEFINE_COLOR(ApplauseInspectorThemePickerBackground);
+    static inline const ColorToken kText{"inspectorThemeView.text", 0xffd8d8dc};
+    static inline const ColorToken kTextMuted{"inspectorThemeView.textMuted", 0xff7a7a80};
+    static inline const ColorToken kRowHover{"inspectorThemeView.rowHover", 0x22ffffff};
+    static inline const ColorToken kRowSelected{"inspectorThemeView.rowSelected", 0x4466bbff};
+    static inline const ColorToken kGroupBackgroundActive{"inspectorThemeView.groupBackgroundActive", 0xff262630};
+    static inline const ColorToken kSwatchBorder{"inspectorThemeView.swatchBorder", 0xff3a3a40};
+    static inline const ColorToken kPickerBackground{"inspectorThemeView.pickerBackground", 0xff141418};
 
     static constexpr float kHeaderHeight    = 22.0f;
     static constexpr float kRowHeight       = 20.0f;
@@ -54,12 +58,20 @@ public:
     // inline picker is reparented into whichever ThemeColorRow's stableKey
     // matches editingColor(). Click another color → setEditingColor moves the
     // picker; click the same one again → clearEditingColor closes it.
-    applause::theme::ColorId editingColor() const { return editing_color_id_; }
-    void setEditingColor(applause::theme::ColorId id);
+    const ColorToken* editingColor() const { return editing_color_; }
+    void setEditingColor(const ColorToken& token);
     void clearEditingColor();
 
     // Called by ThemeValueRow when the user commits a number.
-    void applyValue(applause::theme::ValueId id, const std::string& text);
+    void applyValue(const ValueToken& token, const std::string& text);
+
+    // Where edits go: the selected frame, or the editor when nothing is
+    // selected.
+    applause::Frame& target() const;
+
+    // Removes what the target sets the token to.
+    void reset(const ColorToken& token);
+    void reset(const ValueToken& token);
 
     // Phase-2 heuristic: which group names overlap this frame's class name.
     // Exposed for the group header to highlight "selection-relevant" groups.
@@ -67,6 +79,9 @@ public:
 
 private:
     void applyEditedColor(const applause::Color& color);
+    // Shows the editing color's current value in the picker, without
+    // reporting it back as an edit.
+    void seedPicker();
     void applySelectionExpansion(applause::Frame* frame);
 
     InspectorWindow& window_;
@@ -74,7 +89,7 @@ private:
 
     std::unique_ptr<applause::ColorPicker> color_picker_;
     bool suppress_picker_callback_ = false;
-    applause::theme::ColorId editing_color_id_;
+    const ColorToken* editing_color_ = nullptr;
 };
 
 }  // namespace applause::inspector

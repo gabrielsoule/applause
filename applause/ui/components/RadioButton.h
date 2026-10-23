@@ -7,9 +7,9 @@ namespace applause {
 /// A circular toggle with an optional label. Add it to a RadioGroup for exclusive selection.
 class RadioButton : public ToggleButton {
 public:
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseRadioButtonSize);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseRadioButtonTextGap);
-    APPLAUSE_THEME_DEFINE_VALUE(ApplauseRadioButtonBorderWidth);
+    static inline const ValueToken kSize{"radioButton.size", 16.0f};
+    static inline const ValueToken kTextGap{"radioButton.textGap", 8.0f};
+    static inline const ValueToken kBorderWidth{"radioButton.borderWidth", 1.5f};
 
     explicit RadioButton(std::string text = {});
 
