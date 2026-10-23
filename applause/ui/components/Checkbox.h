@@ -4,8 +4,8 @@
 
 namespace applause {
 
-/// A square toggle with an optional label. 
-class Checkbox : public ToggleButton {
+/// A square toggle with an optional label.
+class Checkbox : public Button {
 public:
     static inline const ValueToken kSize{"checkbox.size", 16.0f};
     static inline const ValueToken kTextGap{"checkbox.textGap", 8.0f};
@@ -14,14 +14,9 @@ public:
 
     explicit Checkbox(std::string text = {});
 
-    const applause::String& text() const noexcept { return text_.text(); }
-    void setText(std::string text);
-    void setFont(const applause::Font& font);
-
-    void draw(applause::Canvas& canvas) override;
-
-private:
-    applause::Text text_;
+protected:
+    void drawBackground(applause::Canvas& canvas, float hover) override {}
+    void drawContent(applause::Canvas& canvas, float hover) override;
 };
 
 }  // namespace applause

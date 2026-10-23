@@ -48,9 +48,9 @@ public:
 
         applause::PopupMenuButton src_menu_{"—"};
         applause::PopupMenuButton dst_menu_{"—"};
-        applause::ToggleTextButton bipolar_toggle_{"±"};
+        applause::Button bipolar_toggle_{"±"};
         applause::Slider depth_slider_;
-        applause::UiButton delete_button_{"X"};
+        applause::Button delete_button_{"X"};
     };
 
     explicit ModMatrixComponent(applause::ModMatrixControl& matrix);

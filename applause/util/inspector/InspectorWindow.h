@@ -102,7 +102,7 @@ private:
     // to the host editor.
     void detachOverlays();
     applause::Frame& editor_;
-    std::unique_ptr<applause::ToggleTextButton> pick_button_;
+    std::unique_ptr<applause::Button> pick_button_;
     applause::Font metric_font_;
     // Panels host the tree / properties / theme as children of their content()
     // frames. Declared before the views so the views are destroyed first and

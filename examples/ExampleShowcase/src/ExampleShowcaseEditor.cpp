@@ -19,11 +19,23 @@
 #include <numbers>
 #include <span>
 #include <sstream>
+#include <string_view>
+#include <tuple>
 #include <utility>
 
 using namespace applause::dimension;
 
 namespace {
+
+// Inline icons, so the buttons demo needs no resource files.
+constexpr std::string_view kFolderIcon =
+    R"(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 5 L9 5 L11 7 L22 7 L22 20 L2 20 Z"/></svg>)";
+constexpr std::string_view kStarIcon =
+    R"(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2 L15 9 L22 9 L16.5 13.5 L18.5 21 L12 16.5 L5.5 21 L7.5 13.5 L2 9 L9 9 Z"/></svg>)";
+
+applause::Svg icon(std::string_view svg) {
+    return {reinterpret_cast<const unsigned char*>(svg.data()), static_cast<int>(svg.size())};
+}
 
 class WaveformCell final : public applause::SelectionGridCell {
 public:
@@ -132,27 +144,27 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
     // --- Buttons Panel (middle-right) ---
     addChild(&buttons_panel_);
 
-    ui_button_ = std::make_unique<applause::UiButton>("BUTTON");
-    ui_button_->onToggle() += [](applause::Button* button, bool on) { LOG_INFO("UI Button clicked!"); };
+    ui_button_ = std::make_unique<applause::Button>("BUTTON");
+    ui_button_->onClick() += [] { LOG_INFO("UI Button clicked!"); };
     buttons_panel_.content().addChild(ui_button_.get());
 
-    action_button_ = std::make_unique<applause::UiButton>("Action");
-    action_button_->setActionButton();
-    action_button_->onToggle() += [](applause::Button* button, bool on) { LOG_INFO("Action Button clicked!"); };
+    action_button_ = std::make_unique<applause::Button>("Action");
+    action_button_->setRole(applause::Button::Role::Primary);
+    action_button_->onClick() += [] { LOG_INFO("Action Button clicked!"); };
     buttons_panel_.content().addChild(action_button_.get());
 
-    toggle_button_ = std::make_unique<applause::ToggleTextButton>("TOGGLE");
-    toggle_button_->onToggle() +=
-        [](applause::Button* button, bool on) { LOG_INFO("Toggle button state: {}", on ? "ON" : "OFF"); };
+    toggle_button_ = std::make_unique<applause::Button>("TOGGLE");
+    toggle_button_->setCheckable(true);
+    toggle_button_->onToggle() += [](bool on) { LOG_INFO("Toggle button state: {}", on ? "ON" : "OFF"); };
     buttons_panel_.content().addChild(toggle_button_.get());
 
-    load_file_button_ = std::make_unique<applause::UiButton>("Load File");
-    load_file_button_->onToggle() += [this](applause::Button* button, bool on) { onLoadFileClicked(); };
+    load_file_button_ = std::make_unique<applause::Button>(icon(kFolderIcon), "Load File");
+    load_file_button_->onClick() += [this] { onLoadFileClicked(); };
     buttons_panel_.content().addChild(load_file_button_.get());
 
 #ifdef __APPLE__
-    popup_menu_button_ = std::make_unique<applause::UiButton>("Show Menu");
-    popup_menu_button_->onToggle() += [this](applause::Button* button, bool on) {
+    popup_menu_button_ = std::make_unique<applause::Button>("Show Menu");
+    popup_menu_button_->onClick() += [this] {
         applause::NativePopupMenu menu("Demo Menu");
 
         menu.addOption(1, "Option 1").select(true).withKeyboardShortcut(applause::NativePopupMenu::Modifier::Cmd, "1");
@@ -177,32 +189,44 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
     buttons_panel_.content().addChild(popup_menu_button_.get());
 #endif
 
-    inactive_button_ = std::make_unique<applause::UiButton>("Inactive");
-    inactive_button_->setActive(false);
+    inactive_button_ = std::make_unique<applause::Button>("Inactive");
+    inactive_button_->setEnabled(false);
     buttons_panel_.content().addChild(inactive_button_.get());
 
 #ifndef NDEBUG
-    inspector_button_ = std::make_unique<applause::UiButton>("Inspector");
-    inspector_button_->setActionButton();
-    inspector_button_->onToggle() += [this](applause::Button*, bool) {
+    inspector_button_ = std::make_unique<applause::Button>("Inspector");
+    inspector_button_->setRole(applause::Button::Role::Primary);
+    inspector_button_->onClick() += [this] {
         if (auto* w = inspector()) w->toggleShown();
     };
     buttons_panel_.content().addChild(inspector_button_.get());
     applause::setTooltip(*inspector_button_, "Open the UI Inspector (Cmd+I)");
 #endif
 
-    small_button_ = std::make_unique<applause::UiButton>("TINY");
-    small_button_->onToggle() += [](applause::Button* button, bool on) { LOG_INFO("Small button clicked!"); };
+    flat_button_ = std::make_unique<applause::Button>("Flat");
+    flat_button_->setRole(applause::Button::Role::Flat);
+    flat_button_->onClick() += [] { LOG_INFO("Flat button clicked!"); };
+    buttons_panel_.content().addChild(flat_button_.get());
+
+    star_button_ = std::make_unique<applause::Button>(icon(kStarIcon));
+    star_button_->setRole(applause::Button::Role::Flat);
+    star_button_->setCheckable(true);
+    star_button_->onToggle() += [](bool on) { LOG_INFO("Star state: {}", on ? "ON" : "OFF"); };
+    buttons_panel_.content().addChild(star_button_.get());
+    applause::setTooltip(*star_button_, "A flat, checkable icon button");
+
+    small_button_ = std::make_unique<applause::Button>("TINY");
+    small_button_->onClick() += [] { LOG_INFO("Small button clicked!"); };
     buttons_panel_.content().addChild(small_button_.get());
 
-    small_toggle_button_ = std::make_unique<applause::ToggleTextButton>("TINY");
-    small_toggle_button_->onToggle() +=
-        [](applause::Button* button, bool on) { LOG_INFO("Small toggle state: {}", on ? "ON" : "OFF"); };
+    small_toggle_button_ = std::make_unique<applause::Button>("TINY");
+    small_toggle_button_->setCheckable(true);
+    small_toggle_button_->onToggle() += [](bool on) { LOG_INFO("Small toggle state: {}", on ? "ON" : "OFF"); };
     buttons_panel_.content().addChild(small_toggle_button_.get());
 
-    checkbox_.setToggled(true);
+    checkbox_.setChecked(true);
     buttons_panel_.content().addChild(checkbox_);
-    inactive_checkbox_.setActive(false);
+    inactive_checkbox_.setEnabled(false);
     buttons_panel_.content().addChild(inactive_checkbox_);
     buttons_panel_.content().addChild(small_checkbox_);
     if (getParamsExtension()) {
@@ -213,7 +237,7 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
     demo_radio_group_.addButton(first_radio_, 0);
     demo_radio_group_.addButton(second_radio_, 1);
     demo_radio_group_.addButton(inactive_radio_, 2);
-    inactive_radio_.setActive(false);
+    inactive_radio_.setEnabled(false);
     buttons_panel_.content().addChild(first_radio_);
     buttons_panel_.content().addChild(second_radio_);
     buttons_panel_.content().addChild(inactive_radio_);
@@ -329,18 +353,22 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
 
     // The whole app: tokens set on the editor reach everything in it. These buttons change the shared accent at
     // runtime, which retints every control that follows it (knobs, sliders, toggles, glows, grids, and plots).
-    // Each button's own text and glow are set on just that button.
-    const std::pair<applause::UiButton*, applause::Color> accents[] = {
-        {&purple_button_, applause::Color(0xff9966ff)},
-        {&teal_button_, applause::Color(0xff3cc8b4)},
-        {&amber_button_, applause::Color(0xffffb03a)},
+    // Each button's own text and glow are set on just that button. Light accents also get dark text on Primary
+    // buttons, which are filled with the accent.
+    const std::tuple<applause::Button*, applause::Color, applause::Color> accents[] = {
+        {&purple_button_, applause::Color(0xff9966ff), applause::Color(0xffffffff)},
+        {&teal_button_, applause::Color(0xff3cc8b4), applause::Color(0xff111115)},
+        {&amber_button_, applause::Color(0xffffb03a), applause::Color(0xff111115)},
     };
-    for (const auto& [button, accent] : accents) {
+    for (const auto& [button, accent, primary_text] : accents) {
         button->set(applause::Button::kText, accent);
         button->set(applause::Button::kTextHover, accent);
         button->set(applause::Button::kGlow, accent);
-        button->onToggle() += [this, accent](applause::Button*, bool) { set(applause::theme::kAccent, accent); };
-        applause::setTooltip(*button, "Sets theme::kAccent on the editor");
+        button->onClick() += [this, accent, primary_text] {
+            set(applause::theme::kAccent, accent);
+            set(applause::Button::kPrimaryText, primary_text);
+        };
+        applause::setTooltip(*button, "Sets theme::kAccent and Button::kPrimaryText on the editor");
         accent_panel_.content().addChild(button);
     }
 
@@ -348,8 +376,9 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
     // app accent is picked. Its background is set the same way.
     scoped_panel_.set(applause::theme::kAccent, applause::Color(0xffff5c8a));
     scoped_panel_.set(applause::Panel::kBackground, applause::Color(0xff231a20));
-    scoped_toggle_.setToggled(true);
-    scoped_checkbox_.setToggled(true);
+    scoped_toggle_.setCheckable(true);
+    scoped_toggle_.setChecked(true);
+    scoped_checkbox_.setChecked(true);
     scoped_slider_.setValue(0.6f);
     for (applause::Frame* item :
          std::initializer_list<applause::Frame*>{&scoped_toggle_, &scoped_checkbox_, &scoped_slider_, &scoped_badge_}) {
@@ -458,6 +487,8 @@ void ExampleShowcaseEditor::resized() {
 #ifndef NDEBUG
         placeButton(inspector_button_.get());
 #endif
+        placeButton(flat_button_.get());
+        placeButton(star_button_.get());
 
         if (col != 0) {
             col = 0;

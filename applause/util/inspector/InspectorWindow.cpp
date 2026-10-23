@@ -26,7 +26,7 @@ InspectorWindow::InspectorWindow(applause::Frame& editor)
     setWindowDecoration(applause::Window::Decoration::Native);
     setAcceptsKeystrokes(true);
 
-    pick_button_      = std::make_unique<applause::ToggleTextButton>("Select");
+    pick_button_      = std::make_unique<applause::Button>("Select");
     tree_panel_       = std::make_unique<applause::Panel>();
     properties_panel_ = std::make_unique<applause::Panel>();
     theme_panel_      = std::make_unique<applause::Panel>();
@@ -34,6 +34,7 @@ InspectorWindow::InspectorWindow(applause::Frame& editor)
     properties_       = std::make_unique<InspectorPropertiesView>(*this);
     theme_            = std::make_unique<InspectorThemeView>(*this);
 
+    pick_button_->setCheckable(true);
     addChild(pick_button_.get());
     addChild(tree_panel_.get());
     addChild(properties_panel_.get());
@@ -45,10 +46,10 @@ InspectorWindow::InspectorWindow(applause::Frame& editor)
     // Sticky pick: clicking the toggle drives pick mode directly. Clicks on
     // editor widgets while pick mode is on select but don't exit; ESC or
     // re-clicking this toggle exits.
-    pick_button_->onToggle() += [this](applause::Button*, bool on) { setPickMode(on); };
+    pick_button_->onToggle() += [this](bool on) { setPickMode(on); };
 
     on_pick_mode_changed_ += [this](bool pick) {
-        pick_button_->setToggled(pick);
+        pick_button_->setChecked(pick);
         pick_button_->redraw();
     };
 

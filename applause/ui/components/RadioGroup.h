@@ -7,11 +7,11 @@
 
 namespace applause {
 
-class ToggleButton;
+class Button;
 class ParamRadioGroup;
 
 /// A non-owning group of buttons with one selected member whenever the group is nonempty.
-/// Membership is explicit and does not depend on the buttons' frame parents.
+/// Membership is explicit and does not depend on the buttons' frame parents. Members become checkable.
 class RadioGroup {
 public:
     RadioGroup() = default;
@@ -22,13 +22,13 @@ public:
     RadioGroup& operator=(RadioGroup&&) = delete;
 
     /// IDs must be unique and nonnegative. The first member is selected silently.
-    void addButton(ToggleButton& button, int id);
+    void addButton(Button& button, int id);
     /// Removes a member silently, selecting the first survivor if necessary.
     /// Removing a button that is not a member does nothing.
     /// Explicit membership changes are forbidden while a parameter binding is attached.
-    void removeButton(ToggleButton& button);
+    void removeButton(Button& button);
     /// Replaces a member at the same ID, preserving selection without notifications.
-    void replaceButton(int id, ToggleButton& replacement);
+    void replaceButton(int id, Button& replacement);
 
     /// Returns -1 only when the group is empty.
     [[nodiscard]] int selectedId() const noexcept { return selected_id_; }
@@ -37,21 +37,23 @@ public:
     auto& onSelectionChanged() { return on_selection_changed_; }
 
 private:
-    friend class ToggleButton;
+    friend class Button;
     friend class ParamRadioGroup;
 
     struct Member {
-        ToggleButton* button;
+        Button* button;
         int id;
     };
 
-    ToggleButton* findButton(int id) const;
-    int findId(const ToggleButton& button) const;
-    void validateNewButton(const ToggleButton& button) const;
+    Button* findButton(int id) const;
+    int findId(const Button& button) const;
+    void validateNewButton(const Button& button) const;
+    // Makes a new member checkable and sets its state silently.
+    void join(Button& button, bool selected);
     void select(int id, bool notify);
-    void setButtonState(ToggleButton& button, bool selected, bool notify);
-    void buttonDestroyed(ToggleButton& button);
-    void removeMember(ToggleButton& button);
+    void setButtonState(Button& button, bool selected, bool notify);
+    void buttonDestroyed(Button& button);
+    void removeMember(Button& button);
     void invalidateBinding();
 
     std::vector<Member> members_;

@@ -19,17 +19,17 @@ ParamCheckbox::ParamCheckbox(ParamInfo& parameter, std::string label) :
     parameter_connection_ = parameter_.on_value_changed.connect([this](float value) { updateFromParameter(value); });
 }
 
-void ParamCheckbox::toggleStateChanged(bool notify) {
+void ParamCheckbox::checkedChanged(bool notify) {
     if (!notify) return;
 
-    const float value = toggled() ? parameter_.maxValue : parameter_.minValue;
+    const float value = isChecked() ? parameter_.maxValue : parameter_.minValue;
     parameter_.beginGesture();
     parameter_.setValueNotifyingHost(value);
     parameter_.endGesture();
 }
 
 void ParamCheckbox::updateFromParameter(float value) {
-    if (value == parameter_.minValue || value == parameter_.maxValue) setToggled(value == parameter_.maxValue);
+    if (value == parameter_.minValue || value == parameter_.maxValue) setChecked(value == parameter_.maxValue);
 }
 
 }  // namespace applause

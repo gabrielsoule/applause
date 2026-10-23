@@ -13,7 +13,7 @@ public:
     explicit ParamCheckbox(ParamInfo& parameter, std::string label = {});
 
 protected:
-    void toggleStateChanged(bool notify) override;
+    void checkedChanged(bool notify) override;
     bool allowsRadioGroup() const override { return false; }
 
 private:

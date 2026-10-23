@@ -52,9 +52,9 @@ private:
     std::unique_ptr<applause::TextEditor> w_editor_;
     std::unique_ptr<applause::TextEditor> h_editor_;
 
-    std::unique_ptr<applause::ToggleTextButton> visible_toggle_;
-    std::unique_ptr<applause::ToggleTextButton> on_top_toggle_;
-    std::unique_ptr<applause::ToggleTextButton> ignores_mouse_toggle_;
+    std::unique_ptr<applause::Button> visible_toggle_;
+    std::unique_ptr<applause::Button> on_top_toggle_;
+    std::unique_ptr<applause::Button> ignores_mouse_toggle_;
 
     // Suppresses re-entrant onToggle handling while refreshEditorsFromFrame is
     // synchronising widget state from the underlying frame.

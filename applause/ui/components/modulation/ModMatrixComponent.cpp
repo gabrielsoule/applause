@@ -22,14 +22,14 @@ ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(
     layout().setFlexGrow(0.0f);
     layout().setFlexShrink(0.0f);
 
-    src_menu_.on_build_menu_ = [this](NativePopupMenu& menu) {
+    src_menu_.onBuildMenu() = [this](NativePopupMenu& menu) {
         for (uint16_t i = 0; i < owner_.matrix_.getSourceCount(); ++i) {
             menu.addOption(i, owner_.matrix_.getSource(i).name);
             if (i == src_list_id) menu.select(true);
         }
     };
 
-    dst_menu_.on_build_menu_ = [this](NativePopupMenu& menu) {
+    dst_menu_.onBuildMenu() = [this](NativePopupMenu& menu) {
         for (uint16_t i = 0; i < owner_.matrix_.getDestinationCount(); ++i) {
             menu.addOption(i + 1, owner_.matrix_.getDestination(i).name);
             if (dst_list_id >= 0 && i + 1 == dst_list_id) menu.select(true);
@@ -59,6 +59,7 @@ ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(
     dst_menu_.layout().setFlexGrow(1.0f);
 
     addChild(&bipolar_toggle_);
+    bipolar_toggle_.setCheckable(true);
     bipolar_toggle_.layout().setFlexGrow(0.0f);
     bipolar_toggle_.layout().setFlexShrink(0.0f);
 
@@ -73,12 +74,12 @@ ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(
     if (is_dummy) {
         setControlsActive(false);
 
-        src_menu_.on_item_selected_ += [this](int id) {
+        src_menu_.onItemSelected() += [this](int id) {
             src_list_id = id;
             src_menu_.setText(owner_.matrix_.getSource(id).name);
             if (src_list_id >= 0 && dst_list_id != 0) owner_.activateRow(this);
         };
-        dst_menu_.on_item_selected_ += [this](int id) {
+        dst_menu_.onItemSelected() += [this](int id) {
             dst_list_id = id;
             if (id < 0) {
                 auto slot = static_cast<uint16_t>(-(id + 1));
@@ -99,11 +100,11 @@ void ModMatrixComponent::Row::bindToConnection(const ModConnection& c) {
 
     // Drop any handlers left over from the dummy state (or a prior bind) so they
     // don't re-fire activateRow and stack extra dummy rows on subsequent edits.
-    src_menu_.on_item_selected_.clear();
-    dst_menu_.on_item_selected_.clear();
+    src_menu_.onItemSelected().clear();
+    dst_menu_.onItemSelected().clear();
     depth_slider_.on_value_changed.clear();
     bipolar_toggle_.onToggle().clear();
-    delete_button_.onToggle().clear();
+    delete_button_.onClick().clear();
 
     src_menu_.setText(owner_.matrix_.getSource(c.src_idx).name);
 
@@ -113,21 +114,21 @@ void ModMatrixComponent::Row::bindToConnection(const ModConnection& c) {
             dst_menu_.setText(connectionLabel(owner_.matrix_, *target));
         else
             dst_menu_.setText("[deleted]");
-        dst_menu_.on_build_menu_ = nullptr;
+        dst_menu_.onBuildMenu() = nullptr;
     } else {
         dst_list_id = c.dst_idx + 1;
         dst_menu_.setText(owner_.matrix_.getDestination(c.dst_idx).name);
     }
 
     depth_slider_.setValue(c.getDepth());
-    bipolar_toggle_.setToggled(c.isBipolar());
+    bipolar_toggle_.setChecked(c.isBipolar());
     setControlsActive(true);
 
     depth_slider_.on_value_changed += [this](float value) { conn.setDepth(value); };
 
-    bipolar_toggle_.onToggle() += [this](Button*, bool on) { conn.setBipolar(on); };
+    bipolar_toggle_.onToggle() += [this](bool on) { conn.setBipolar(on); };
 
-    src_menu_.on_item_selected_ += [this](int id) {
+    src_menu_.onItemSelected() += [this](int id) {
         const uint16_t prev_slot = conn.depth_slot;
         conn = owner_.matrix_.reassignSource(conn, owner_.matrix_.getSource(id));
         if (conn.depth_slot != prev_slot) {  // merged into a peer; rebuild to drop this duplicate row
@@ -140,7 +141,7 @@ void ModMatrixComponent::Row::bindToConnection(const ModConnection& c) {
     };
 
     if (!c.isDepthMod()) {
-        dst_menu_.on_item_selected_ += [this](int id) {
+        dst_menu_.onItemSelected() += [this](int id) {
             if (id <= 0) return;
             const uint16_t prev_slot = conn.depth_slot;
             conn = owner_.matrix_.reassignDestination(conn, owner_.matrix_.getDestination(id - 1));
@@ -153,13 +154,13 @@ void ModMatrixComponent::Row::bindToConnection(const ModConnection& c) {
         };
     }
 
-    delete_button_.onToggle() += [this](Button*, bool) { owner_.deleteRow(this); };
+    delete_button_.onClick() += [this] { owner_.deleteRow(this); };
 }
 
 void ModMatrixComponent::Row::setControlsActive(bool active) {
-    bipolar_toggle_.setActive(active);
+    bipolar_toggle_.setEnabled(active);
     depth_slider_.setActive(active);
-    delete_button_.setActive(active);
+    delete_button_.setEnabled(active);
 }
 
 void ModMatrixComponent::Row::updateLayout() {

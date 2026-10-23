@@ -23,292 +23,240 @@
 
 #include "RadioGroup.h"
 
-#include <applause/ui/ApplauseUI.h>
-
 #include <applause/ui/ApplauseEditor.h>
 #include <applause/ui/NativePopupMenu.h>
 
 #include <embedded/applause_fonts.h>
 
+#include <algorithm>
+
 namespace applause {
 namespace {
-void drawGlow(Button& button, applause::Canvas& canvas, float hover) {
-    float glow = hover * value(button, Button::kGlowAmount);
-    if (glow > 0.0f) {
-        applause::Color accent = color(button, Button::kGlow);
-        applause::Point center = {button.width() * 0.5f, button.height() * 0.5f};
-        canvas.setColor(applause::Brush::radial(accent.withAlpha(glow), applause::Color(0x00000000), center,
-                                                button.width() * 0.5f, button.height() * 0.5f));
-        canvas.rectangle(0, 0, button.width(), button.height());
-    }
+float textWidth(const applause::Text& text, float dpi_scale) {
+    return text.font().withDpiScale(dpi_scale).stringWidth(text.text().c_str(), text.text().length());
 }
 }  // namespace
 
-void Button::draw(applause::Canvas& canvas) {
-    float hover = active_ ? hover_amount_.update() : 0.0f;
-    drawGlow(*this, canvas, hover);
+Button::Button(std::string text) : Frame(text), text_(text, applause::Font(12, applause::fonts::Barlow_Medium_ttf)) {
+    hover_amount_.setTargetValue(1.0f);
+    hover_amount_.setAnimationTime(200);
+}
 
+Button::Button(const Svg& icon, std::string text) : Button(std::move(text)) { setIcon(icon); }
+
+Button::~Button() {
+    if (radio_group_) radio_group_->buttonDestroyed(*this);
+}
+
+void Button::setText(std::string text) {
+    text_.setText(text);
+    placeIcon();
+    redraw();
+}
+
+void Button::setFont(const Font& font) {
+    text_.setFont(font);
+    placeIcon();
+    redraw();
+}
+
+void Button::setIcon(const Svg& icon) {
+    if (!icon_) {
+        icon_ = std::make_unique<applause::SvgFrame>();
+        addChild(icon_.get());
+    }
+    icon_->load(icon);
+    placeIcon();
+}
+
+void Button::setRole(Role role) {
+    role_ = role;
+    redraw();
+}
+
+void Button::setEnabled(bool enabled) {
+    enabled_ = enabled;
+    redraw();
+}
+
+void Button::setCheckable(bool checkable) {
+    APPLAUSE_ASSERT(checkable || !radio_group_);
+    if (!checkable) changeChecked(false, false);
+    checkable_ = checkable;
+}
+
+void Button::setChecked(bool checked) {
+    APPLAUSE_ASSERT(checkable_);
+    if (checkable_) changeChecked(checked, false);
+}
+
+void Button::setCheckedAndNotify(bool checked) {
+    APPLAUSE_ASSERT(checkable_);
+    if (checkable_) changeChecked(checked, true);
+}
+
+void Button::changeChecked(bool checked, bool notify) {
+    if (radio_group_) {
+        radio_group_->setButtonState(*this, checked, notify);
+        return;
+    }
+    if (checked_ == checked) return;
+
+    checked_ = checked;
+    dispatchCheckedChanged(notify);
+    if (notify) on_toggle_.callback(checked_);
+}
+
+void Button::dispatchCheckedChanged(bool notify) {
+    redraw();
+    checkedChanged(notify);
+}
+
+void Button::click() {
+    if (checkable_) changeChecked(!checked_, true);
+    on_click_.callback();
+}
+
+float Button::preferredWidth() const {
+    float result = 2.0f * value(*this, kPadding) + textWidth(text_, dpiScale());
+    if (icon_) result += value(*this, kIconSize) + (text_.text().isEmpty() ? 0.0f : value(*this, kIconGap));
+    return result;
+}
+
+void Button::placeIcon() {
+    if (!icon_) return;
+
+    const float size = std::max(0.0f, std::min({value(*this, kIconSize), width(), height()}));
+    float content_width = size;
+    if (!text_.text().isEmpty()) content_width += value(*this, kIconGap) + textWidth(text_, dpiScale());
+    icon_->setBounds((width() - content_width) * 0.5f, (height() - size) * 0.5f, size, size);
+}
+
+float Button::updateHover() {
+    if (!enabled_) return 0.0f;
+
+    const float hover = hover_amount_.update();
     if (hover_amount_.isAnimating()) redraw();
+    return hover;
+}
+
+void Button::draw(applause::Canvas& canvas) {
+    const float hover = updateHover();
+    drawBackground(canvas, hover);
+
+    const Bounds content = contentBounds();
+    canvas.saveState();
+    canvas.trimClampBounds(content.x(), content.y(), content.width(), content.height());
+    drawContent(canvas, hover);
+    canvas.restoreState();
+}
+
+void Button::drawBackground(applause::Canvas& canvas, float hover) {
+    const float w = width();
+    const float h = height();
+    const float rounding = value(*this, kRounding);
+    const applause::Point center = {w * 0.5f, h * 0.5f};
+    const applause::Color white(0xffffffff);
+    const applause::Color black(0xff000000);
+    const bool primary = role_ == Role::Primary;
+
+    applause::Color border;
+    if (role_ != Role::Flat) {
+        const float lighten = hover * value(*this, kHoverLighten);
+        applause::Color top = color(*this, primary ? kPrimary : kBackground).interpolateWith(white, lighten);
+        border = primary ? top : color(*this, kBorder).interpolateWith(white, lighten);
+        if (!enabled_) {
+            top = top.interpolateWith(black, 0.2f);
+            border = border.interpolateWith(black, 0.2f);
+        }
+
+        // Pressing flips the shading.
+        const applause::Color bottom = top.interpolateWith(black, value(*this, kShade));
+        canvas.setColor(pressed_ ? applause::Brush::vertical(bottom, top) : applause::Brush::vertical(top, bottom));
+        canvas.roundedRectangle(0, 0, w, h, rounding);
+    }
+
+    if (checked_) {
+        const applause::Color glow = color(*this, kOnGlow);
+        canvas.setColor(applause::Brush::radial(glow.withAlpha(0.0f), glow, center, w * 0.5f, h * 0.5f));
+        canvas.roundedRectangle(0, 0, w, h, rounding);
+        border = color(*this, kOn).withMultipliedAlpha(0.73f + 0.14f * hover);
+    }
+
+    if (role_ != Role::Flat) {
+        canvas.setColor(border);
+        canvas.roundedRectangleBorder(0, 0, w, h, rounding, value(*this, kBorderWidth));
+    }
+
+    const float glow = hover * value(*this, kGlowAmount);
+    if (glow > 0.0f) {
+        canvas.setColor(applause::Brush::radial(color(*this, kGlow).withAlpha(glow), applause::Color(0x00000000),
+                                                center, w * 0.5f, h * 0.5f));
+        canvas.rectangle(0, 0, w, h);
+    }
+}
+
+void Button::drawContent(applause::Canvas& canvas, float hover) {
+    applause::Color content;
+    if (role_ == Role::Primary)
+        content = color(*this, kPrimaryText);
+    else if (checked_)
+        content = color(*this, kOn);
+    else if (pressed_)
+        content = color(*this, kTextPressed);
+    else
+        content = color(*this, kText).interpolateWith(color(*this, kTextHover), hover);
+    if (!enabled_) content = content.interpolateWith(applause::Color(0xff000000), 0.5f);
+
+    float text_x = 0.0f;
+    float text_width = width();
+    if (icon_) {
+        icon_->setFillBrush(applause::Brush::solid(content));
+        icon_->setStrokeBrush(applause::Brush::solid(content));
+        text_x = icon_->right() + value(*this, kIconGap);
+        text_width = textWidth(text_, dpiScale());
+    }
+
+    if (text_.text().isEmpty()) return;
+    canvas.setColor(content);
+    canvas.text(&text_, text_x, 0, text_width, height());
 }
 
 void Button::mouseEnter(const applause::MouseEvent& e) {
     hover_amount_.target(true);
-    if (set_pointer_cursor_ && active_) applause::setCursorStyle(applause::MouseCursor::Pointing);
-
+    if (enabled_) applause::setCursorStyle(applause::MouseCursor::Pointing);
     redraw();
 }
 
 void Button::mouseExit(const applause::MouseEvent& e) {
     hover_amount_.target(false);
     pressed_ = false;
-    if (set_pointer_cursor_) applause::setCursorStyle(applause::MouseCursor::Arrow);
-
+    applause::setCursorStyle(applause::MouseCursor::Arrow);
     redraw();
 }
 
 void Button::mouseDown(const applause::MouseEvent& e) {
-    if (!active_) return;
+    if (!enabled_) return;
 
-    alt_clicked_ = e.isAltDown();
     pressed_ = true;
     hover_amount_.target(false);
     redraw();
-
-    if (toggle_on_mouse_down_) notify(toggle());
+    if (triggered_on_mouse_down_) click();
 }
 
 void Button::mouseUp(const applause::MouseEvent& e) {
-    if (!active_) return;
+    if (!enabled_) return;
 
     pressed_ = false;
     redraw();
     if (localBounds().contains(e.position)) {
         hover_amount_.target(true, true);
-        if (!toggle_on_mouse_down_) notify(toggle());
+        if (!triggered_on_mouse_down_) click();
     }
 }
 
-UiButton::UiButton(const std::string& text) : text_(text, applause::Font(12, applause::fonts::Barlow_Medium_ttf)) {}
-
-UiButton::UiButton(const std::string& text, const applause::Font& font) : text_(text, font) {}
-
-void UiButton::drawBackground(applause::Canvas& canvas, float hover_amount) {
-    int w = width();
-    int h = height();
-    float rounding = value(*this, kRounding);
-    float mult = hover_amount * value(*this, kHoverRoundingMult) + (1.0f - hover_amount);
-    float r = rounding * mult;
-
-    if (!isActive()) {
-        constexpr float kInactiveDim = 0.2f;
-        applause::Color black(0xff000000);
-        canvas.setColor(
-            applause::Brush::vertical(color(*this, kBackgroundTop).interpolateWith(black, kInactiveDim),
-                                      color(*this, kBackgroundBottom).interpolateWith(black, kInactiveDim)));
-        canvas.roundedRectangle(0, 0, w, h, r);
-        canvas.setColor(color(*this, kBorder).interpolateWith(black, kInactiveDim));
-        canvas.roundedRectangleBorder(0, 0, w, h, r, value(*this, kBorderWidth));
-        return;
-    }
-
-    if (isPressed()) {
-        if (action_) {
-            // Action pressed: invert the action gradient
-            canvas.setColor(
-                applause::Brush::vertical(color(*this, kActionBackgroundBottom), color(*this, kActionBackgroundTop)));
-        } else {
-            // Regular pressed: invert the shared gradient
-            canvas.setColor(applause::Brush::vertical(color(*this, kBackgroundBottom), color(*this, kBackgroundTop)));
-        }
-    } else {
-        if (action_) {
-            applause::Brush normal =
-                applause::Brush::vertical(color(*this, kActionBackgroundTop), color(*this, kActionBackgroundBottom));
-            applause::Brush hover = applause::Brush::vertical(color(*this, kActionBackgroundTopHover),
-                                                              color(*this, kActionBackgroundBottomHover));
-            canvas.setColor(normal.interpolateWith(hover, hover_amount));
-        } else {
-            applause::Brush normal =
-                applause::Brush::vertical(color(*this, kBackgroundTop), color(*this, kBackgroundBottom));
-            applause::Brush hover =
-                applause::Brush::vertical(color(*this, kBackgroundTopHover), color(*this, kBackgroundBottomHover));
-            canvas.setColor(normal.interpolateWith(hover, hover_amount));
-        }
-    }
-    canvas.roundedRectangle(0, 0, w, h, r);
-
-    if (isPressed()) {
-        canvas.setColor(color(*this, action_ ? kActionBorderPressed : kBorderPressed));
-        canvas.roundedRectangleBorder(0, 0, w, h, r, value(*this, kBorderWidthPressed));
-    } else {
-        if (action_)
-            canvas.setColor(
-                color(*this, kActionBorder).interpolateWith(color(*this, kActionBorderHover), hover_amount));
-        else
-            canvas.setColor(color(*this, kBorder).interpolateWith(color(*this, kBorderHover), hover_amount));
-        float border_width =
-            hover_amount * value(*this, kBorderWidthHover) + (1.0f - hover_amount) * value(*this, kBorderWidth);
-        canvas.roundedRectangleBorder(0, 0, w, h, r, border_width);
-    }
-}
-
-void UiButton::draw(applause::Canvas& canvas) {
-    float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
-    drawBackground(canvas, hover_amount);
-
-    if (!isActive())
-        canvas.setColor(color(*this, kText).interpolateWith(applause::Color(0xff000000), 0.5f));
-    else if (isPressed())
-        canvas.setColor(color(*this, kTextPressed));
-    else
-        canvas.setColor(color(*this, kText).interpolateWith(color(*this, kTextHover), hover_amount));
-
-    canvas.text(&text_, 0, 0, width(), height());
-    drawGlow(*this, canvas, hover_amount);
-    if (hover_amount_.isAnimating()) redraw();
-}
-
-void IconButton::draw(applause::Canvas& canvas) {
-    float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
-    const auto shadow_color = applause::Brush::solid(color(*this, kShadow));
-    shadow_.setFillBrush(shadow_color);
-    shadow_.setStrokeBrush(shadow_color);
-
-    const auto icon_color = applause::Brush::solid(
-        isActive()
-            ? color(*this, ToggleButton::kOff).interpolateWith(color(*this, ToggleButton::kOffHover), hover_amount)
-            : color(*this, ToggleButton::kDisabled));
-    icon_.setFillBrush(icon_color);
-    icon_.setStrokeBrush(icon_color);
-
-    drawGlow(*this, canvas, hover_amount);
-    if (hover_amount_.isAnimating()) redraw();
-}
-
-ToggleButton::~ToggleButton() {
-    if (radio_group_) radio_group_->buttonDestroyed(*this);
-}
-
-void ToggleButton::dispatchToggleStateChanged(bool notify) {
-    redraw();
-    toggleValueChanged();
-    toggleStateChanged(notify);
-}
-
-void ToggleButton::changeToggleState(bool toggled, bool notify) {
-    if (radio_group_) {
-        radio_group_->setButtonState(*this, toggled, notify);
-        return;
-    }
-    if (toggled_ == toggled) return;
-    toggled_ = toggled;
-    dispatchToggleStateChanged(notify);
-}
-
-void ToggleButton::setToggled(bool toggled) { changeToggleState(toggled, false); }
-
-void ToggleButton::setToggledAndNotify(bool toggled) {
-    changeToggleState(toggled, true);
-    notify(toggled_);
-}
-
-bool ToggleButton::toggle() {
-    changeToggleState(!toggled_, true);
-    return toggled_;
-}
-
-void ToggleIconButton::draw(applause::Canvas& canvas) {
-    float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
-    const auto shadow_color = applause::Brush::solid(color(*this, kShadow));
-    shadow_.setFillBrush(shadow_color);
-    shadow_.setStrokeBrush(shadow_color);
-
-    const auto icon_color =
-        applause::Brush::solid(toggled() ? color(*this, kOn).interpolateWith(color(*this, kOnHover), hover_amount)
-                                         : color(*this, kOff).interpolateWith(color(*this, kOffHover), hover_amount));
-    icon_.setFillBrush(icon_color);
-    icon_.setStrokeBrush(icon_color);
-
-    drawGlow(*this, canvas, hover_amount);
-    if (hover_amount_.isAnimating()) redraw();
-}
-
-ToggleTextButton::ToggleTextButton(const std::string& name) :
-    ToggleButton(name), text_(name, applause::Font(12, applause::fonts::Barlow_Medium_ttf)) {}
-
-ToggleTextButton::ToggleTextButton(const std::string& name, const applause::Font& font) :
-    ToggleButton(name), text_(name, font) {}
-
-void ToggleTextButton::drawBackground(applause::Canvas& canvas, float hover_amount) {
-    int w = width();
-    int h = height();
-    float rounding = value(*this, kRounding);
-    float mult = hover_amount * value(*this, kHoverRoundingMult) + (1.0f - hover_amount);
-    float r = rounding * mult;
-
-    if (!isActive()) {
-        constexpr float kInactiveDim = 0.2f;
-        applause::Color black(0xff000000);
-        canvas.setColor(
-            applause::Brush::vertical(color(*this, kBackgroundTop).interpolateWith(black, kInactiveDim),
-                                      color(*this, kBackgroundBottom).interpolateWith(black, kInactiveDim)));
-        canvas.roundedRectangle(0, 0, w, h, r);
-        canvas.setColor(color(*this, kBorder).interpolateWith(black, kInactiveDim));
-        canvas.roundedRectangleBorder(0, 0, w, h, r, value(*this, kBorderWidth));
-        return;
-    }
-
-    if (isPressed()) {
-        canvas.setColor(applause::Brush::vertical(color(*this, kBackgroundBottom), color(*this, kBackgroundTop)));
-    } else {
-        applause::Brush normal =
-            applause::Brush::vertical(color(*this, kBackgroundTop), color(*this, kBackgroundBottom));
-        applause::Brush hover =
-            applause::Brush::vertical(color(*this, kBackgroundTopHover), color(*this, kBackgroundBottomHover));
-        canvas.setColor(normal.interpolateWith(hover, hover_amount));
-    }
-    canvas.roundedRectangle(0, 0, w, h, r);
-
-    if (toggled()) {
-        applause::Point center = {w * 0.5f, h * 0.5f};
-        applause::Color glow_color = color(*this, kGlowOn);
-        applause::Color center_color = glow_color.withMultipliedAlpha(value(*this, kGlowOnCenterAmount));
-        canvas.setColor(applause::Brush::radial(center_color, glow_color, center, w * 0.5f, h * 0.5f));
-        canvas.roundedRectangle(0, 0, w, h, r);
-    }
-
-    if (toggled())
-        canvas.setColor(color(*this, kBorderOn).interpolateWith(color(*this, kBorderOnHover), hover_amount));
-    else if (isPressed())
-        canvas.setColor(color(*this, kBorderPressed));
-    else
-        canvas.setColor(color(*this, kBorder).interpolateWith(color(*this, kBorderHover), hover_amount));
-
-    float border_width =
-        hover_amount * value(*this, kBorderWidthHover) + (1.0f - hover_amount) * value(*this, kBorderWidth);
-    if (isPressed()) border_width = value(*this, kBorderWidthPressed);
-    canvas.roundedRectangleBorder(0, 0, w, h, r, border_width);
-}
-
-void ToggleTextButton::draw(applause::Canvas& canvas) {
-    float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
-    if (draw_background_) drawBackground(canvas, hover_amount);
-
-    if (!isActive())
-        canvas.setColor(color(*this, kText).interpolateWith(applause::Color(0xff000000), 0.5f));
-    else if (toggled())
-        canvas.setColor(color(*this, kTextOn).interpolateWith(color(*this, kTextOnHover), hover_amount));
-    else if (isPressed())
-        canvas.setColor(color(*this, kTextPressed));
-    else
-        canvas.setColor(color(*this, kText).interpolateWith(color(*this, kTextHover), hover_amount));
-
-    canvas.text(&text_, 0, 0, width(), height());
-    drawGlow(*this, canvas, hover_amount);
-    if (hover_amount_.isAnimating()) redraw();
-}
-PopupMenuButton::PopupMenuButton(const std::string& default_text) : UiButton(default_text) {
-    onToggle() += [this](Button*, bool) { showPopup(); };
+PopupMenuButton::PopupMenuButton(std::string text) : Button(std::move(text)) {
+    onClick() += [this] { showPopup(); };
 }
 
 void PopupMenuButton::showPopup() {

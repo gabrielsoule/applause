@@ -18,7 +18,7 @@ class SelectionGrid;
 
 /// A selectable cell whose selection is managed by its grid.
 /// Override drawContent() to provide custom visuals.
-class SelectionGridCell : public ToggleButton {
+class SelectionGridCell : public Button {
 public:
     static inline const ColorToken kBackground{"selectionGridCell.background", 0x00000000};
     static inline const ColorToken kBackgroundHover{"selectionGridCell.backgroundHover", 0x11ffffff};
@@ -36,17 +36,19 @@ public:
     static inline const ValueToken kContentPadding{"selectionGridCell.contentPadding", 6.0f};
     static inline const ValueToken kGlowCenterAmount{"selectionGridCell.glowCenterAmount", 0.35f};
 
-    [[nodiscard]] bool selected() const noexcept { return toggled(); }
+    explicit SelectionGridCell(std::string text = {}) : Button(std::move(text)) { setCheckable(true); }
+
+    [[nodiscard]] bool selected() const noexcept { return isChecked(); }
     /// Returns the cell's index in its grid.
     [[nodiscard]] int index() const noexcept { return index_; }
 
-    void draw(applause::Canvas& canvas) override;
-
 protected:
+    void drawBackground(applause::Canvas& canvas, float hover_amount) override;
     /// Override this to draw text, icons, or waveforms inside the cell.
     /// Coordinates are local to the cell and drawing is clipped inside its content padding.
     /// Use selected() and hover_amount to adjust the appearance.
-    virtual void drawContent(applause::Canvas& canvas, float hover_amount) {}
+    void drawContent(applause::Canvas& canvas, float hover_amount) override {}
+    Bounds contentBounds() const override;
 
 private:
     friend class SelectionGrid;
@@ -59,17 +61,10 @@ private:
 /// A cell that displays a text label using the grid's content colors and padding.
 class TextSelectionGridCell final : public SelectionGridCell {
 public:
-    explicit TextSelectionGridCell(std::string text = {});
-
-    const applause::String& text() const noexcept { return text_.text(); }
-    void setText(std::string text);
-    void setFont(const applause::Font& font);
+    using SelectionGridCell::SelectionGridCell;
 
 protected:
     void drawContent(applause::Canvas& canvas, float hover_amount) override;
-
-private:
-    applause::Text text_;
 };
 
 /// A fixed grid of equally sized cells. One cell can be selected at a time.

@@ -31,14 +31,14 @@ struct TestPlugin : applause::PluginBase {
     }
 };
 
-void addButtons(applause::RadioGroup& group, std::array<applause::ToggleButton, 3>& buttons) {
+void addButtons(applause::RadioGroup& group, std::array<applause::Button, 3>& buttons) {
     // Mapping follows IDs, independently of insertion order.
     group.addButton(buttons[2], 2);
     group.addButton(buttons[0], 0);
     group.addButton(buttons[1], 1);
 }
 
-void click(applause::ToggleButton& button) {
+void click(applause::Button& button) {
     button.setBounds(0.0f, 0.0f, 20.0f, 20.0f);
     applause::MouseEvent event;
     event.position = {1.0f, 1.0f};
@@ -73,7 +73,7 @@ void requireGesture(applause::ParamMessageQueue& queue, clap_id id, float value)
 TEST_CASE("ParamRadioGroup validates parameter range and member IDs", "[ui][radio-group][params]") {
     TestPlugin plugin;
     auto& parameter = plugin.params.getInfo("mode");
-    std::array<applause::ToggleButton, 3> buttons;
+    std::array<applause::Button, 3> buttons;
     applause::RadioGroup group;
 
     SECTION("continuous parameter") {
@@ -100,7 +100,7 @@ TEST_CASE("ParamRadioGroup attaches later without notifications and synchronizes
     auto& parameter = plugin.params.getInfo("mode");
     applause::ParamMessageQueue queue;
     plugin.params.setMessageQueue(&queue);
-    std::array<applause::ToggleButton, 3> buttons;
+    std::array<applause::Button, 3> buttons;
     applause::RadioGroup group;
     applause::ParamRadioGroup binding;
     addButtons(group, buttons);
@@ -108,7 +108,7 @@ TEST_CASE("ParamRadioGroup attaches later without notifications and synchronizes
     group.onSelectionChanged() += [&](int) { ++initialization_changes; };
     binding.attach(parameter, group);
     REQUIRE(group.selectedId() == 1);
-    REQUIRE(buttons[1].toggled());
+    REQUIRE(buttons[1].isChecked());
     REQUIRE(initialization_changes == 0);
     requireEmpty(queue);
     group.onSelectionChanged().clear();
@@ -117,7 +117,7 @@ TEST_CASE("ParamRadioGroup attaches later without notifications and synchronizes
     group.onSelectionChanged() += [&](int id) {
         REQUIRE(parameter.getValue() == 4.0f + id);
         REQUIRE(group.selectedId() == id);
-        for (int i = 0; i < 3; ++i) REQUIRE(buttons[i].toggled() == (i == id));
+        for (int i = 0; i < 3; ++i) REQUIRE(buttons[i].isChecked() == (i == id));
         requireGesture(queue, parameter.clapId, 4.0f + id);
         changes.push_back(id);
     };
@@ -146,7 +146,7 @@ TEST_CASE("ParamRadioGroup can retry attachment after validation fails", "[ui][r
     auto& parameter = plugin.params.getInfo("mode");
     applause::ParamMessageQueue queue;
     plugin.params.setMessageQueue(&queue);
-    std::array<applause::ToggleButton, 3> buttons;
+    std::array<applause::Button, 3> buttons;
     applause::RadioGroup group;
     group.addButton(buttons[0], 0);
     group.addButton(buttons[1], 1);
@@ -170,8 +170,8 @@ TEST_CASE("ParamRadioGroup fixes member IDs while allowing atomic replacement", 
     auto& parameter = plugin.params.getInfo("mode");
     applause::ParamMessageQueue queue;
     plugin.params.setMessageQueue(&queue);
-    std::array<applause::ToggleButton, 3> buttons;
-    applause::ToggleButton replacement;
+    std::array<applause::Button, 3> buttons;
+    applause::Button replacement;
     applause::RadioGroup group;
     addButtons(group, buttons);
 
@@ -184,12 +184,12 @@ TEST_CASE("ParamRadioGroup fixes member IDs while allowing atomic replacement", 
 
         group.replaceButton(1, replacement);
         REQUIRE(group.selectedId() == 1);
-        REQUIRE(replacement.toggled());
+        REQUIRE(replacement.isChecked());
         requireEmpty(queue);
         parameter.setValueSilently(6.0f);
         parameter.on_value_changed(6.0f);
         REQUIRE(group.selectedId() == 2);
-        REQUIRE_FALSE(replacement.toggled());
+        REQUIRE_FALSE(replacement.isChecked());
         requireEmpty(queue);
         click(replacement);
         REQUIRE(parameter.getValue() == 5.0f);
@@ -210,9 +210,9 @@ TEST_CASE("ParamRadioGroup detaches safely when a member or group is destroyed",
     const auto initial_connections = parameter.on_value_changed.get_slot_count();
 
     SECTION("member is destroyed before its binding") {
-        applause::ToggleButton first;
-        auto selected = std::make_unique<applause::ToggleButton>();
-        applause::ToggleButton last;
+        applause::Button first;
+        auto selected = std::make_unique<applause::Button>();
+        applause::Button last;
         applause::RadioGroup group;
         group.addButton(first, 0);
         group.addButton(*selected, 1);
@@ -234,7 +234,7 @@ TEST_CASE("ParamRadioGroup detaches safely when a member or group is destroyed",
     }
 
     SECTION("group is destroyed before its binding") {
-        std::array<applause::ToggleButton, 3> buttons;
+        std::array<applause::Button, 3> buttons;
         auto group = std::make_unique<applause::RadioGroup>();
         addButtons(*group, buttons);
         applause::ParamRadioGroup binding(parameter, *group);
@@ -251,8 +251,8 @@ TEST_CASE("ParamRadioGroup synchronizes controls bound to the same parameter", "
     auto& parameter = plugin.params.getInfo("mode");
     applause::ParamMessageQueue queue;
     plugin.params.setMessageQueue(&queue);
-    std::array<applause::ToggleButton, 3> first_buttons;
-    std::array<applause::ToggleButton, 3> second_buttons;
+    std::array<applause::Button, 3> first_buttons;
+    std::array<applause::Button, 3> second_buttons;
     applause::RadioGroup first_group;
     applause::RadioGroup second_group;
     addButtons(first_group, first_buttons);

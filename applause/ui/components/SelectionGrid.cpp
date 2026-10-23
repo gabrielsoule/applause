@@ -1,15 +1,12 @@
 #include "SelectionGrid.h"
 
-#include <embedded/applause_fonts.h>
-
 #include <algorithm>
 #include <limits>
 #include <stdexcept>
 
 namespace applause {
 
-void SelectionGridCell::draw(applause::Canvas& canvas) {
-    const float hover_amount = isActive() ? hover_amount_.update() : 0.0f;
+void SelectionGridCell::drawBackground(applause::Canvas& canvas, float hover_amount) {
     const float rounding = value(*this, kRounding);
     if (isPressed())
         canvas.setColor(color(*this, kBackgroundPressed));
@@ -35,13 +32,6 @@ void SelectionGridCell::draw(applause::Canvas& canvas) {
     canvas.setColor(color(*this, selected() ? kBorderSelected : kBorder));
     canvas.roundedRectangleBorder(0.0f, 0.0f, width(), height(), rounding, value(*this, kBorderWidth));
 
-    const float padding = std::max(0.0f, value(*this, kContentPadding));
-    canvas.saveState();
-    canvas.trimClampBounds(padding, padding, std::max(0.0f, width() - 2.0f * padding),
-                           std::max(0.0f, height() - 2.0f * padding));
-    drawContent(canvas, hover_amount);
-    canvas.restoreState();
-
     const float hover_glow = hover_amount * value(*this, kGlowAmount);
     if (hover_glow > 0.0f) {
         const applause::Color accent = color(*this, kGlow);
@@ -50,32 +40,21 @@ void SelectionGridCell::draw(applause::Canvas& canvas) {
                                                 width() * 0.5f, height() * 0.5f));
         canvas.rectangle(0, 0, width(), height());
     }
-
-    if (hover_amount_.isAnimating()) redraw();
 }
 
-TextSelectionGridCell::TextSelectionGridCell(std::string text) :
-    text_(text, applause::Font(12, applause::fonts::Barlow_Medium_ttf)) {}
-
-void TextSelectionGridCell::setText(std::string text) {
-    text_.setText(text);
-    redraw();
-}
-
-void TextSelectionGridCell::setFont(const applause::Font& font) {
-    text_.setFont(font);
-    redraw();
+Bounds SelectionGridCell::contentBounds() const {
+    const float padding = std::max(0.0f, value(*this, kContentPadding));
+    return {padding, padding, std::max(0.0f, width() - 2.0f * padding), std::max(0.0f, height() - 2.0f * padding)};
 }
 
 void TextSelectionGridCell::drawContent(applause::Canvas& canvas, float hover_amount) {
-    const float padding = std::max(0.0f, value(*this, kContentPadding));
     if (selected())
         canvas.setColor(
             color(*this, kContentSelected).interpolateWith(color(*this, kContentSelectedHover), hover_amount));
     else
         canvas.setColor(color(*this, kContent).interpolateWith(color(*this, kContentHover), hover_amount));
-    canvas.text(&text_, padding, padding, std::max(0.0f, width() - 2.0f * padding),
-                std::max(0.0f, height() - 2.0f * padding));
+    const Bounds bounds = contentBounds();
+    canvas.text(text(), font(), applause::Font::kCenter, bounds.x(), bounds.y(), bounds.width(), bounds.height());
 }
 
 SelectionGrid::SelectionGrid(int columns, int rows) : columns_(columns), rows_(rows) {

@@ -55,26 +55,30 @@ private:
     std::unique_ptr<applause::ParamKnob> filter_mode_knob_;
 
     // Test buttons
-    std::unique_ptr<applause::UiButton> ui_button_;
-    std::unique_ptr<applause::UiButton> action_button_;
-    std::unique_ptr<applause::ToggleTextButton> toggle_button_;
-    std::unique_ptr<applause::UiButton> load_file_button_;
+    std::unique_ptr<applause::Button> ui_button_;
+    std::unique_ptr<applause::Button> action_button_;
+    std::unique_ptr<applause::Button> toggle_button_;
+    std::unique_ptr<applause::Button> load_file_button_;
 #ifdef __APPLE__
-    std::unique_ptr<applause::UiButton> popup_menu_button_;
+    std::unique_ptr<applause::Button> popup_menu_button_;
 #endif
 
     // Inactive button
-    std::unique_ptr<applause::UiButton> inactive_button_;
+    std::unique_ptr<applause::Button> inactive_button_;
 
 #ifndef NDEBUG
     // Debug-build only: toggles the pop-out inspector window owned by the
     // ApplauseEditor base class.
-    std::unique_ptr<applause::UiButton> inspector_button_;
+    std::unique_ptr<applause::Button> inspector_button_;
 #endif
 
+    // Flat buttons: one with text, and a checkable icon.
+    std::unique_ptr<applause::Button> flat_button_;
+    std::unique_ptr<applause::Button> star_button_;
+
     // Small buttons
-    std::unique_ptr<applause::UiButton> small_button_;
-    std::unique_ptr<applause::ToggleTextButton> small_toggle_button_;
+    std::unique_ptr<applause::Button> small_button_;
+    std::unique_ptr<applause::Button> small_toggle_button_;
 
     applause::Checkbox checkbox_{"Checkbox"};
     applause::Checkbox inactive_checkbox_{"Inactive"};
@@ -100,18 +104,18 @@ private:
     // Theming. Each section shows one way to theme: the whole app, one subtree, single items, and a custom component.
     applause::Panel theming_panel_{"Theming"};
     applause::Panel accent_panel_{"App accent"};
-    applause::UiButton purple_button_{"Purple"};
-    applause::UiButton teal_button_{"Teal"};
-    applause::UiButton amber_button_{"Amber"};
+    applause::Button purple_button_{"Purple"};
+    applause::Button teal_button_{"Teal"};
+    applause::Button amber_button_{"Amber"};
     applause::Panel scoped_panel_{"Scoped accent"};
-    applause::ToggleTextButton scoped_toggle_{"Toggle"};
+    applause::Button scoped_toggle_{"Toggle"};
     applause::Checkbox scoped_checkbox_{"Checkbox"};
     applause::Slider scoped_slider_;
     Badge scoped_badge_{"Badge"};
     applause::Panel items_panel_{"Individual items"};
-    applause::UiButton pill_button_{"Pill"};
-    applause::UiButton delete_button_{"Delete"};
-    applause::UiButton accent_text_button_{"Accent text"};
+    applause::Button pill_button_{"Pill"};
+    applause::Button delete_button_{"Delete"};
+    applause::Button accent_text_button_{"Accent text"};
     applause::Panel custom_panel_{"Custom component"};
     Badge accent_badge_{"Accent"};
     Badge saved_badge_{"Saved"};

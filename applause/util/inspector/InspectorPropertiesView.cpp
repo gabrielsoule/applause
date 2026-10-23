@@ -36,17 +36,16 @@ void configureNumberEditor(applause::TextEditor& e) {
 
 }  // namespace
 
-InspectorPropertiesView::InspectorPropertiesView(InspectorWindow& window)
-    : window_(window),
-      label_font_(kFontSize, applause::fonts::Barlow_Medium_ttf),
-      x_editor_(std::make_unique<applause::TextEditor>("inspector_x")),
-      y_editor_(std::make_unique<applause::TextEditor>("inspector_y")),
-      w_editor_(std::make_unique<applause::TextEditor>("inspector_w")),
-      h_editor_(std::make_unique<applause::TextEditor>("inspector_h")),
-      visible_toggle_(std::make_unique<applause::ToggleTextButton>("inspector_visible")),
-      on_top_toggle_(std::make_unique<applause::ToggleTextButton>("inspector_on_top")),
-      ignores_mouse_toggle_(std::make_unique<applause::ToggleTextButton>("inspector_ignores_mouse")) {
-
+InspectorPropertiesView::InspectorPropertiesView(InspectorWindow& window) :
+    window_(window),
+    label_font_(kFontSize, applause::fonts::Barlow_Medium_ttf),
+    x_editor_(std::make_unique<applause::TextEditor>("inspector_x")),
+    y_editor_(std::make_unique<applause::TextEditor>("inspector_y")),
+    w_editor_(std::make_unique<applause::TextEditor>("inspector_w")),
+    h_editor_(std::make_unique<applause::TextEditor>("inspector_h")),
+    visible_toggle_(std::make_unique<applause::Button>("inspector_visible")),
+    on_top_toggle_(std::make_unique<applause::Button>("inspector_on_top")),
+    ignores_mouse_toggle_(std::make_unique<applause::Button>("inspector_ignores_mouse")) {
     applause::TextEditor* editors[] = {x_editor_.get(), y_editor_.get(),
                                        w_editor_.get(), h_editor_.get()};
     for (auto* e : editors) {
@@ -61,26 +60,25 @@ InspectorPropertiesView::InspectorPropertiesView(InspectorWindow& window)
         // refresh tick skips focused editors so typing isn't stomped.
     }
 
-    applause::ToggleTextButton* toggles[] = {visible_toggle_.get(),
-                                             on_top_toggle_.get(),
-                                             ignores_mouse_toggle_.get()};
+    applause::Button* toggles[] = {visible_toggle_.get(), on_top_toggle_.get(), ignores_mouse_toggle_.get()};
     for (auto* t : toggles) {
+        t->setCheckable(true);
         t->setFont(applause::Font(kFontSize, applause::fonts::Barlow_Medium_ttf));
         addChild(t);
         t->setVisible(false);
     }
 
-    visible_toggle_->onToggle() += [this](applause::Button*, bool on) {
+    visible_toggle_->onToggle() += [this](bool on) {
         if (suppress_toggle_callback_) return;
         if (auto* sel = window_.selectedFrame()) sel->setVisible(on);
         visible_toggle_->setText(on ? "on" : "off");
     };
-    on_top_toggle_->onToggle() += [this](applause::Button*, bool on) {
+    on_top_toggle_->onToggle() += [this](bool on) {
         if (suppress_toggle_callback_) return;
         if (auto* sel = window_.selectedFrame()) sel->setOnTop(on);
         on_top_toggle_->setText(on ? "on" : "off");
     };
-    ignores_mouse_toggle_->onToggle() += [this](applause::Button*, bool on) {
+    ignores_mouse_toggle_->onToggle() += [this](bool on) {
         if (suppress_toggle_callback_) return;
         if (auto* sel = window_.selectedFrame())
             sel->setIgnoresMouseEvents(on, true);
@@ -107,9 +105,7 @@ void InspectorPropertiesView::refreshEditorsFromFrame() {
 
     applause::TextEditor* editors[] = {x_editor_.get(), y_editor_.get(),
                                        w_editor_.get(), h_editor_.get()};
-    applause::ToggleTextButton* toggles[] = {visible_toggle_.get(),
-                                             on_top_toggle_.get(),
-                                             ignores_mouse_toggle_.get()};
+    applause::Button* toggles[] = {visible_toggle_.get(), on_top_toggle_.get(), ignores_mouse_toggle_.get()};
     for (auto* e : editors) e->setVisible(show);
     for (auto* t : toggles) t->setVisible(show);
 
@@ -128,11 +124,11 @@ void InspectorPropertiesView::refreshEditorsFromFrame() {
     setIfUnfocused(h_editor_.get(), sel->height());
 
     suppress_toggle_callback_ = true;
-    visible_toggle_->setToggled(sel->isVisible());
+    visible_toggle_->setChecked(sel->isVisible());
     visible_toggle_->setText(sel->isVisible() ? "on" : "off");
-    on_top_toggle_->setToggled(sel->isOnTop());
+    on_top_toggle_->setChecked(sel->isOnTop());
     on_top_toggle_->setText(sel->isOnTop() ? "on" : "off");
-    ignores_mouse_toggle_->setToggled(sel->ignoresMouseEvents());
+    ignores_mouse_toggle_->setChecked(sel->ignoresMouseEvents());
     ignores_mouse_toggle_->setText(sel->ignoresMouseEvents() ? "on" : "off");
     suppress_toggle_callback_ = false;
 }
@@ -222,7 +218,7 @@ void InspectorPropertiesView::resized() {
 
     // Toggle rows: single small pill at the start of the value column.
     constexpr float kToggleW = 44.0f;
-    auto placeToggle = [&](applause::ToggleTextButton* t, int row) {
+    auto placeToggle = [&](applause::Button* t, int row) {
         t->setBounds(vx, static_cast<float>(row) * kRowHeight + 2.0f,
                      kToggleW, widget_h);
     };

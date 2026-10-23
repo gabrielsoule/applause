@@ -222,19 +222,19 @@ TEST_CASE("SelectionGrid cell setters preserve a single authoritative selection"
     std::vector<int> changes;
     grid.onSelectionChanged() += [&](int index) { changes.push_back(index); };
 
-    grid.cell(1).setToggled(true);
+    grid.cell(1).setChecked(true);
     REQUIRE(grid.selectedIndex() == 1);
     REQUIRE_FALSE(grid.cell(0).selected());
     REQUIRE(grid.cell(1).selected());
     REQUIRE(changes.empty());
 
-    grid.cell(1).setToggled(false);
-    grid.cell(1).setToggledAndNotify(false);
+    grid.cell(1).setChecked(false);
+    grid.cell(1).setCheckedAndNotify(false);
     REQUIRE(grid.selectedIndex() == 1);
     REQUIRE(grid.cell(1).selected());
     REQUIRE(changes.empty());
 
-    grid.cell(2).setToggledAndNotify(true);
+    grid.cell(2).setCheckedAndNotify(true);
     REQUIRE(grid.selectedIndex() == 2);
     REQUIRE_FALSE(grid.cell(1).selected());
     REQUIRE(changes == std::vector<int>{2});

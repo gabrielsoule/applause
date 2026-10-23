@@ -22,19 +22,20 @@ void click(applause::Button& button) {
 TEST_CASE("RadioGroup validates explicit membership and selects its first member", "[ui][radio-group]") {
     applause::RadioGroup group;
     applause::RadioGroup other;
-    applause::ToggleButton first;
-    applause::ToggleButton second;
-    applause::ToggleButton third;
+    applause::Button first;
+    applause::Button second;
+    applause::Button third;
     REQUIRE(group.selectedId() == -1);
     REQUIRE_THROWS_AS(group.setSelectedId(0), std::out_of_range);
     REQUIRE_THROWS_AS(group.addButton(first, -1), std::invalid_argument);
 
     group.addButton(first, 8);
-    second.setToggled(true);
+    second.setCheckable(true);
+    second.setChecked(true);
     group.addButton(second, 2);
     REQUIRE(group.selectedId() == 8);
-    REQUIRE(first.toggled());
-    REQUIRE_FALSE(second.toggled());
+    REQUIRE(first.isChecked());
+    REQUIRE_FALSE(second.isChecked());
     REQUIRE_THROWS_AS(group.addButton(third, 8), std::invalid_argument);
     REQUIRE_THROWS_AS(group.addButton(first, 4), std::invalid_argument);
     REQUIRE_THROWS_AS(other.addButton(second, 0), std::invalid_argument);
@@ -44,7 +45,7 @@ TEST_CASE("RadioGroup validates explicit membership and selects its first member
 TEST_CASE("RadioGroup selects across button types and parents before notifying observers", "[ui][radio-group]") {
     applause::RadioGroup group;
     applause::RadioButton first("First");
-    applause::ToggleTextButton second("Second");
+    applause::Button second("Second");
     applause::Frame left_parent;
     applause::Frame right_parent;
     left_parent.addChild(&first);
@@ -52,39 +53,49 @@ TEST_CASE("RadioGroup selects across button types and parents before notifying o
     second.setBounds(0.0f, 0.0f, 40.0f, 24.0f);
     group.addButton(first, 10);
     group.addButton(second, 20);
+    REQUIRE(second.isCheckable());
     std::vector<int> changes;
     group.onSelectionChanged() += [&](int id) {
         REQUIRE(group.selectedId() == id);
-        REQUIRE(first.toggled() == (id == 10));
-        REQUIRE(second.toggled() == (id == 20));
+        REQUIRE(first.isChecked() == (id == 10));
+        REQUIRE(second.isChecked() == (id == 20));
         changes.push_back(id);
     };
-    int first_activations = 0;
-    first.onToggle() += [&](applause::Button*, bool) { ++first_activations; };
+    std::vector<bool> first_toggles;
+    first.onToggle() += [&](bool on) {
+        REQUIRE(second.isChecked() == !on);
+        first_toggles.push_back(on);
+    };
+    int second_clicks = 0;
+    second.onClick() += [&] { ++second_clicks; };
 
-    second.onToggle().clear();
     click(second);
     REQUIRE(changes == std::vector<int>{20});
-    REQUIRE(first_activations == 0);
+    REQUIRE(first_toggles == std::vector<bool>{false});
+    // Clicking the selected member is still a click, but nothing changes.
     click(second);
-    second.setToggled(false);
-    second.setToggledAndNotify(false);
+    REQUIRE(second_clicks == 2);
+    second.setChecked(false);
+    second.setCheckedAndNotify(false);
     REQUIRE(group.selectedId() == 20);
-    REQUIRE(second.toggled());
+    REQUIRE(second.isChecked());
     REQUIRE(changes == std::vector<int>{20});
+    REQUIRE(first_toggles == std::vector<bool>{false});
 
-    first.setToggled(true);
+    first.setChecked(true);
     REQUIRE(group.selectedId() == 10);
     REQUIRE(changes == std::vector<int>{20});
-    second.setToggledAndNotify(true);
+    REQUIRE(first_toggles == std::vector<bool>{false});
+    second.setCheckedAndNotify(true);
     REQUIRE(changes == std::vector<int>{20, 20});
+    REQUIRE(first_toggles == std::vector<bool>{false, false});
 }
 
 TEST_CASE("RadioGroup replaces members without disturbing selection or notifications", "[ui][radio-group]") {
     applause::RadioGroup group;
-    applause::ToggleButton first;
-    applause::ToggleButton second;
-    applause::ToggleButton replacement;
+    applause::Button first;
+    applause::Button second;
+    applause::Button replacement;
     group.addButton(first, 0);
     group.addButton(second, 1);
     int notifications = 0;
@@ -92,8 +103,8 @@ TEST_CASE("RadioGroup replaces members without disturbing selection or notificat
 
     group.replaceButton(0, replacement);
     REQUIRE(group.selectedId() == 0);
-    REQUIRE(replacement.toggled());
-    REQUIRE_FALSE(second.toggled());
+    REQUIRE(replacement.isChecked());
+    REQUIRE_FALSE(second.isChecked());
     REQUIRE(notifications == 0);
     REQUIRE_THROWS_AS(group.replaceButton(5, first), std::out_of_range);
     REQUIRE_THROWS_AS(group.replaceButton(0, second), std::invalid_argument);
@@ -101,8 +112,8 @@ TEST_CASE("RadioGroup replaces members without disturbing selection or notificat
 
 TEST_CASE("RadioGroup handles either member or group destruction first", "[ui][radio-group]") {
     auto group = std::make_unique<applause::RadioGroup>();
-    auto first = std::make_unique<applause::ToggleButton>();
-    applause::ToggleButton second;
+    auto first = std::make_unique<applause::Button>();
+    applause::Button second;
     group->addButton(*first, 3);
     group->addButton(second, 9);
     int notifications = 0;
@@ -110,11 +121,11 @@ TEST_CASE("RadioGroup handles either member or group destruction first", "[ui][r
 
     first.reset();
     REQUIRE(group->selectedId() == 9);
-    REQUIRE(second.toggled());
+    REQUIRE(second.isChecked());
     REQUIRE(notifications == 0);
     group.reset();
-    second.setToggled(false);
-    REQUIRE_FALSE(second.toggled());
+    second.setChecked(false);
+    REQUIRE_FALSE(second.isChecked());
 
     applause::RadioGroup empty;
     empty.addButton(second, 1);

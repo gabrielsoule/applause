@@ -130,27 +130,25 @@ TEST_CASE("A tint scales the alpha of the color it follows", "[theme]") {
 
 TEST_CASE("Button colors follow the accent set above them", "[theme]") {
     applause::Frame root;
-    applause::UiButton button("OK");
+    applause::Button button("OK");
     root.addChild(button);
     REQUIRE(color(button, Button::kGlow) == Color(0xff9966ff));
 
     root.set(applause::theme::kAccent, Color(0xff55ccaa));
     REQUIRE(color(button, Button::kGlow) == Color(0xff55ccaa));
-    REQUIRE(color(button, applause::ToggleButton::kOn) == Color(0xff55ccaa));
-    REQUIRE(color(button, applause::ToggleTextButton::kTextOn) == Color(0xff55ccaa).withAlpha(0.87f));
+    REQUIRE(color(button, Button::kOn) == Color(0xff55ccaa));
+    REQUIRE(color(button, Button::kOnGlow) == Color(0xff55ccaa).withAlpha(0.21f));
 }
 
 TEST_CASE("Accent-colored parts have no fixed shades of their own", "[theme]") {
     applause::Frame root;
-    applause::UiButton button("OK");
+    applause::Button button("OK");
     applause::TextSelectionGridCell cell("Peak");
     root.addChild(button);
     root.addChild(cell);
     root.set(applause::theme::kAccent, Color(0xffffaa33));
 
-    REQUIRE(color(button, applause::UiButton::kActionBackgroundBottomHover) == Color(0xffffaa33));
-    REQUIRE(color(button, applause::UiButton::kActionBorderHover) == Color(0xffffaa33));
-    REQUIRE(color(button, applause::ToggleButton::kOnHover) == Color(0xffffaa33));
+    REQUIRE(color(button, Button::kPrimary) == Color(0xffffaa33));
     REQUIRE(color(cell, applause::SelectionGridCell::kContentSelected) == Color(0xffffaa33));
     REQUIRE(color(cell, applause::SelectionGridCell::kContentSelectedHover) == Color(0xffffaa33));
     REQUIRE(color(root, applause::PopupMenu::kSelection) == Color(0xffffaa33));
@@ -158,8 +156,8 @@ TEST_CASE("Accent-colored parts have no fixed shades of their own", "[theme]") {
 
 TEST_CASE("A theme value set on one button leaves the others alone", "[theme]") {
     applause::Frame root;
-    applause::UiButton first("A");
-    applause::UiButton second("B");
+    applause::Button first("A");
+    applause::Button second("B");
     root.addChild(first);
     root.addChild(second);
     first.set(Button::kTextHover, Color(0xffffffff));
@@ -264,11 +262,11 @@ TEST_CASE("A param knob's name follows the knob's text color in both states", "[
 
 TEST_CASE("The editor's theme values apply to everything in it", "[theme]") {
     applause::ApplauseEditor editor;
-    applause::UiButton button("OK");
+    applause::Button button("OK");
     editor.addChild(button);
     editor.set(Button::kRounding, 3.0f);
     REQUIRE(value(button, Button::kRounding) == 3.0f);
-    REQUIRE(value(button, Button::kBorderWidthPressed) == 1.5f);
+    REQUIRE(value(button, Button::kBorderWidth) == 1.5f);
 }
 
 TEST_CASE("Every token is listed", "[theme]") {
