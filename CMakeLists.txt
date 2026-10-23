@@ -49,9 +49,6 @@ CPMAddPackage(
         "BUILD_BENCHMARK OFF"
 )
 
-# Visage, vendored verbatim from VitalAudio/visage at 7654e32a84f95aacf9d15390272a47d2952d9565
-add_subdirectory(external/visage)
-
 # CLAP Wrapper
 if(APPLE)
     CPMAddPackage(
@@ -93,13 +90,27 @@ CPMAddPackage(
 )
 
 # Embed font resources
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedResources.cmake)
 file(GLOB APPLAUSE_FONT_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/resources/fonts/*.ttf)
+if(UNIX AND NOT APPLE)
+    file(GLOB APPLAUSE_LINUX_FONT_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/resources/fonts/linux/*.ttf)
+    list(APPEND APPLAUSE_FONT_FILES ${APPLAUSE_LINUX_FONT_FILES})
+endif()
 add_embedded_resources(ApplauseEmbeddedFonts "applause_fonts.h" "applause::fonts" "${APPLAUSE_FONT_FILES}")
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ApplauseGraphics.cmake)
 
 file(GLOB_RECURSE APPLAUSE_SOURCES applause/*.cpp applause/*.h)
 if(APPLE)
     file(GLOB_RECURSE APPLAUSE_OBJCXX_SOURCES applause/*.mm)
     list(APPEND APPLAUSE_SOURCES ${APPLAUSE_OBJCXX_SOURCES})
+endif()
+# Graphics and windowing are their own targets (cmake/ApplauseGraphics.cmake), and util has a folder per platform.
+list(FILTER APPLAUSE_SOURCES EXCLUDE REGEX "/applause/(graphics|windowing)/")
+if(WIN32)
+    list(FILTER APPLAUSE_SOURCES EXCLUDE REGEX "/applause/util/posix/")
+else()
+    list(FILTER APPLAUSE_SOURCES EXCLUDE REGEX "/applause/util/win32/")
 endif()
 
 add_library(applause STATIC ${APPLAUSE_SOURCES})
@@ -114,12 +125,15 @@ target_link_libraries(applause
     PUBLIC
         clap
         clap-helpers
-        visage
         nfd
-        VisageEmbeddedFonts
+        ApplausePlatform
         ApplauseEmbeddedFonts
         xsimd
+    PRIVATE
+        ApplauseGraphics
+        ApplauseWindowing
 )
+target_compile_options(applause PRIVATE ${APPLAUSE_UI_COMPILE_OPTIONS})
 
 # nlohmann/json 3.12.0's from_json(std::filesystem::path) uses
 # std::u8string_view, which breaks in TUs compiled with -fno-char8_t (clap-wrapper's VST3/AUv2 targets).

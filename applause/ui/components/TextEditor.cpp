@@ -24,8 +24,8 @@
 #include "TextEditor.h"
 
 #include <embedded/applause_fonts.h>
-#include <visage_utils/string_utils.h>
-#include <visage_windowing/windowing.h>
+#include <applause/util/StringUtils.h>
+#include <applause/windowing/Windowing.h>
 
 #include <algorithm>
 #include <cmath>
@@ -389,13 +389,13 @@ int TextEditor::endOfWord() const {
 }
 
 void TextEditor::mouseEnter(const applause::MouseEvent& e) {
-    visage::setCursorStyle(applause::MouseCursor::IBeam);
+    applause::setCursorStyle(applause::MouseCursor::IBeam);
     hovered_ = true;
     redraw();
 }
 
 void TextEditor::mouseExit(const applause::MouseEvent& e) {
-    visage::setCursorStyle(applause::MouseCursor::Arrow);
+    applause::setCursorStyle(applause::MouseCursor::Arrow);
     hovered_ = false;
     redraw();
 }
@@ -548,7 +548,7 @@ bool TextEditor::keyPress(const applause::KeyEvent& key) {
     if (code == applause::KeyCode::Return) return enterPressed();
     if (code == applause::KeyCode::Escape) return escapePressed();
 
-    return key.modifierMask() == 0 || key.modifierMask() == visage::kModifierShift;
+    return key.modifierMask() == 0 || key.modifierMask() == applause::kModifierShift;
 }
 
 bool TextEditor::keyRelease(const applause::KeyEvent& key) { return active_; }
@@ -707,7 +707,7 @@ bool TextEditor::copyToClipboard() {
 
     applause::String selected = selection();
 
-    if (!selected.isEmpty()) visage::setClipboardText(selected.toUtf8());
+    if (!selected.isEmpty()) applause::setClipboardText(selected.toUtf8());
     return true;
 }
 
@@ -722,7 +722,7 @@ bool TextEditor::cutToClipboard() {
 bool TextEditor::pasteFromClipboard() {
     addUndoPosition();
     action_state_ = kInserting;
-    insertTextAtCaret(visage::readClipboardText());
+    insertTextAtCaret(applause::readClipboardText());
     return true;
 }
 

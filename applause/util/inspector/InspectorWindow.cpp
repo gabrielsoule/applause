@@ -28,7 +28,7 @@ InspectorWindow::InspectorWindow(applause::Frame& editor)
       metric_font_(kMetricFontSize, applause::fonts::Barlow_Medium_ttf) {
     setName("InspectorWindow");
     setTitle("Applause Inspector");
-    setWindowDecoration(visage::Window::Decoration::Native);
+    setWindowDecoration(applause::Window::Decoration::Native);
     setAcceptsKeystrokes(true);
 
     pick_button_      = std::make_unique<applause::ToggleTextButton>("Select");

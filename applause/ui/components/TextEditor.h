@@ -224,32 +224,32 @@ public:
     // every state" — is a single call. Consumers who actually want a distinct
     // focused/hover/disabled appearance call the variant setter AFTER the main
     // setter; explicit variant routes override the propagated base ID.
-    void setBackgroundColorId(visage::theme::ColorId id) {
+    void setBackgroundColorId(applause::theme::ColorId id) {
         background_color_id_ = id;
         background_focused_color_id_ = id;
         background_hover_color_id_ = id;
         background_disabled_color_id_ = id;
     }
-    void setBorderColorId(visage::theme::ColorId id) {
+    void setBorderColorId(applause::theme::ColorId id) {
         border_color_id_ = id;
         border_focused_color_id_ = id;
         border_hover_color_id_ = id;
         border_disabled_color_id_ = id;
     }
-    void setTextColorId(visage::theme::ColorId id) {
+    void setTextColorId(applause::theme::ColorId id) {
         text_color_id_ = id;
         text_disabled_color_id_ = id;
     }
-    void setDefaultTextColorId(visage::theme::ColorId id) { default_text_color_id_ = id; }
-    void setCaretColorId(visage::theme::ColorId id) { caret_color_id_ = id; }
-    void setSelectionColorId(visage::theme::ColorId id) { selection_color_id_ = id; }
-    void setBackgroundFocusedColorId(visage::theme::ColorId id) { background_focused_color_id_ = id; }
-    void setBorderFocusedColorId(visage::theme::ColorId id) { border_focused_color_id_ = id; }
-    void setBackgroundHoverColorId(visage::theme::ColorId id) { background_hover_color_id_ = id; }
-    void setBorderHoverColorId(visage::theme::ColorId id) { border_hover_color_id_ = id; }
-    void setBackgroundDisabledColorId(visage::theme::ColorId id) { background_disabled_color_id_ = id; }
-    void setBorderDisabledColorId(visage::theme::ColorId id) { border_disabled_color_id_ = id; }
-    void setTextDisabledColorId(visage::theme::ColorId id) { text_disabled_color_id_ = id; }
+    void setDefaultTextColorId(applause::theme::ColorId id) { default_text_color_id_ = id; }
+    void setCaretColorId(applause::theme::ColorId id) { caret_color_id_ = id; }
+    void setSelectionColorId(applause::theme::ColorId id) { selection_color_id_ = id; }
+    void setBackgroundFocusedColorId(applause::theme::ColorId id) { background_focused_color_id_ = id; }
+    void setBorderFocusedColorId(applause::theme::ColorId id) { border_focused_color_id_ = id; }
+    void setBackgroundHoverColorId(applause::theme::ColorId id) { background_hover_color_id_ = id; }
+    void setBorderHoverColorId(applause::theme::ColorId id) { border_hover_color_id_ = id; }
+    void setBackgroundDisabledColorId(applause::theme::ColorId id) { background_disabled_color_id_ = id; }
+    void setBorderDisabledColorId(applause::theme::ColorId id) { border_disabled_color_id_ = id; }
+    void setTextDisabledColorId(applause::theme::ColorId id) { text_disabled_color_id_ = id; }
 
 protected:
     float xMarginSize() const { return set_x_margin_ ? set_x_margin_ : paletteValue(ApplauseTextEditorMarginX); }
@@ -259,19 +259,19 @@ protected:
     // (active vs disabled vs focused vs hover). Centralized here so both
     // drawBackground and draw stay consistent and subclasses can override the
     // policy by overriding the draw helpers.
-    visage::theme::ColorId resolvedBackgroundColorId() const {
+    applause::theme::ColorId resolvedBackgroundColorId() const {
         if (!active_) return background_disabled_color_id_;
         if (hasKeyboardFocus()) return background_focused_color_id_;
         if (hovered_) return background_hover_color_id_;
         return background_color_id_;
     }
-    visage::theme::ColorId resolvedBorderColorId() const {
+    applause::theme::ColorId resolvedBorderColorId() const {
         if (!active_) return border_disabled_color_id_;
         if (hasKeyboardFocus()) return border_focused_color_id_;
         if (hovered_) return border_hover_color_id_;
         return border_color_id_;
     }
-    visage::theme::ColorId resolvedTextColorId() const { return active_ ? text_color_id_ : text_disabled_color_id_; }
+    applause::theme::ColorId resolvedTextColorId() const { return active_ ? text_color_id_ : text_disabled_color_id_; }
 
     applause::CallbackList<void()> on_text_change_;
     applause::CallbackList<void()> on_enter_key_;
@@ -293,19 +293,19 @@ protected:
     bool hovered_ = false;
     bool active_ = true;
 
-    visage::theme::ColorId background_color_id_ = ApplauseTextEditorBackground;
-    visage::theme::ColorId border_color_id_ = ApplauseTextEditorBorder;
-    visage::theme::ColorId text_color_id_ = ApplauseTextEditorText;
-    visage::theme::ColorId default_text_color_id_ = ApplauseTextEditorDefaultText;
-    visage::theme::ColorId caret_color_id_ = ApplauseTextEditorCaret;
-    visage::theme::ColorId selection_color_id_ = ApplauseTextEditorSelection;
-    visage::theme::ColorId background_focused_color_id_ = ApplauseTextEditorBackgroundFocused;
-    visage::theme::ColorId border_focused_color_id_ = ApplauseTextEditorBorderFocused;
-    visage::theme::ColorId background_hover_color_id_ = ApplauseTextEditorBackgroundHover;
-    visage::theme::ColorId border_hover_color_id_ = ApplauseTextEditorBorderHover;
-    visage::theme::ColorId background_disabled_color_id_ = ApplauseTextEditorBackgroundDisabled;
-    visage::theme::ColorId border_disabled_color_id_ = ApplauseTextEditorBorderDisabled;
-    visage::theme::ColorId text_disabled_color_id_ = ApplauseTextEditorTextDisabled;
+    applause::theme::ColorId background_color_id_ = ApplauseTextEditorBackground;
+    applause::theme::ColorId border_color_id_ = ApplauseTextEditorBorder;
+    applause::theme::ColorId text_color_id_ = ApplauseTextEditorText;
+    applause::theme::ColorId default_text_color_id_ = ApplauseTextEditorDefaultText;
+    applause::theme::ColorId caret_color_id_ = ApplauseTextEditorCaret;
+    applause::theme::ColorId selection_color_id_ = ApplauseTextEditorSelection;
+    applause::theme::ColorId background_focused_color_id_ = ApplauseTextEditorBackgroundFocused;
+    applause::theme::ColorId border_focused_color_id_ = ApplauseTextEditorBorderFocused;
+    applause::theme::ColorId background_hover_color_id_ = ApplauseTextEditorBackgroundHover;
+    applause::theme::ColorId border_hover_color_id_ = ApplauseTextEditorBorderHover;
+    applause::theme::ColorId background_disabled_color_id_ = ApplauseTextEditorBackgroundDisabled;
+    applause::theme::ColorId border_disabled_color_id_ = ApplauseTextEditorBorderDisabled;
+    applause::theme::ColorId text_disabled_color_id_ = ApplauseTextEditorTextDisabled;
 
     float background_rounding_ = 1.0f;
     float set_x_margin_ = 0.0f;

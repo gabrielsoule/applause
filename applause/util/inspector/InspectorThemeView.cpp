@@ -6,7 +6,7 @@
 #include "InspectorWindow.h"
 
 #include <embedded/applause_fonts.h>
-#include <visage_widgets/color_picker.h>
+#include <applause/util/inspector/ColorPicker.h>
 
 #include <algorithm>
 #include <cctype>
@@ -63,7 +63,7 @@ void detachFromParent(applause::Frame* f) {
 
 class ThemeColorRow : public TreeRow {
 public:
-    ThemeColorRow(visage::theme::ColorId id, InspectorThemeView& view)
+    ThemeColorRow(applause::theme::ColorId id, InspectorThemeView& view)
         : id_(id), view_(view) {}
 
     std::string stableKey() const override {
@@ -87,9 +87,9 @@ public:
             canvas.rectangle(0, 0, bounds.width(), bounds.height());
         }
 
-        visage::Brush brush;
+        applause::Brush brush;
         if (!view_.window().palette().color({}, id_, brush))
-            brush = visage::Brush::solid(visage::theme::ColorId::defaultColor(id_));
+            brush = applause::Brush::solid(applause::theme::ColorId::defaultColor(id_));
 
         const float swatch_x = InspectorThemeView::kIndent + InspectorThemeView::kPaddingX;
         const float swatch_y = (bounds.height() - InspectorThemeView::kSwatchSize) * 0.5f;
@@ -104,7 +104,7 @@ public:
 
         canvas.setColor(InspectorThemeView::ApplauseInspectorThemeText);
         const float text_x = swatch_x + InspectorThemeView::kSwatchSize + 6.0f;
-        canvas.text(applause::String(visage::theme::ColorId::name(id_)),
+        canvas.text(applause::String(applause::theme::ColorId::name(id_)),
                     view_.labelFont(), applause::Font::kLeft,
                     text_x, 0,
                     bounds.width() - text_x - InspectorThemeView::kPaddingX,
@@ -150,7 +150,7 @@ private:
         return e.isValid() && e.id == id_.id;
     }
 
-    visage::theme::ColorId id_;
+    applause::theme::ColorId id_;
     InspectorThemeView& view_;
 };
 
@@ -158,7 +158,7 @@ private:
 
 class ThemeValueRow : public TreeRow {
 public:
-    ThemeValueRow(visage::theme::ValueId id, InspectorThemeView& view)
+    ThemeValueRow(applause::theme::ValueId id, InspectorThemeView& view)
         : id_(id), view_(view),
           editor_(std::make_unique<applause::TextEditor>("inspector_value_editor")) {
         editor_->setNumberEntry();
@@ -190,7 +190,7 @@ public:
         const float text_w = std::max(
             0.0f,
             bounds.width() - text_x - InspectorThemeView::kValueEditorW - 2.0f * InspectorThemeView::kPaddingX);
-        canvas.text(applause::String(visage::theme::ValueId::name(id_)),
+        canvas.text(applause::String(applause::theme::ValueId::name(id_)),
                     view_.labelFont(), applause::Font::kLeft,
                     text_x, 0, text_w, bounds.height());
     }
@@ -217,12 +217,12 @@ public:
             if (view_.window().palette().value({}, id_, current))
                 editor_->setText(formatValue(current));
             else
-                editor_->setText(formatValue(visage::theme::ValueId::defaultValue(id_)));
+                editor_->setText(formatValue(applause::theme::ValueId::defaultValue(id_)));
         }
     }
 
 private:
-    visage::theme::ValueId id_;
+    applause::theme::ValueId id_;
     InspectorThemeView& view_;
     std::unique_ptr<applause::TextEditor> editor_;
 };
@@ -242,16 +242,16 @@ public:
 
     std::vector<std::unique_ptr<TreeRow>> buildChildren() override {
         std::vector<std::unique_ptr<TreeRow>> out;
-        const int num_colors = visage::theme::ColorId::numColorIds();
+        const int num_colors = applause::theme::ColorId::numColorIds();
         for (int i = 0; i < num_colors; ++i) {
-            visage::theme::ColorId id(static_cast<unsigned int>(i));
-            if (visage::theme::ColorId::groupName(id) == group_)
+            applause::theme::ColorId id(static_cast<unsigned int>(i));
+            if (applause::theme::ColorId::groupName(id) == group_)
                 out.push_back(std::make_unique<ThemeColorRow>(id, view_));
         }
-        const int num_values = visage::theme::ValueId::numValueIds();
+        const int num_values = applause::theme::ValueId::numValueIds();
         for (int i = 0; i < num_values; ++i) {
-            visage::theme::ValueId id(static_cast<unsigned int>(i));
-            if (visage::theme::ValueId::groupName(id) == group_)
+            applause::theme::ValueId id(static_cast<unsigned int>(i));
+            if (applause::theme::ValueId::groupName(id) == group_)
                 out.push_back(std::make_unique<ThemeValueRow>(id, view_));
         }
         return out;
@@ -319,15 +319,15 @@ public:
         // Collect every group name registered on either ColorId or ValueId.
         // std::set gives us alphabetical order across the union.
         std::set<std::string> groups;
-        const int num_colors = visage::theme::ColorId::numColorIds();
+        const int num_colors = applause::theme::ColorId::numColorIds();
         for (int i = 0; i < num_colors; ++i) {
-            visage::theme::ColorId id(static_cast<unsigned int>(i));
-            groups.insert(visage::theme::ColorId::groupName(id));
+            applause::theme::ColorId id(static_cast<unsigned int>(i));
+            groups.insert(applause::theme::ColorId::groupName(id));
         }
-        const int num_values = visage::theme::ValueId::numValueIds();
+        const int num_values = applause::theme::ValueId::numValueIds();
         for (int i = 0; i < num_values; ++i) {
-            visage::theme::ValueId id(static_cast<unsigned int>(i));
-            groups.insert(visage::theme::ValueId::groupName(id));
+            applause::theme::ValueId id(static_cast<unsigned int>(i));
+            groups.insert(applause::theme::ValueId::groupName(id));
         }
         std::vector<std::unique_ptr<TreeRow>> out;
         out.reserve(groups.size());
@@ -347,11 +347,11 @@ private:
 InspectorThemeView::InspectorThemeView(InspectorWindow& window)
     : window_(window),
       label_font_(kLabelFontSize, applause::fonts::Barlow_Medium_ttf),
-      color_picker_(std::make_unique<visage::ColorPicker>()) {
+      color_picker_(std::make_unique<applause::ColorPicker>()) {
     setName("InspectorThemeView");
 
     color_picker_->setVisible(false);
-    color_picker_->onColorChange() += [this](const visage::Color& c) {
+    color_picker_->onColorChange() += [this](const applause::Color& c) {
         if (suppress_picker_callback_) return;
         applyEditedColor(c);
     };
@@ -370,18 +370,18 @@ InspectorThemeView::InspectorThemeView(InspectorWindow& window)
 
 InspectorThemeView::~InspectorThemeView() = default;
 
-void InspectorThemeView::setEditingColor(visage::theme::ColorId id) {
+void InspectorThemeView::setEditingColor(applause::theme::ColorId id) {
     editing_color_id_ = id;
 
     // Seed the picker with the current resolved color without re-firing
     // onColorChange (which would write the same value back to the palette
     // and trigger spurious editor redraws).
-    visage::Brush b;
-    visage::Color current;
+    applause::Brush b;
+    applause::Color current;
     if (window_.palette().color({}, id, b))
         current = b.gradient().sample(0.0f);
     else
-        current = visage::Color(visage::theme::ColorId::defaultColor(id));
+        current = applause::Color(applause::theme::ColorId::defaultColor(id));
     suppress_picker_callback_ = true;
     color_picker_->setColor(current);
     suppress_picker_callback_ = false;
@@ -390,21 +390,21 @@ void InspectorThemeView::setEditingColor(visage::theme::ColorId id) {
 }
 
 void InspectorThemeView::clearEditingColor() {
-    editing_color_id_ = visage::theme::ColorId();
+    editing_color_id_ = applause::theme::ColorId();
     // Drop any keyboard focus held by the picker's text editors before they
     // become invisible — otherwise typing would go to a hidden field.
     requestKeyboardFocus();
     rebuild();
 }
 
-void InspectorThemeView::applyEditedColor(const visage::Color& color) {
+void InspectorThemeView::applyEditedColor(const applause::Color& color) {
     if (!editing_color_id_.isValid()) return;
     window_.palette().setColor({}, editing_color_id_, color);
     window_.editor().redrawAll();
     redraw();
 }
 
-void InspectorThemeView::applyValue(visage::theme::ValueId id, const std::string& text) {
+void InspectorThemeView::applyValue(applause::theme::ValueId id, const std::string& text) {
     auto trimmed = text;
     while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.front())))
         trimmed.erase(0, 1);
@@ -431,10 +431,10 @@ std::vector<std::string> InspectorThemeView::matchingGroupsFor(applause::Frame* 
 
     std::vector<std::string> matches;
     std::unordered_set<std::string> seen;
-    const int num_colors = visage::theme::ColorId::numColorIds();
+    const int num_colors = applause::theme::ColorId::numColorIds();
     for (int i = 0; i < num_colors; ++i) {
-        visage::theme::ColorId id(static_cast<unsigned int>(i));
-        const std::string& g = visage::theme::ColorId::groupName(id);
+        applause::theme::ColorId id(static_cast<unsigned int>(i));
+        const std::string& g = applause::theme::ColorId::groupName(id);
         if (seen.count(g)) continue;
         std::string g_norm = normalize(g);
         for (const auto& cand : candidates) {
@@ -445,10 +445,10 @@ std::vector<std::string> InspectorThemeView::matchingGroupsFor(applause::Frame* 
             }
         }
     }
-    const int num_values = visage::theme::ValueId::numValueIds();
+    const int num_values = applause::theme::ValueId::numValueIds();
     for (int i = 0; i < num_values; ++i) {
-        visage::theme::ValueId id(static_cast<unsigned int>(i));
-        const std::string& g = visage::theme::ValueId::groupName(id);
+        applause::theme::ValueId id(static_cast<unsigned int>(i));
+        const std::string& g = applause::theme::ValueId::groupName(id);
         if (seen.count(g)) continue;
         std::string g_norm = normalize(g);
         for (const auto& cand : candidates) {

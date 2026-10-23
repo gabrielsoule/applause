@@ -18,7 +18,7 @@ class SelectionHighlightFrame;
 
 // Standalone native OS window that hosts the Applause UI inspector. The
 // inspector never appears inside the host plugin editor — it lives in its
-// own top-level `visage::ApplicationWindow`. Closing the window via the
+// own top-level `applause::ApplicationWindow`. Closing the window via the
 // native close button hides it entirely; next `toggleShown()` reopens.
 //
 // All inspector state (selected/hovered frame, pick mode flag, polling

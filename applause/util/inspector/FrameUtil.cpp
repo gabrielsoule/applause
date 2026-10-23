@@ -42,7 +42,7 @@ applause::Frame* frameAtPointExcluding(
 
     const auto& children = root->children();
     // Walk on_top siblings first (drawn last → on top), reverse iter so
-    // last-added/topmost wins. Matches visage::Frame::frameAtPoint order.
+    // last-added/topmost wins. Matches applause::Frame::frameAtPoint order.
     for (auto it = children.rbegin(); it != children.rend(); ++it) {
         auto* child = *it;
         if (!child->isOnTop()) continue;

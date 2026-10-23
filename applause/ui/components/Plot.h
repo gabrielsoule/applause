@@ -28,8 +28,8 @@ public:
     void draw(applause::Canvas& canvas) override;
 
 private:
-    visage::GraphData source_data_;
-    visage::GraphData data_;
+    applause::GraphData source_data_;
+    applause::GraphData data_;
 };
 
 /**
