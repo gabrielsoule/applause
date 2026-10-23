@@ -73,45 +73,53 @@ foreach(dependency freetype bgfx bx bimg bimg_decode bimg_encode)
 endforeach()
 target_compile_definitions(bx PRIVATE BX_CONFIG_EXCEPTION_HANDLING_USE_WINDOWS_SEH=0)
 
-# Shaders, compiled for the target platform's backend with the vendored shaderc and embedded as applause::shaders.
-if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
-    set(APPLAUSE_SHADERC ${APPLAUSE_GRAPHICS_DIR}/bin/win32/shaderc.exe)
-elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
-    set(APPLAUSE_SHADERC ${APPLAUSE_GRAPHICS_DIR}/bin/macos/shaderc)
-else()
-    set(APPLAUSE_SHADERC ${APPLAUSE_GRAPHICS_DIR}/bin/linux/shaderc)
-endif()
+# Compiles bgfx shaders for the target platform's backend with the vendored shaderc, then embeds them in a library
+# under `namespace`, along with any extra files given after the shaders. Shaders can include Applause's shader headers,
+# such as shader_include.sh. A plugin uses this for its own shaders.
+function(applause_embed_shaders project include_filename namespace shaders)
+    set(graphics_dir ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../applause/graphics)
+    if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+        set(shaderc ${graphics_dir}/bin/win32/shaderc.exe)
+    elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+        set(shaderc ${graphics_dir}/bin/macos/shaderc)
+    else()
+        set(shaderc ${graphics_dir}/bin/linux/shaderc)
+    endif()
 
-if(WIN32)
-    set(shader_args -O3 --platform windows -p s_4_0)
-elseif(APPLE)
-    set(shader_args --platform osx -p metal)
-else()
-    set(shader_args --platform linux -p spirv)
-endif()
+    if(WIN32)
+        set(shader_args -O3 --platform windows -p s_4_0)
+    elseif(APPLE)
+        set(shader_args --platform osx -p metal)
+    else()
+        set(shader_args --platform linux -p spirv)
+    endif()
+
+    set(shader_bin_dir ${CMAKE_CURRENT_BINARY_DIR}/${project})
+    file(MAKE_DIRECTORY ${shader_bin_dir})
+    set(shader_bins)
+    foreach(shader ${shaders})
+        get_filename_component(shader_name ${shader} NAME_WE)
+        if(shader_name MATCHES "^fs_")
+            set(shader_type f)
+        else()
+            set(shader_type v)
+        endif()
+        list(APPEND shader_bins ${shader_bin_dir}/${shader_name})
+        add_custom_command(
+            OUTPUT ${shader_bin_dir}/${shader_name}
+            COMMAND ${shaderc} -i ${graphics_dir}/shaders -f ${shader} -o ${shader_bin_dir}/${shader_name}
+                    --type ${shader_type} ${shader_args}
+            DEPENDS ${shader}
+        )
+    endforeach()
+    set(files ${shader_bins} ${ARGN})
+    add_embedded_resources(${project} ${include_filename} ${namespace} "${files}")
+endfunction()
 
 file(GLOB APPLAUSE_SHADERS ${APPLAUSE_GRAPHICS_DIR}/shaders/[vf]s_*.sc)
 file(GLOB APPLAUSE_SHADER_INCLUDES ${APPLAUSE_GRAPHICS_DIR}/shaders/*.sh ${APPLAUSE_GRAPHICS_DIR}/shaders/varying.def.sc)
-set(shader_bin_dir ${CMAKE_CURRENT_BINARY_DIR}/shaders)
-file(MAKE_DIRECTORY ${shader_bin_dir})
-set(shader_bins)
-foreach(shader ${APPLAUSE_SHADERS})
-    get_filename_component(shader_name ${shader} NAME_WE)
-    if(shader_name MATCHES "^fs_")
-        set(shader_type f)
-    else()
-        set(shader_type v)
-    endif()
-    list(APPEND shader_bins ${shader_bin_dir}/${shader_name})
-    add_custom_command(
-        OUTPUT ${shader_bin_dir}/${shader_name}
-        COMMAND ${APPLAUSE_SHADERC} -i ${APPLAUSE_GRAPHICS_DIR}/shaders -f ${shader} -o ${shader_bin_dir}/${shader_name}
-                --type ${shader_type} ${shader_args}
-        DEPENDS ${shader}
-    )
-endforeach()
-add_embedded_resources(ApplauseEmbeddedShaders "shaders.h" "applause::shaders"
-                       "${shader_bins};${APPLAUSE_SHADER_INCLUDES};${APPLAUSE_SHADERS}")
+applause_embed_shaders(ApplauseEmbeddedShaders "shaders.h" "applause::shaders" "${APPLAUSE_SHADERS}"
+                       ${APPLAUSE_SHADER_INCLUDES} ${APPLAUSE_SHADERS})
 
 # Graphics
 file(GLOB APPLAUSE_GRAPHICS_SOURCES ${APPLAUSE_GRAPHICS_DIR}/*.cpp ${APPLAUSE_GRAPHICS_DIR}/*.h)
