@@ -21,6 +21,8 @@
 #include <memory>
 #include <array>
 
+#include "Badge.h"
+
 class ExampleShowcaseEditor : public applause::ApplauseEditor {
 public:
     ExampleShowcaseEditor(applause::ParamsExtension* params, applause::ModMatrixControl* mod_matrix);
@@ -94,6 +96,25 @@ private:
     applause::RadioGroup filter_radio_group_;
     std::array<std::unique_ptr<applause::RadioButton>, 6> filter_radios_;
     applause::ParamRadioGroup filter_radio_binding_;
+
+    // Theming. Each section shows one way to theme: the whole app, one subtree, single items, and a custom component.
+    applause::Panel theming_panel_{"Theming"};
+    applause::Panel accent_panel_{"App accent"};
+    applause::UiButton purple_button_{"Purple"};
+    applause::UiButton teal_button_{"Teal"};
+    applause::UiButton amber_button_{"Amber"};
+    applause::Panel scoped_panel_{"Scoped accent"};
+    applause::ToggleTextButton scoped_toggle_{"Toggle"};
+    applause::Checkbox scoped_checkbox_{"Checkbox"};
+    applause::Slider scoped_slider_;
+    Badge scoped_badge_{"Badge"};
+    applause::Panel items_panel_{"Individual items"};
+    applause::UiButton pill_button_{"Pill"};
+    applause::UiButton delete_button_{"Delete"};
+    applause::UiButton accent_text_button_{"Accent text"};
+    applause::Panel custom_panel_{"Custom component"};
+    Badge accent_badge_{"Accent"};
+    Badge saved_badge_{"Saved"};
 
     void onLoadFileClicked();
 };

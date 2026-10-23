@@ -19,6 +19,7 @@
 #include <numbers>
 #include <span>
 #include <sstream>
+#include <utility>
 
 using namespace applause::dimension;
 
@@ -316,6 +317,66 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
         mod_matrix_ui_ = std::make_unique<applause::ModMatrixComponent>(*mod_matrix);
         mod_matrix_panel_.content().addChild(mod_matrix_ui_.get());
     }
+
+    // --- Theming Panel (far right) ---
+    // A token set on a frame applies to that frame and everything inside it, and the nearest frame that sets a token
+    // wins. Colors and values (sizes, roundings, ...) work the same way.
+    addChild(&theming_panel_);
+    for (auto* section : {&accent_panel_, &scoped_panel_, &items_panel_, &custom_panel_})
+        theming_panel_.content().addChild(section);
+    // Set on the content frame, so the section panels get compact titles but the Theming panel keeps its own.
+    theming_panel_.content().set(applause::Panel::kTitleHeight, 30.0f);
+
+    // The whole app: tokens set on the editor reach everything in it. These buttons change the shared accent at
+    // runtime, which retints every control that follows it (knobs, sliders, toggles, glows, grids, and plots).
+    // Each button's own text and glow are set on just that button.
+    const std::pair<applause::UiButton*, applause::Color> accents[] = {
+        {&purple_button_, applause::Color(0xff9966ff)},
+        {&teal_button_, applause::Color(0xff3cc8b4)},
+        {&amber_button_, applause::Color(0xffffb03a)},
+    };
+    for (const auto& [button, accent] : accents) {
+        button->set(applause::Button::kText, accent);
+        button->set(applause::Button::kTextHover, accent);
+        button->set(applause::Button::kGlow, accent);
+        button->onToggle() += [this, accent](applause::Button*, bool) { set(applause::theme::kAccent, accent); };
+        applause::setTooltip(*button, "Sets theme::kAccent on the editor");
+        accent_panel_.content().addChild(button);
+    }
+
+    // One subtree: tokens set on a panel win over the editor's inside it, so this panel keeps its own accent whichever
+    // app accent is picked. Its background is set the same way.
+    scoped_panel_.set(applause::theme::kAccent, applause::Color(0xffff5c8a));
+    scoped_panel_.set(applause::Panel::kBackground, applause::Color(0xff231a20));
+    scoped_toggle_.setToggled(true);
+    scoped_checkbox_.setToggled(true);
+    scoped_slider_.setValue(0.6f);
+    for (applause::Frame* item :
+         std::initializer_list<applause::Frame*>{&scoped_toggle_, &scoped_checkbox_, &scoped_slider_, &scoped_badge_}) {
+        scoped_panel_.content().addChild(item);
+        applause::setTooltip(*item, "Follows theme::kAccent, set on the panel around it");
+    }
+
+    // Single items: a token set on one frame changes only that frame.
+    pill_button_.set(applause::Button::kRounding, 17.0f);
+    applause::setTooltip(pill_button_, "Button::kRounding set on this button");
+    delete_button_.set(applause::Button::kText, applause::Color(0xffff6b6b));
+    delete_button_.set(applause::Button::kTextHover, applause::Color(0xffff9b9b));
+    delete_button_.set(applause::Button::kGlow, applause::Color(0xffff4d4d));
+    applause::setTooltip(delete_button_, "Button text and glow set on this button");
+    // A frame can also make a token follow another: this button's text tracks the app accent.
+    accent_text_button_.set(applause::Button::kText, applause::theme::kAccent);
+    accent_text_button_.set(applause::Button::kTextHover, applause::theme::kAccent);
+    applause::setTooltip(accent_text_button_, "Button::kText follows theme::kAccent on this button");
+    for (auto* button : {&pill_button_, &delete_button_, &accent_text_button_}) items_panel_.content().addChild(button);
+
+    // A custom component declares its own tokens (see Badge.h) and themes like any built-in one. Setting the badge's
+    // one main color here restyles its text, fill, and border together.
+    saved_badge_.set(Badge::kColor, applause::Color(0xff4cd387));
+    applause::setTooltip(accent_badge_, "A custom component; its tokens follow theme::kAccent");
+    applause::setTooltip(saved_badge_, "Badge::kColor set on this badge");
+    custom_panel_.content().addChild(&accent_badge_);
+    custom_panel_.content().addChild(&saved_badge_);
 }
 
 void ExampleShowcaseEditor::resized() {
@@ -423,9 +484,10 @@ void ExampleShowcaseEditor::resized() {
         inactive_radio_.setBounds(btn_pad + 2 * radio_w, radio_y, radio_w, 24.0f);
     }
 
-    // --- Column 3 (right): MSEG, Selection Grids, Mod Matrix, Plots ---
+    // --- Column 3: MSEG, Selection Grids, Mod Matrix, Plots ---
+    static constexpr float kThemingPanelWidth = 300.0f;
     float col3_x = col2_x + col2_w + kGap;
-    float col3_w = width() - col3_x - kPadding;
+    float col3_w = width() - col3_x - kGap - kThemingPanelWidth - kPadding;
 
     float mseg_h = (col_h - kGap) * 0.5f;
     static constexpr float kSelectionGridsPanelWidth = 260.0f;
@@ -472,6 +534,46 @@ void ExampleShowcaseEditor::resized() {
     trace_demo_.setBounds(0, 0, plot_w, pc.height());
     plot_demo_.setBounds(plot_w + kGap, 0, plot_w, pc.height());
     plot_trace_demo_.setBounds(plot_demo_.localBounds());
+
+    // --- Column 4 (far right): Theming ---
+    theming_panel_.setBounds(col3_x + col3_w + kGap, kPadding, kThemingPanelWidth, col_h);
+    {
+        static constexpr float kRowHeight = 30.0f;
+        static constexpr float kRowGap = 8.0f;
+        const float section_w = theming_panel_.content().width();
+        float section_y = 0.0f;
+        // Sizes each section to its title and rows. Panel sizes are theme values too, read from the section itself.
+        const auto placeSection = [&](applause::Panel& section, int rows) {
+            const float h = applause::value(section, applause::Panel::kTitleHeight) + rows * (kRowHeight + kRowGap) +
+                applause::value(section, applause::Panel::kContentMargin);
+            section.setBounds(0, section_y, section_w, h);
+            section_y += h + kGap;
+        };
+        const auto placeRow = [&](applause::Panel& section, int row, std::initializer_list<applause::Frame*> items) {
+            const float item_w =
+                (section.content().width() - (items.size() - 1) * kRowGap) / static_cast<float>(items.size());
+            float x = 0.0f;
+            for (auto* item : items) {
+                item->setBounds(x, row * (kRowHeight + kRowGap), item_w, kRowHeight);
+                x += item_w + kRowGap;
+            }
+        };
+
+        placeSection(accent_panel_, 1);
+        placeRow(accent_panel_, 0, {&purple_button_, &teal_button_, &amber_button_});
+
+        placeSection(scoped_panel_, 3);
+        placeRow(scoped_panel_, 0, {&scoped_toggle_, &scoped_checkbox_});
+        placeRow(scoped_panel_, 1, {&scoped_slider_});
+        placeRow(scoped_panel_, 2, {&scoped_badge_});
+
+        placeSection(items_panel_, 2);
+        placeRow(items_panel_, 0, {&pill_button_, &delete_button_});
+        placeRow(items_panel_, 1, {&accent_text_button_});
+
+        placeSection(custom_panel_, 1);
+        placeRow(custom_panel_, 0, {&accent_badge_, &saved_badge_});
+    }
 }
 
 void ExampleShowcaseEditor::onLoadFileClicked() {
