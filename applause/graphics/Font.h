@@ -74,9 +74,10 @@ public:
     static bool hasNewLine(const char32_t* string, int length);
 
     Font() = default;
-    Font(float size, const unsigned char* font_data, int data_size, float dpi_scale = 0.0f);
-    Font(float size, const EmbeddedFile& file, float dpi_scale = 0.0f);
-    Font(float size, const std::string& file_path, float dpi_scale = 0.0f);
+    Font(float size, const unsigned char* font_data, int data_size, float dpi_scale = 0.0f,
+         float letter_spacing = 0.0f);
+    Font(float size, const EmbeddedFile& file, float dpi_scale = 0.0f, float letter_spacing = 0.0f);
+    Font(float size, const std::string& file_path, float dpi_scale = 0.0f, float letter_spacing = 0.0f);
     Font(const Font& other);
     Font& operator=(const Font& other);
     ~Font();
@@ -89,6 +90,7 @@ public:
     }
     Font withDpiScale(float dpi_scale) const;
     Font withSize(float size) const;
+    Font withLetterSpacing(float letter_spacing) const;
 
     int widthOverflowIndex(const char32_t* string, int string_length, float width, bool round = false,
                            int character_override = 0) const {
@@ -107,6 +109,7 @@ public:
     float lineHeight() const { return nativeLineHeight() / dpiScale(); }
     float capitalHeight() const { return nativeCapitalHeight() / dpiScale(); }
     float lowerDipHeight() const { return nativeLowerDipHeight() / dpiScale(); }
+    float letterSpacing() const { return letter_spacing_; }
 
     int atlasWidth() const;
     int atlasHeight() const;
@@ -133,6 +136,7 @@ private:
     float size_ = 0.0f;
     int native_size_ = 0;
     float dpi_scale_ = 0.0f;
+    float letter_spacing_ = 0.0f;
     PackedFont* packed_font_ = nullptr;
 };
 

@@ -38,3 +38,18 @@ TEST_CASE("Font embedded test", "[graphics]") {
     canvas.takeScreenshot();
     canvas.submit();
 }
+
+TEST_CASE("Letter spacing adds to each glyph's advance", "[graphics]") {
+    Font font(16, fonts::Lato_Regular_ttf_data, sizeof(fonts::Lato_Regular_ttf_data), 2.0f);
+    Font spaced = font.withLetterSpacing(3.0f);
+    const std::u32string text = U"Test";
+
+    REQUIRE(spaced.letterSpacing() == 3.0f);
+    REQUIRE(spaced.stringWidth(text) == Approx(font.stringWidth(text) + 3.0f * text.size()));
+    REQUIRE(spaced.withSize(20).letterSpacing() == 3.0f);
+    REQUIRE(spaced.withDpiScale(1.0f).letterSpacing() == 3.0f);
+
+    const float width = font.stringWidth(text);
+    REQUIRE(font.widthOverflowIndex(text.c_str(), text.size(), width) == 4);
+    REQUIRE(spaced.widthOverflowIndex(text.c_str(), text.size(), width) < 4);
+}

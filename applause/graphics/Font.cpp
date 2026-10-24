@@ -253,18 +253,20 @@ bool Font::hasNewLine(const char32_t* string, int length) {
     return false;
 }
 
-Font::Font(float size, const unsigned char* font_data, int data_size, float dpi_scale) :
-    size_(size), dpi_scale_(dpi_scale) {
+Font::Font(float size, const unsigned char* font_data, int data_size, float dpi_scale, float letter_spacing) :
+    size_(size), dpi_scale_(dpi_scale), letter_spacing_(letter_spacing) {
     native_size_ = std::round(size * (dpi_scale ? dpi_scale : 1.0f));
     packed_font_ = FontCache::loadPackedFont(native_size_, font_data, data_size);
 }
 
-Font::Font(float size, const EmbeddedFile& file, float dpi_scale) : size_(size), dpi_scale_(dpi_scale) {
+Font::Font(float size, const EmbeddedFile& file, float dpi_scale, float letter_spacing) :
+    size_(size), dpi_scale_(dpi_scale), letter_spacing_(letter_spacing) {
     native_size_ = std::round(size * (dpi_scale ? dpi_scale : 1.0f));
     packed_font_ = FontCache::loadPackedFont(native_size_, file);
 }
 
-Font::Font(float size, const std::string& file_path, float dpi_scale) : size_(size), dpi_scale_(dpi_scale) {
+Font::Font(float size, const std::string& file_path, float dpi_scale, float letter_spacing) :
+    size_(size), dpi_scale_(dpi_scale), letter_spacing_(letter_spacing) {
     native_size_ = std::round(size * (dpi_scale ? dpi_scale : 1.0f));
     packed_font_ = FontCache::loadPackedFont(native_size_, file_path);
 }
@@ -273,6 +275,7 @@ Font::Font(const Font& other) {
     size_ = other.size_;
     native_size_ = other.native_size_;
     dpi_scale_ = other.dpi_scale_;
+    letter_spacing_ = other.letter_spacing_;
     packed_font_ = FontCache::loadPackedFont(other.packed_font_);
 }
 
@@ -281,6 +284,7 @@ Font& Font::operator=(const Font& other) {
     std::swap(size_, copy.size_);
     std::swap(native_size_, copy.native_size_);
     std::swap(dpi_scale_, copy.dpi_scale_);
+    std::swap(letter_spacing_, copy.letter_spacing_);
     std::swap(packed_font_, copy.packed_font_);
     return *this;
 }
@@ -290,17 +294,24 @@ Font::~Font() {
 }
 
 Font Font::withDpiScale(float dpi_scale) const {
-    if (packed_font_ == nullptr) return {size_, nullptr, 0, dpi_scale};
-    return {size_, packed_font_->data(), packed_font_->dataSize(), dpi_scale};
+    if (packed_font_ == nullptr) return {size_, nullptr, 0, dpi_scale, letter_spacing_};
+    return {size_, packed_font_->data(), packed_font_->dataSize(), dpi_scale, letter_spacing_};
 }
 
 Font Font::withSize(float size) const {
-    if (packed_font_ == nullptr) return {size, nullptr, 0, dpi_scale_};
-    return {size, packed_font_->data(), packed_font_->dataSize(), dpi_scale_};
+    if (packed_font_ == nullptr) return {size, nullptr, 0, dpi_scale_, letter_spacing_};
+    return {size, packed_font_->data(), packed_font_->dataSize(), dpi_scale_, letter_spacing_};
+}
+
+Font Font::withLetterSpacing(float letter_spacing) const {
+    Font result(*this);
+    result.letter_spacing_ = letter_spacing;
+    return result;
 }
 
 int Font::nativeWidthOverflowIndex(const char32_t* string, int string_length, float width, bool round,
                                    int character_override) const {
+    float native_spacing = letter_spacing_ * dpiScale();
     float string_width = 0;
     for (int i = 0; i < string_length; ++i) {
         char32_t character = string[i];
@@ -309,6 +320,7 @@ int Font::nativeWidthOverflowIndex(const char32_t* string, int string_length, fl
         if (!isIgnored(character)) packed_char = packed_font_->packedGlyph(character);
 
         float advance = packed_char->x_advance;
+        if (!isIgnored(character)) advance += native_spacing;
         float break_point = advance;
         if (round) break_point = advance * 0.5f;
 
@@ -323,14 +335,17 @@ int Font::nativeWidthOverflowIndex(const char32_t* string, int string_length, fl
 float Font::nativeStringWidth(const char32_t* string, int length, int character_override) const {
     if (length <= 0) return 0.0f;
 
+    float native_spacing = letter_spacing_ * dpiScale();
+
     if (character_override) {
         float advance = packed_font_->packedGlyph(character_override)->x_advance;
-        return advance * length;
+        return (advance + native_spacing) * length;
     }
 
     float width = 0.0f;
     for (int i = 0; i < length; ++i) {
-        if (!isNewLine(string[i]) && !isIgnored(string[i])) width += packed_font_->packedGlyph(string[i])->x_advance;
+        if (!isNewLine(string[i]) && !isIgnored(string[i]))
+            width += packed_font_->packedGlyph(string[i])->x_advance + native_spacing;
     }
 
     return width;
@@ -340,6 +355,7 @@ void Font::setVertexPositions(FontAtlasQuad* quads, const char32_t* text, int le
                               float height, Justification justification, int character_override) const {
     if (length <= 0) return;
 
+    float native_spacing = letter_spacing_ * dpiScale();
     float string_width = nativeStringWidth(text, length, character_override);
     float pen_x = x + (width - string_width) * 0.5f;
     float pen_y = y + static_cast<int>((height + nativeCapitalHeight()) * 0.5f);
@@ -364,7 +380,7 @@ void Font::setVertexPositions(FontAtlasQuad* quads, const char32_t* text, int le
         quads[i].width = packed_glyph->width;
         quads[i].height = packed_glyph->height;
 
-        pen_x += packed_glyph->x_advance;
+        pen_x += packed_glyph->x_advance + native_spacing;
     }
 }
 
