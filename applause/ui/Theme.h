@@ -2,7 +2,6 @@
 
 #include <applause/graphics/Color.h>
 
-#include <concepts>
 #include <variant>
 #include <vector>
 
@@ -17,12 +16,6 @@ class Token {
 public:
     Token(const char* name, T value) : name_(name), value_(value) { all().push_back(this); }
     Token(const char* name, const Token& base) : name_(name), base_(&base) { all().push_back(this); }
-    // A color can follow another at a fraction of its alpha.
-    Token(const char* name, const Token& base, float alpha)
-        requires std::same_as<T, Color>
-        : name_(name), base_(&base), alpha_(alpha) {
-        all().push_back(this);
-    }
 
     Token(const Token&) = delete;
     Token& operator=(const Token&) = delete;
@@ -30,8 +23,6 @@ public:
     const char* name() const { return name_; }
     // The token this one follows when nothing sets it, or null when its default is a fixed value.
     const Token* base() const { return base_; }
-    // The fraction of its base's alpha a color keeps.
-    float alpha() const { return alpha_; }
 
     // Every token of this type.
     static std::vector<const Token*>& all() {
@@ -48,7 +39,6 @@ private:
     const char* name_;
     T value_{};
     const Token* base_ = nullptr;
-    float alpha_ = 1.0f;
 };
 
 using ColorToken = Token<Color>;

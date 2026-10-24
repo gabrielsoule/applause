@@ -14,10 +14,11 @@ class InspectorWindow;
 class InspectorTreeView : public CollapsibleTreeView {
 public:
     static inline const ColorToken kRowAccent{"inspectorTreeView.rowAccent", 0xff66bbff};
-    static inline const ColorToken kRowSelectedBackground{"inspectorTreeView.rowSelectedBackground", kRowAccent, 0.27f};
     static inline const ColorToken kRowHoverBackground{"inspectorTreeView.rowHoverBackground", 0x22ffffff};
     static inline const ColorToken kRowText{"inspectorTreeView.rowText", 0xffd8d8dc};
     static inline const ColorToken kRowTextMuted{"inspectorTreeView.rowTextMuted", 0xff7a7a80};
+    // kRowAccent's opacity behind the selected row.
+    static inline const ValueToken kRowSelectedOpacity{"inspectorTreeView.rowSelectedOpacity", 0.27f};
 
     static constexpr float kRowHeightDefault = 20.0f;
     static constexpr float kIndentPx = 14.0f;

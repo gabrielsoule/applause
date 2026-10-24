@@ -18,8 +18,9 @@ namespace applause {
 class SimpleCurve : public applause::Frame {
 public:
     static inline const ColorToken kLine{"simpleCurve.line", theme::kAccent};
-    static inline const ColorToken kFill{"simpleCurve.fill", kLine, 0.19f};
     static inline const ValueToken kLineWidth{"simpleCurve.lineWidth", 2.0f};
+    // kLine's opacity in the fill under the curve.
+    static inline const ValueToken kFillOpacity{"simpleCurve.fillOpacity", 0.19f};
 
     SimpleCurve();
 
@@ -41,9 +42,10 @@ class PlotView : public applause::Frame {
 public:
     static inline const ColorToken kBackground{"plotView.background", 0xff15151a};
     static inline const ColorToken kBorder{"plotView.border", 0xff2e2e34};
-    static inline const ColorToken kGrid{"plotView.grid", kBorder, 0.55f};
     static inline const ValueToken kRounding{"plotView.rounding", 4.0f};
     static inline const ValueToken kBorderWidth{"plotView.borderWidth", 1.0f};
+    // kBorder's opacity in the grid lines.
+    static inline const ValueToken kGridOpacity{"plotView.gridOpacity", 0.55f};
 
     PlotView();
 

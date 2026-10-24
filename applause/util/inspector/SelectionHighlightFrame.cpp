@@ -225,7 +225,7 @@ void SelectionHighlightFrame::draw(applause::Canvas& canvas) {
     const float cx = x + w * 0.5f;
     const float cy = y + h * 0.5f;
 
-    canvas.setColor(color(*this, kDistanceLine));
+    canvas.setColor(color(*this, kOutline).withMultipliedAlpha(value(*this, kDistanceLineOpacity)));
     if (top_gap    > 0.5f) drawVDash(canvas, p_top,    y,        cx);
     if (bottom_gap > 0.5f) drawVDash(canvas, y + h,    p_bottom, cx);
     if (left_gap   > 0.5f) drawHDash(canvas, p_left,   x,        cy);

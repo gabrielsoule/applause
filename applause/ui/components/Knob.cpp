@@ -98,7 +98,7 @@ void Knob::draw(applause::Canvas& canvas) {
         arc_max = std::clamp(arc_max, 0.0f, 1.0f);
         const float ac = startAngle + (arc_min + arc_max) * 0.5f * sweep;
         const float ah = (arc_max - arc_min) * 0.5f * sweep;
-        canvas.setColor(color(*this, kAccent).withAlpha(0.35f));
+        canvas.setColor(color(*this, kAccent).withMultipliedAlpha(value(*this, kRangeOpacity)));
         canvas.arc(centerX - trackCenter, centerY - trackCenter, trackDiameter, arcThickness, ac, ah, true);
     }
 

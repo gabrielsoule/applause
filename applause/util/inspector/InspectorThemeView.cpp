@@ -10,7 +10,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <map>
@@ -55,16 +54,14 @@ std::set<std::string> tokenGroups() {
     return groups;
 }
 
-// What a token's default follows, like "follows accent at 21%"; empty for a fixed default. A token in the same group is
-// named without its group.
+// What a token's default follows, like "follows accent"; empty for a fixed default. A token in the same group is named
+// without its group.
 template <typename T>
 std::string followHint(const Token<T>& token) {
     if (!token.base()) return {};
     const std::string name = token.name();
     const std::string base = token.base()->name();
-    std::string hint = "follows " + (groupOf(base) == groupOf(name) ? labelOf(base) : base);
-    if (token.alpha() != 1.0f) hint += " at " + std::to_string(std::lround(token.alpha() * 100.0f)) + "%";
-    return hint;
+    return "follows " + (groupOf(base) == groupOf(name) ? labelOf(base) : base);
 }
 
 constexpr float kStatusGap = 8.0f;

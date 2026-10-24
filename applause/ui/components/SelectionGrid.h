@@ -23,8 +23,8 @@ public:
     static inline const ColorToken kBackground{"selectionGridCell.background", 0x00000000};
     static inline const ColorToken kBackgroundHover{"selectionGridCell.backgroundHover", 0x11ffffff};
     static inline const ColorToken kBackgroundPressed{"selectionGridCell.backgroundPressed", 0xff1d1d22};
-    static inline const ColorToken kGlowSelected{"selectionGridCell.glowSelected", theme::kAccent, 0.33f};
     static inline const ColorToken kBorder{"selectionGridCell.border", 0x00000000};
+    // A selected cell's border, and the glow inside it.
     static inline const ColorToken kBorderSelected{"selectionGridCell.borderSelected", theme::kAccent};
     static inline const ColorToken kContent{"selectionGridCell.content", 0xffa0a0a8};
     static inline const ColorToken kContentHover{"selectionGridCell.contentHover", 0xffd0d0d8};
@@ -34,7 +34,10 @@ public:
     static inline const ValueToken kRounding{"selectionGridCell.rounding", 4.0f};
     static inline const ValueToken kBorderWidth{"selectionGridCell.borderWidth", 1.0f};
     static inline const ValueToken kContentPadding{"selectionGridCell.contentPadding", 6.0f};
-    static inline const ValueToken kGlowCenterAmount{"selectionGridCell.glowCenterAmount", 0.35f};
+    // kBorderSelected's opacity at the edge of a selected cell's glow.
+    static inline const ValueToken kGlowSelectedOpacity{"selectionGridCell.glowSelectedOpacity", 0.33f};
+    // The glow's opacity at its center, as a fraction of its edge's.
+    static inline const ValueToken kGlowCenterOpacity{"selectionGridCell.glowCenterOpacity", 0.35f};
 
     explicit SelectionGridCell(std::string text = {}) : Button(std::move(text)) { setCheckable(true); }
 

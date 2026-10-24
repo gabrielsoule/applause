@@ -177,7 +177,7 @@ void Button::drawBackground(applause::Canvas& canvas, float hover) {
     }
 
     if (checked_) {
-        const applause::Color glow = color(*this, kOnGlow);
+        const applause::Color glow = color(*this, kOn).withMultipliedAlpha(value(*this, kOnGlowOpacity));
         canvas.setColor(applause::Brush::radial(glow.withAlpha(0.0f), glow, center, w * 0.5f, h * 0.5f));
         canvas.roundedRectangle(0, 0, w, h, rounding);
         border = color(*this, kOn).withMultipliedAlpha(0.73f + 0.14f * hover);

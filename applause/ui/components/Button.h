@@ -29,7 +29,6 @@ public:
     static inline const ColorToken kGlow{"button.glow", theme::kAccent};
     // A checked button's content and border, and the glow inside it.
     static inline const ColorToken kOn{"button.on", theme::kAccent};
-    static inline const ColorToken kOnGlow{"button.onGlow", kOn, 0.21f};
     // The outline of an unchecked checkbox or radio button.
     static inline const ColorToken kOff{"button.off", 0xff848789};
     static inline const ColorToken kOffHover{"button.offHover", 0xffaaacad};
@@ -40,6 +39,8 @@ public:
     static inline const ValueToken kRounding{"button.rounding", 7.0f};
     static inline const ValueToken kBorderWidth{"button.borderWidth", 1.5f};
     static inline const ValueToken kGlowAmount{"button.glowAmount", 0.45f};
+    // kOn's opacity in the glow inside a checked button.
+    static inline const ValueToken kOnGlowOpacity{"button.onGlowOpacity", 0.21f};
     // How much darker the bottom of the fill is than its top.
     static inline const ValueToken kShade{"button.shade", 0.33f};
     // How much lighter the fill and border get on hover.

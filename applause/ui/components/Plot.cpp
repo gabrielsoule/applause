@@ -24,7 +24,7 @@ void SimpleCurve::draw(applause::Canvas& canvas) {
     const float scale = 1.0f - 2.0f * inset;
     for (int i = 0; i < data_.numPoints(); ++i) data_[i] = inset + source_data_[i] * scale;
 
-    const applause::Color fill_color = color(*this, kFill);
+    const applause::Color fill_color = color(*this, kLine).withMultipliedAlpha(value(*this, kFillOpacity));
     canvas.setColor(applause::Brush::vertical(fill_color, fill_color.withAlpha(0.0f)));
     canvas.graphFill(data_, 0.0f, 0.0f, width(), height(), 1.0f);
 
@@ -49,7 +49,7 @@ void PlotView::draw(applause::Canvas& canvas) {
     else
         canvas.fill(0.0f, 0.0f, width(), height());
 
-    canvas.setColor(color(*this, kGrid));
+    canvas.setColor(color(*this, kBorder).withMultipliedAlpha(value(*this, kGridOpacity)));
     for (int column = 1; column < columns_; ++column) {
         const float x = width() * column / columns_;
         canvas.segment(x, 0.0f, x, height(), 1.0f, false);

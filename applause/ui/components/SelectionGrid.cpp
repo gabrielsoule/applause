@@ -16,8 +16,8 @@ void SelectionGridCell::drawBackground(applause::Canvas& canvas, float hover_amo
     canvas.roundedRectangle(0.0f, 0.0f, width(), height(), rounding);
 
     if (selected()) {
-        applause::Color glow = color(*this, kGlowSelected);
-        applause::Color center_glow = glow.withMultipliedAlpha(value(*this, kGlowCenterAmount));
+        applause::Color glow = color(*this, kBorderSelected).withMultipliedAlpha(value(*this, kGlowSelectedOpacity));
+        applause::Color center_glow = glow.withMultipliedAlpha(value(*this, kGlowCenterOpacity));
         applause::Point center = {width() * 0.5f, height() * 0.5f};
         canvas.setColor(applause::Brush::radial(center_glow, glow, center, width() * 1.0f, height() * 1.0f));
         canvas.roundedRectangle(0.0f, 0.0f, width(), height(), rounding);

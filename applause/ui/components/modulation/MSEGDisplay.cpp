@@ -90,7 +90,7 @@ void MSEGDisplay::draw(applause::Canvas& canvas) {
     fill_path.lineTo(samples_[0].x, static_cast<float>(height()));
     fill_path.close();
 
-    applause::Color fill_color = color(*this, kFill);
+    applause::Color fill_color = color(*this, kLine).withMultipliedAlpha(value(*this, kFillOpacity));
     canvas.setColor(applause::Brush::vertical(fill_color, fill_color.withAlpha(0.0f)));
     canvas.fill(fill_path);
 

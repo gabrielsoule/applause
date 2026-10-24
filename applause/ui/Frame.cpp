@@ -417,13 +417,7 @@ T Token<T>::resolve(const Frame& frame) const {
             return std::get<const Token*>(*setting)->resolve(frame);
         }
     }
-    if (!base_) return value_;
-
-    T base = base_->resolve(frame);
-    if constexpr (std::same_as<T, Color>)
-        return base.withMultipliedAlpha(alpha_);
-    else
-        return base;
+    return base_ ? base_->resolve(frame) : value_;
 }
 
 Color color(const Frame& frame, const ColorToken& token) { return token.resolve(frame); }

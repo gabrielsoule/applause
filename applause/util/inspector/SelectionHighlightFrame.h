@@ -22,10 +22,11 @@ namespace applause::inspector {
 class SelectionHighlightFrame : public applause::Frame {
 public:
     static inline const ColorToken kOutline{"selectionHighlightFrame.outline", 0xff66bbff};
-    static inline const ColorToken kDistanceLine{"selectionHighlightFrame.distanceLine", kOutline, 0.67f};
     static inline const ColorToken kDistanceText{"selectionHighlightFrame.distanceText", 0xffe6f4ff};
     static inline const ColorToken kResizeHandle{"selectionHighlightFrame.resizeHandle", 0xffffffff};
     static inline const ColorToken kResizeHandleBorder{"selectionHighlightFrame.resizeHandleBorder", 0xff1a3a5a};
+    // kOutline's opacity in the distance lines.
+    static inline const ValueToken kDistanceLineOpacity{"selectionHighlightFrame.distanceLineOpacity", 0.67f};
 
     static constexpr float kThickness = 2.0f;
     static constexpr float kDashLength = 4.0f;

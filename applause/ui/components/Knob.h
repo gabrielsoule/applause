@@ -30,6 +30,8 @@ public:
     static inline const ValueToken kTrackInset{"knob.trackInset", 1.5f};
     // In radians.
     static inline const ValueToken kSweep{"knob.sweep", 300.0f * std::numbers::pi_v<float> / 180.0f};
+    // kAccent's opacity in the range arc from the indicator provider.
+    static inline const ValueToken kRangeOpacity{"knob.rangeOpacity", 0.35f};
 
     Knob();
     ~Knob() override = default;

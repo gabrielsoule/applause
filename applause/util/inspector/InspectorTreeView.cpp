@@ -57,7 +57,8 @@ public:
         if (!frame_) return;
 
         if (ctx.selected) {
-            canvas.setColor(color(*tree(), InspectorTreeView::kRowSelectedBackground));
+            const float opacity = value(*tree(), InspectorTreeView::kRowSelectedOpacity);
+            canvas.setColor(color(*tree(), InspectorTreeView::kRowAccent).withMultipliedAlpha(opacity));
             canvas.rectangle(0, 0, bounds.width(), bounds.height());
         } else if (ctx.hovered) {
             canvas.setColor(color(*tree(), InspectorTreeView::kRowHoverBackground));

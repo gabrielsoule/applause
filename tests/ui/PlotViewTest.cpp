@@ -37,10 +37,10 @@ TEST_CASE("SimpleCurve keeps its stroke inside the normalized limits", "[ui][plo
     applause::PlotView plot;
     applause::SimpleCurve trace;
     trace.set(applause::SimpleCurve::kLine, applause::Color(0xffffffff));
-    trace.set(applause::SimpleCurve::kFill, applause::Color(0x00000000));
+    trace.set(applause::SimpleCurve::kFillOpacity, 0.0f);
     trace.set(applause::SimpleCurve::kLineWidth, 4.0f);
     plot.set(applause::PlotView::kBackground, applause::Color(0xff000000));
-    plot.set(applause::PlotView::kGrid, applause::Color(0x00000000));
+    plot.set(applause::PlotView::kGridOpacity, 0.0f);
     plot.set(applause::PlotView::kBorder, applause::Color(0x00000000));
     plot.set(applause::PlotView::kRounding, 0.0f);
     plot.set(applause::PlotView::kBorderWidth, 0.0f);
@@ -87,11 +87,12 @@ TEST_CASE("SimpleCurve copies samples and maps low values toward the bottom", "[
     applause::PlotView plot;
     applause::SimpleCurve trace;
     trace.set(applause::SimpleCurve::kLine, applause::Color(0xffffffff));
-    trace.set(applause::SimpleCurve::kFill, applause::Color(0xff0000ff));
+    trace.set(applause::SimpleCurve::kFillOpacity, 1.0f);
     trace.set(applause::SimpleCurve::kLineWidth, 2.0f);
     plot.set(applause::PlotView::kBackground, applause::Color(0xff000000));
-    plot.set(applause::PlotView::kGrid, applause::Color(0xffff0000));
-    plot.set(applause::PlotView::kBorder, applause::Color(0xff000000));
+    // The grid is the border color, so a red border makes a red grid. The probes stay clear of the border itself.
+    plot.set(applause::PlotView::kBorder, applause::Color(0xffff0000));
+    plot.set(applause::PlotView::kGridOpacity, 1.0f);
     canvas.setWindowless(size, size);
     plot.setBounds(0.0f, 0.0f, size, size);
     trace.setBounds(plot.localBounds());

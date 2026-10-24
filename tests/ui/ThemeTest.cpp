@@ -24,7 +24,6 @@ using applause::ValueToken;
 
 const ColorToken kBase{"test.base", 0xff102030};
 const ColorToken kFollower{"test.follower", kBase};
-const ColorToken kTint{"test.tint", kBase, 0.25f};
 const ColorToken kOther{"test.other", 0xff445566};
 const ValueToken kSize{"test.size", 4.0f};
 const ValueToken kGap{"test.gap", 9.0f};
@@ -120,14 +119,6 @@ TEST_CASE("A frame can make a token follow another, read from the same frame", "
     REQUIRE(color(child, kFollower) == Color(0xffabcdef));
 }
 
-TEST_CASE("A tint scales the alpha of the color it follows", "[theme]") {
-    applause::Frame frame;
-    REQUIRE(color(frame, kTint) == Color(0xff102030).withAlpha(0.25f));
-
-    frame.set(kBase, Color(0xff102030).withAlpha(0.5f));
-    REQUIRE(color(frame, kTint) == Color(0xff102030).withAlpha(0.125f));
-}
-
 TEST_CASE("Button colors follow the accent set above them", "[theme]") {
     applause::Frame root;
     applause::Button button("OK");
@@ -137,7 +128,6 @@ TEST_CASE("Button colors follow the accent set above them", "[theme]") {
     root.set(applause::theme::kAccent, Color(0xff55ccaa));
     REQUIRE(color(button, Button::kGlow) == Color(0xff55ccaa));
     REQUIRE(color(button, Button::kOn) == Color(0xff55ccaa));
-    REQUIRE(color(button, Button::kOnGlow) == Color(0xff55ccaa).withAlpha(0.21f));
 }
 
 TEST_CASE("Accent-colored parts have no fixed shades of their own", "[theme]") {

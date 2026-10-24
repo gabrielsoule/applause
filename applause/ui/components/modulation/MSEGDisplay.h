@@ -12,12 +12,13 @@ namespace applause {
 class MSEGDisplay : public applause::Frame {
 public:
     static inline const ColorToken kLine{"msegDisplay.line", theme::kAccent};
-    static inline const ColorToken kFill{"msegDisplay.fill", kLine, 0.19f};
     static inline const ColorToken kPoint{"msegDisplay.point", 0xffdddddd};
     static inline const ColorToken kPointHover{"msegDisplay.pointHover", 0xffffffff};
     static inline const ColorToken kMidpoint{"msegDisplay.midpoint", 0x99aaaaaa};
     static inline const ColorToken kMidpointHover{"msegDisplay.midpointHover", 0xccdddddd};
     static inline const ValueToken kLineWidth{"msegDisplay.lineWidth", 2.0f};
+    // kLine's opacity in the fill under the curve.
+    static inline const ValueToken kFillOpacity{"msegDisplay.fillOpacity", 0.19f};
     static inline const ValueToken kPointRadius{"msegDisplay.pointRadius", 5.0f};
     static inline const ValueToken kMidpointRadius{"msegDisplay.midpointRadius", 3.5f};
 
