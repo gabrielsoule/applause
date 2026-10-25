@@ -12,7 +12,11 @@ static constexpr int kSamplesPerSegment = 32;
 static constexpr float kPointEpsilon = 0.001f;
 static constexpr float kMaxCurvature = 32.0f;
 
-MSEGDisplay::MSEGDisplay(MSEGCurve<>* curve) : curve_(curve) {}
+MSEGDisplay::MSEGDisplay(MSEGCurve<>* curve) : curve_(curve) {
+    handles_.setIgnoresMouseEvents(true, false);
+    handles_.onDraw() += [this](applause::Canvas& canvas) { drawHandles(canvas); };
+    addChild(&handles_);
+}
 
 float MSEGDisplay::curveXToScreen(float cx) const { return cx * width(); }
 
@@ -59,11 +63,12 @@ int MSEGDisplay::hitTestMidpoint(float sx, float sy) const {
 }
 
 void MSEGDisplay::draw(applause::Canvas& canvas) {
+    // The handles sit on the curve, so any curve redraw must move them too.
+    handles_.redraw();
     if (!curve_ || curve_->num_points < 2) return;
 
     int n = curve_->num_points;
     float line_width = value(*this, kLineWidth);
-    float point_radius = value(*this, kPointRadius);
 
     // Build polyline samples by evaluating the curve at many points
     samples_.clear();
@@ -98,6 +103,13 @@ void MSEGDisplay::draw(applause::Canvas& canvas) {
     canvas.setColor(color(*this, kLine));
     for (size_t i = 0; i + 1 < samples_.size(); i++)
         canvas.segment(samples_[i].x, samples_[i].y, samples_[i + 1].x, samples_[i + 1].y, line_width, true);
+}
+
+void MSEGDisplay::drawHandles(applause::Canvas& canvas) {
+    if (!curve_ || curve_->num_points < 2) return;
+
+    int n = curve_->num_points;
+    float point_radius = value(*this, kPointRadius);
 
     // Draw midpoint handles for curvature adjustment
     float midpoint_radius = value(*this, kMidpointRadius);
@@ -137,7 +149,7 @@ void MSEGDisplay::mouseMove(const applause::MouseEvent& e) {
     if (point_hit != hovered_point_ || mid_hit != hovered_midpoint_) {
         hovered_point_ = point_hit;
         hovered_midpoint_ = mid_hit;
-        redraw();
+        handles_.redraw();
     }
 }
 
@@ -145,7 +157,7 @@ void MSEGDisplay::mouseExit(const applause::MouseEvent& e) {
     if (hovered_point_ != -1 || hovered_midpoint_ != -1) {
         hovered_point_ = -1;
         hovered_midpoint_ = -1;
-        redraw();
+        handles_.redraw();
     }
 }
 
@@ -256,7 +268,7 @@ void MSEGDisplay::mouseUp(const applause::MouseEvent& e) {
     dragged_point_ = -1;
     dragged_segment_ = -1;
     hovered_point_ = hitTestPoint(e.position.x, e.position.y);
-    redraw();
+    handles_.redraw();
 }
 
 }  // namespace applause

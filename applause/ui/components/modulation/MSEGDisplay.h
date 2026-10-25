@@ -25,6 +25,7 @@ public:
     explicit MSEGDisplay(MSEGCurve<>* curve = nullptr);
 
     void draw(applause::Canvas& canvas) override;
+    void resized() override { handles_.setBounds(localBounds()); }
 
     void mouseDown(const applause::MouseEvent& e) override;
     void mouseDrag(const applause::MouseEvent& e) override;
@@ -59,7 +60,11 @@ private:
     // Returns segment index whose midpoint handle is near (sx, sy), or -1
     int hitTestMidpoint(float sx, float sy) const;
 
+    void drawHandles(applause::Canvas& canvas);
+
     MSEGCurve<>* curve_ = nullptr;
+    // Handles draw in their own frame so hover highlights don't re-record the curve.
+    applause::Frame handles_;
 
     // Display settings
     float y_min_ = 0.0f;
