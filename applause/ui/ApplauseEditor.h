@@ -3,6 +3,7 @@
 #include <applause/ui/ApplauseUI.h>
 #include <functional>
 #include <memory>
+#include <vector>
 
 #include <applause/ui/IEditor.h>
 #include <applause/extensions/ParamsExtension.h>
@@ -73,6 +74,7 @@ public:
 
 private:
     ParamMessageQueue message_queue_;  // Owned by the editor
+    std::vector<ParamMessageQueue::Message> pending_values_;
     ParamsExtension* params_ = nullptr;
     std::unique_ptr<TooltipDisplay> tooltip_display_;
 #ifndef NDEBUG

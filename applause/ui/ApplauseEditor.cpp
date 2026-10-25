@@ -5,6 +5,8 @@
 #include <applause/ui/Tooltip.h>
 #include <applause/util/DebugHelpers.h>
 
+#include <algorithm>
+
 #ifndef NDEBUG
 #include <applause/util/inspector/InspectorWindow.h>
 #endif
@@ -121,14 +123,21 @@ void ApplauseEditor::timerCallback() {
     // Only process messages if we have params
     if (!params_) return;
 
+    // Listeners only display the latest value, so collapse each parameter's burst into one notification.
+    pending_values_.clear();
     ParamMessageQueue::Message msg{};
     while (message_queue_.toUi().try_dequeue(msg)) {
         if (msg.type == ParamMessageQueue::MessageType::PARAM_VALUE) {
-            auto& param = params_->getInfo(msg.paramId);
-            param.on_value_changed(msg.value);
+            auto it = std::ranges::find(pending_values_, msg.paramId, &ParamMessageQueue::Message::paramId);
+            if (it != pending_values_.end())
+                it->value = msg.value;
+            else
+                pending_values_.push_back(msg);
         } else {
             ASSERT_FALSE("ApplauseEditor received unexpected message type");
         }
     }
+
+    for (const auto& pending : pending_values_) params_->getInfo(pending.paramId).on_value_changed(pending.value);
 }
 }  // namespace applause
