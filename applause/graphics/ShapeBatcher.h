@@ -309,6 +309,10 @@ public:
     }
 
     int autoBatchIndex(const BaseShape& shape, BlendMode blend) const {
+        // Appending to the newest batch always preserves draw order, so it needs no overlap scan.
+        if (!batches_.empty() && batches_.back()->match(shape.batch_id, blend, shape.radialGradient()))
+            return batches_.size() - 1;
+
         int match = batches_.size();
         int insert = batches_.size();
         for (int i = batches_.size() - 1; i >= 0; --i) {
