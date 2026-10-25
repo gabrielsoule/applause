@@ -224,18 +224,23 @@ private:
         smooth_position_ = std::max(0.0f, smooth_position_);
 
         smooth_start_time_ = time::milliseconds();
-        runOnEventThread([this] { smoothScrollUpdate(); });
+        if (!smooth_scroll_pending_) {
+            smooth_scroll_pending_ = true;
+            runOnEventThread([this] { smoothScrollUpdate(); });
+        }
         return true;
     }
 
     void smoothScrollUpdate() {
         float t = (time::milliseconds() - smooth_start_time_) / (smooth_time_ * 1000.0f);
         int position = smooth_start_position_ + (smooth_position_ - smooth_start_position_) * t;
-        if (t >= 1.0f)
-            position = smooth_position_;
-        else if (t >= 0.0f)
+        smooth_scroll_pending_ = t >= 0.0f && t < 1.0f;
+        if (smooth_scroll_pending_)
             runOnEventThread([this] { smoothScrollUpdate(); });
+        else if (t >= 1.0f)
+            position = smooth_position_;
 
+        if (position == y_position_) return;
         scrollPositionChanged(position);
         scroll_bar_.setViewPosition(scroll_bar_.viewRange(), scroll_bar_.viewHeight(), position);
     }
@@ -252,6 +257,7 @@ private:
 
     float smooth_start_position_ = 0;
     long long smooth_start_time_ = 0;
+    bool smooth_scroll_pending_ = false;
 
     APPLAUSE_LEAK_CHECKER(ScrollableFrame)
 };
