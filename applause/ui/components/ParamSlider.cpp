@@ -4,6 +4,8 @@
 
 #include <applause/util/DebugHelpers.h>
 
+#include <algorithm>
+
 namespace applause {
 ParamSlider::ParamSlider(ParamInfo& paramInfo) : param_info_(paramInfo), param_text_box_(param_info_) {
     addChild(&slider_);
@@ -39,11 +41,13 @@ void ParamSlider::draw(applause::Canvas& canvas) {}
 
 void ParamSlider::resized() {
     // Position the slider on the left side, leaving space for text on the right
-    float sliderWidth = width() - kLabelWidth;
+    float valueWidth = std::clamp(value(*this, kValueWidth), 0.0f, std::max(0.0f, width()));
+    float sliderWidth = std::max(0.0f, width() - valueWidth);
     slider_.setBounds(0, 0, sliderWidth, height());
 
-    float textX = width() - kLabelWidth + kLabelPadding;
-    float textWidth = kLabelWidth - kLabelPadding;
+    float labelPadding = std::clamp(value(*this, kLabelPadding), 0.0f, valueWidth);
+    float textX = sliderWidth + labelPadding;
+    float textWidth = valueWidth - labelPadding;
     param_text_box_.setBounds(textX, 0, textWidth, height());
 }
 }  // namespace applause

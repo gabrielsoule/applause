@@ -13,6 +13,9 @@ namespace applause {
 /// A slider attached to a parameter, with a text box for displaying the parameter name/value.
 class ParamSlider : public applause::Frame {
 public:
+    static inline const ValueToken kValueWidth{"paramSlider.valueWidth", 80.0f};
+    static inline const ValueToken kLabelPadding{"paramSlider.labelPadding", 5.0f};
+
     ParamSlider(ParamInfo& paramInfo);
 
     void setFont(const applause::Font& font) { param_text_box_.setFont(font); }
@@ -21,9 +24,6 @@ public:
     void draw(applause::Canvas& canvas) override;
 
 private:
-    static constexpr int kLabelWidth = 80;
-    static constexpr int kLabelPadding = 5;
-
     ParamInfo& param_info_;
     Slider slider_;
     ParamValueTextBox param_text_box_;

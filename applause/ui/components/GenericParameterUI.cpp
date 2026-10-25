@@ -21,7 +21,9 @@ void GenericParameterEntry::draw(applause::Canvas& canvas) {
     // Full width minus padding only on the right (between text and slider)
     float textX = 0;
     float textY = 0;
-    float textWidth = labelWidth_ - kLabelPadding;
+    float labelWidth = std::clamp(value(*this, kLabelWidth), 0.0f, std::max(0.0f, width()));
+    float labelPadding = std::clamp(value(*this, kLabelPadding), 0.0f, labelWidth);
+    float textWidth = labelWidth - labelPadding;
     float textHeight = height();
 
     // Draw the parameter name (right-aligned)
@@ -31,17 +33,13 @@ void GenericParameterEntry::draw(applause::Canvas& canvas) {
 
 void GenericParameterEntry::resized() {
     // Position the ParamSlider on the right side, leaving space for label on the left
-    float sliderWidth = width() - labelWidth_;
-    float sliderX = labelWidth_;
+    float sliderX = std::clamp(value(*this, kLabelWidth), 0.0f, std::max(0.0f, width()));
+    float sliderWidth = std::max(0.0f, width() - sliderX);
 
     paramSlider_.setBounds(sliderX, 0, sliderWidth, height());
 }
 
-void GenericParameterEntry::setLabelWidth(float labelWidth) {
-    labelWidth_ = labelWidth;
-    resized();
-    redraw();
-}
+void GenericParameterEntry::setLabelWidth(float labelWidth) { set(kLabelWidth, labelWidth); }
 
 void GenericParameterEntry::setFont(const applause::Font& font) {
     font_ = font;
@@ -53,14 +51,19 @@ GenericParameterUI::GenericParameterUI() {
     // Configure scrollable vertical flex layout
     scrollableLayout().setFlex(true);
     scrollableLayout().setFlexRows(true);
-    scrollableLayout().setFlexGap(kEntryGap);
-    scrollableLayout().setPadding(kPadding);
+    scrollableLayout().setFlexGap(value(*this, kEntryGap));
+    scrollableLayout().setPadding(value(*this, kPadding));
     scrollableLayout().setFlexItemAlignment(applause::Layout::ItemAlignment::Stretch);
 }
 
 void GenericParameterUI::draw(applause::Canvas& canvas) {}
 
 void GenericParameterUI::resized() {
+    scrollableLayout().setFlexGap(std::max(0.0f, value(*this, kEntryGap)));
+    scrollableLayout().setPadding(std::max(0.0f, value(*this, kPadding)));
+    float entryHeight = std::max(0.0f, value(*this, kEntryHeight));
+    for (auto& entry : entries_) entry->layout().setHeight(entryHeight);
+
     ScrollableFrame::resized();
 
     // Let flex layout compute positions first
@@ -87,7 +90,7 @@ void GenericParameterUI::addParameter(ParamInfo& paramInfo) {
 
     auto entry = std::make_unique<GenericParameterEntry>(paramInfo);
     if (font_override_) entry->setFont(*font_override_);
-    entry->layout().setHeight(kEntryHeight);
+    entry->layout().setHeight(std::max(0.0f, value(*this, kEntryHeight)));
     entry->layout().setFlexGrow(0.0f);
     entry->layout().setFlexShrink(0.0f);
 
