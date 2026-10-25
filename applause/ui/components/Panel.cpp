@@ -6,11 +6,22 @@
 
 namespace applause {
 
-Panel::Panel() : has_title_(false) { addChild(&content_); }
+Panel::Panel() : Panel("") {}
 
 Panel::Panel(const std::string& title) :
-    title_(title, applause::Font(15, applause::fonts::Barlow_Medium_ttf)), has_title_(true) {
+    title_(title, applause::Font(15, applause::fonts::Barlow_Medium_ttf)), has_title_(!title.empty()) {
     addChild(&content_);
+}
+
+void Panel::setTitle(const std::string& title) {
+    if (title_.text() == title) return;
+    title_.setText(title);
+    const bool has_title = !title.empty();
+    if (has_title_ != has_title) {
+        has_title_ = has_title;
+        resized();
+    }
+    redraw();
 }
 
 void Panel::draw(applause::Canvas& canvas) {

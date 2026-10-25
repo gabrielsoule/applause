@@ -23,6 +23,10 @@ public:
     Panel();
     explicit Panel(const std::string& title);
 
+    const applause::String& title() const { return title_.text(); }
+    // An empty title hides the heading; its space is given to the content
+    void setTitle(const std::string& title);
+
     void draw(applause::Canvas& canvas) override;
     void resized() override;
 
