@@ -17,7 +17,7 @@ namespace applause {
  */
 class Knob : public applause::Frame {
 public:
-    using IndicatorProvider = std::function<void(std::vector<float>&, float&, float&)>;
+    using IndicatorProvider = std::function<bool(std::vector<float>&, float&, float&)>;
 
     static inline const ColorToken kBodyTop{"knob.bodyTop", 0xff333338};
     static inline const ColorToken kBodyBottom{"knob.bodyBottom", 0xff1a1a1e};
@@ -52,6 +52,8 @@ public:
     // Optional modulation hook: the provider fills `out` with normalized [0,1] positions to display,
     // and writes `arc_min`/`arc_max` in normalized space to draw a sub-arc on the track between those
     // angles. Leave `arc_min >= arc_max` (the initial sentinel) to suppress the arc.
+    // Return true while the indicators may change without notice (e.g. modulation is connected) so the knob keeps
+    // redrawing every frame; return false to let it idle, and call redraw() when that changes.
     // This lets the knob ask a parent class (generally, the ParamKnob) if there are any sort of "modulation" sources
     // being applied to whatever destination this knob represents; then, the knob can draw the modulation as an overlay
     // however it sees fit.

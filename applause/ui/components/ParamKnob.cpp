@@ -55,7 +55,7 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo, const ModDestination* dst) :
         mod_changed_conn_ = destination_->matrix->on_connections_changed.connect([this] { knob_.redraw(); });
         knob_.setIndicatorProvider([this](std::vector<float>& out, float& arc_min, float& arc_max) {
             const ModMatrixControl* m = destination_->matrix;
-            if (!m->dstIsConnected(destination_->index)) return;
+            if (!m->dstIsConnected(destination_->index)) return false;
             out.resize(m->copyActiveDestinationValues(destination_->index, {}));
             const size_t count = m->copyActiveDestinationValues(destination_->index, out);
             if (count < out.size()) out.resize(count);
@@ -66,6 +66,7 @@ ParamKnob::ParamKnob(ParamInfo& paramInfo, const ModDestination* dst) :
                 arc_min = v + off_min;
                 arc_max = v + off_max;
             }
+            return true;
         });
     }
 }

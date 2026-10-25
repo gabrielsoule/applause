@@ -91,7 +91,7 @@ void Knob::draw(applause::Canvas& canvas) {
 
     indicator_buf_.clear();
     float arc_min = 1.0f, arc_max = 0.0f;  // sentinel: arc_min >= arc_max → no range arc
-    if (indicator_provider_) indicator_provider_(indicator_buf_, arc_min, arc_max);
+    const bool indicators_live = indicator_provider_ && indicator_provider_(indicator_buf_, arc_min, arc_max);
 
     if (arc_min < arc_max) {
         arc_min = std::clamp(arc_min, 0.0f, 1.0f);
@@ -119,7 +119,7 @@ void Knob::draw(applause::Canvas& canvas) {
     } else {
         for (float v : indicator_buf_) drawDot(v);
     }
-    if (indicator_provider_) redraw();
+    if (indicators_live) redraw();
 
     float angle = startAngle + value_ * sweep;
 
