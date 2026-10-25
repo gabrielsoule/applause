@@ -97,16 +97,19 @@ void Slider::setBipolar(bool bipolar) {
 
 void Slider::processDrag(float raw_drag_pos) {
     float usable = width() - kThumbDiameter;
+    float new_value;
 
     if (usable <= 0.0f) {
-        value_ = 0.0f;
+        new_value = 0.0f;
     } else if (bipolar_) {
         float normalized = (raw_drag_pos - kThumbRadius) / usable;
-        value_ = std::clamp(normalized * 2.0f - 1.0f, -1.0f, 1.0f);
+        new_value = std::clamp(normalized * 2.0f - 1.0f, -1.0f, 1.0f);
     } else {
-        value_ = std::clamp((raw_drag_pos - kThumbRadius) / usable, 0.0f, 1.0f);
+        new_value = std::clamp((raw_drag_pos - kThumbRadius) / usable, 0.0f, 1.0f);
     }
 
+    if (new_value == value_) return;
+    value_ = new_value;
     on_value_changed.callback(value_);
     redraw();
 }
