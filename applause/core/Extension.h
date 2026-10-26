@@ -71,6 +71,19 @@ protected:
      */
     virtual void onHostReady() noexcept {}
 
+    /**
+     * @brief Invoked on the main thread when the host activates or deactivates the plugin.
+     * onActivate runs after the plugin's activate(); onDeactivate runs before the plugin's deactivate().
+     */
+    virtual void onActivate() noexcept {}
+    virtual void onDeactivate() noexcept {}
+
+    /**
+     * @brief Hook invoked on the main thread after someone/something calls host->request_callback(), before the plugin's
+     * onMainThread().
+     */
+    virtual void onMainThread() noexcept {}
+
     const clap_host_t* host_ = nullptr;
 
 private:

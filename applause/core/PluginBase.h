@@ -51,11 +51,20 @@ private:
         auto* self = static_cast<PluginBase*>(plugin->plugin_data);
         const ProcessInfo info{
             .sample_rate = sample_rate, .min_frame_size = min_frames_count, .max_frame_size = max_frames_count};
-        return self->activate(info);
+        if (!self->activate(info)) return false;
+        for (auto& [id, ext] : self->_extensions) {
+            (void)id;
+            ext->onActivate();
+        }
+        return true;
     }
 
     static void clapDeactivate(const clap_plugin_t* plugin) noexcept {
         auto* self = static_cast<PluginBase*>(plugin->plugin_data);
+        for (auto& [id, ext] : self->_extensions) {
+            (void)id;
+            ext->onDeactivate();
+        }
         self->deactivate();
     }
 
@@ -91,6 +100,10 @@ private:
 
     static void clapOnMainThread(const clap_plugin_t* plugin) noexcept {
         auto* self = static_cast<PluginBase*>(plugin->plugin_data);
+        for (auto& [id, ext] : self->_extensions) {
+            (void)id;
+            ext->onMainThread();
+        }
         self->onMainThread();
     }
 
