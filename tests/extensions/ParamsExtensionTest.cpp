@@ -1,11 +1,13 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <atomic>
 #include <cstring>
 #include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -23,6 +25,25 @@ const clap_plugin_descriptor_t kDesc{};
 struct TestPlugin : PluginBase {
     ParamsExtension params{8};
     explicit TestPlugin(const clap_host_t* host = nullptr) : PluginBase(&kDesc, host) { registerExtension(params); }
+    ProcessStatus process(ProcessContext&) noexcept override { return ProcessStatus::Continue; }
+};
+
+// Room for 4 static parameters and 3 dynamic ones
+struct DynamicPlugin : PluginBase {
+    ParamsExtension params{4, 3};
+    explicit DynamicPlugin(const clap_host_t* host = nullptr) : PluginBase(&kDesc, host) {
+        registerExtension(params);
+    }
+    ProcessStatus process(ProcessContext&) noexcept override { return ProcessStatus::Continue; }
+};
+
+// Room for 4 static parameters, plus dynamic parameters and DAW automation slots
+struct SlotPlugin : PluginBase {
+    ParamsExtension params;
+    explicit SlotPlugin(const clap_host_t* host = nullptr, uint32_t slots = 2, uint32_t dynamic = 3) :
+        PluginBase(&kDesc, host), params(4, dynamic, slots) {
+        registerExtension(params);
+    }
     ProcessStatus process(ProcessContext&) noexcept override { return ProcessStatus::Continue; }
 };
 
@@ -61,6 +82,7 @@ struct FakeHost {
     int rescan_count = 0;
     clap_param_rescan_flags last_rescan_flags = 0;
     int flush_count = 0;
+    int callback_count = 0;
     clap_host_params_t params{};
     clap_host_t host{};
 
@@ -72,6 +94,7 @@ struct FakeHost {
         };
         params.request_flush = [](const clap_host_t* h) { static_cast<FakeHost*>(h->host_data)->flush_count++; };
         host.host_data = this;
+        host.request_callback = [](const clap_host_t* h) { static_cast<FakeHost*>(h->host_data)->callback_count++; };
         host.get_extension = [](const clap_host_t* h, const char* id) -> const void* {
             auto* self = static_cast<FakeHost*>(h->host_data);
             return std::strcmp(id, CLAP_EXT_PARAMS) == 0 ? static_cast<const void*>(&self->params) : nullptr;
@@ -117,7 +140,8 @@ ParamConfig choiceConfig(std::string string_id, float min, float def, std::vecto
     return config;
 }
 
-const clap_plugin_params_t* clapParams(TestPlugin& plugin) {
+template <typename Plugin>
+const clap_plugin_params_t* clapParams(Plugin& plugin) {
     return static_cast<const clap_plugin_params_t*>(plugin.params.getClapExtensionStruct());
 }
 }  // namespace
@@ -677,7 +701,7 @@ TEST_CASE("ParamsExtension processEvents inbound", "[params][process]") {
         for (const float expected : {2.0f, -2.0f, 3.0f, -3.0f}) {
             REQUIRE(queue.toUi().try_dequeue(message));
             REQUIRE(message.type == ParamMessageQueue::PARAM_VALUE);
-            REQUIRE(message.paramId == id);
+            REQUIRE(message.index == 0);
             REQUIRE(message.value == expected);
         }
         REQUIRE_FALSE(queue.toUi().try_dequeue(message));
@@ -694,7 +718,7 @@ TEST_CASE("ParamsExtension processEvents inbound", "[params][process]") {
         ParamMessageQueue::Message message{};
         REQUIRE(queue.toUi().try_dequeue(message));
         REQUIRE(message.type == ParamMessageQueue::PARAM_VALUE);
-        REQUIRE(message.paramId == id);
+        REQUIRE(message.index == 1);
         REQUIRE(message.value == Approx(0.3f));
         REQUIRE_FALSE(queue.toUi().try_dequeue(message));
     }
@@ -724,7 +748,7 @@ TEST_CASE("ParamsExtension processEvents outbound", "[params][process][out]") {
     OutList out;
 
     SECTION("param value event fields") {
-        queue.toAudio().enqueue({ParamMessageQueue::PARAM_VALUE, id, 0.7f});
+        queue.toAudio().enqueue({ParamMessageQueue::PARAM_VALUE, 0, 0.7f});
         plugin.params.processEvents(nullptr, &out.out);
 
         REQUIRE(out.values.size() == 1);
@@ -744,8 +768,8 @@ TEST_CASE("ParamsExtension processEvents outbound", "[params][process][out]") {
     }
 
     SECTION("gesture events") {
-        queue.toAudio().enqueue({ParamMessageQueue::BEGIN_GESTURE, id, 0.0f});
-        queue.toAudio().enqueue({ParamMessageQueue::END_GESTURE, id, 0.0f});
+        queue.toAudio().enqueue({ParamMessageQueue::BEGIN_GESTURE, 0, 0.0f});
+        queue.toAudio().enqueue({ParamMessageQueue::END_GESTURE, 0, 0.0f});
         plugin.params.processEvents(nullptr, &out.out);
 
         REQUIRE(out.gestures.size() == 2);
@@ -757,10 +781,10 @@ TEST_CASE("ParamsExtension processEvents outbound", "[params][process][out]") {
     }
 
     SECTION("ordering preserved") {
-        queue.toAudio().enqueue({ParamMessageQueue::PARAM_VALUE, id, 0.1f});
-        queue.toAudio().enqueue({ParamMessageQueue::BEGIN_GESTURE, id, 0.0f});
-        queue.toAudio().enqueue({ParamMessageQueue::PARAM_VALUE, id, 0.2f});
-        queue.toAudio().enqueue({ParamMessageQueue::END_GESTURE, id, 0.0f});
+        queue.toAudio().enqueue({ParamMessageQueue::PARAM_VALUE, 0, 0.1f});
+        queue.toAudio().enqueue({ParamMessageQueue::BEGIN_GESTURE, 0, 0.0f});
+        queue.toAudio().enqueue({ParamMessageQueue::PARAM_VALUE, 0, 0.2f});
+        queue.toAudio().enqueue({ParamMessageQueue::END_GESTURE, 0, 0.0f});
         plugin.params.processEvents(nullptr, &out.out);
 
         REQUIRE(out.types == std::vector<uint16_t>{CLAP_EVENT_PARAM_VALUE, CLAP_EVENT_PARAM_GESTURE_BEGIN,
@@ -775,6 +799,27 @@ TEST_CASE("ParamsExtension processEvents outbound", "[params][process][out]") {
     }
 }
 
+TEST_CASE("ParamsExtension sends no host events for internal parameters", "[params][process][out]") {
+    TestPlugin plugin;
+    auto hidden = makeConfig("hidden", 0.5f);
+    hidden.is_internal = true;
+    plugin.params.registerParam(hidden);
+    plugin.params.registerParam(makeConfig("visible", 0.5f));
+
+    ParamMessageQueue queue;
+    plugin.params.setMessageQueue(&queue);
+    OutList out;
+
+    queue.toAudio().enqueue({ParamMessageQueue::BEGIN_GESTURE, 0, 0.0f});
+    queue.toAudio().enqueue({ParamMessageQueue::PARAM_VALUE, 0, 0.3f});
+    queue.toAudio().enqueue({ParamMessageQueue::END_GESTURE, 0, 0.0f});
+    queue.toAudio().enqueue({ParamMessageQueue::PARAM_VALUE, 1, 0.6f});
+    plugin.params.processEvents(nullptr, &out.out);
+
+    REQUIRE(out.types == std::vector<uint16_t>{CLAP_EVENT_PARAM_VALUE});
+    REQUIRE(out.values[0].param_id == plugin.params.getInfo("visible").clapId);
+}
+
 TEST_CASE("ParamsExtension flush drives both directions", "[params][process][flush]") {
     TestPlugin plugin;
     plugin.params.registerParam(makeConfig("p", 0.5f));
@@ -784,7 +829,7 @@ TEST_CASE("ParamsExtension flush drives both directions", "[params][process][flu
 
     ParamMessageQueue queue;
     plugin.params.setMessageQueue(&queue);
-    queue.toAudio().enqueue({ParamMessageQueue::PARAM_VALUE, id_q2, 0.8f});
+    queue.toAudio().enqueue({ParamMessageQueue::PARAM_VALUE, 1, 0.8f});
 
     EventList list;
     list.events.push_back(makeEvent(id_p, nullptr, 0.4));
@@ -796,7 +841,7 @@ TEST_CASE("ParamsExtension flush drives both directions", "[params][process][flu
 
     ParamMessageQueue::Message message{};
     REQUIRE(queue.toUi().try_dequeue(message));
-    REQUIRE(message.paramId == id_p);
+    REQUIRE(message.index == 0);
     REQUIRE(message.value == Approx(0.4f));
 
     REQUIRE(out.values.size() == 1);
@@ -808,7 +853,6 @@ TEST_CASE("ParamInfo UI methods notify host and queue", "[params][ui][host]") {
     FakeHost fake;
     TestPlugin plugin(&fake.host);
     plugin.params.registerParam(makeConfig("p", 0.5f));
-    const clap_id id = plugin.params.getInfo("p").clapId;
 
     ParamMessageQueue queue;
     plugin.params.setMessageQueue(&queue);
@@ -826,7 +870,7 @@ TEST_CASE("ParamInfo UI methods notify host and queue", "[params][ui][host]") {
         REQUIRE(seen == 0.75f);
         REQUIRE(queue.toAudio().try_dequeue(message));
         REQUIRE(message.type == ParamMessageQueue::PARAM_VALUE);
-        REQUIRE(message.paramId == id);
+        REQUIRE(message.index == 0);
         REQUIRE(message.value == 0.75f);
         REQUIRE_FALSE(queue.toAudio().try_dequeue(message));
         REQUIRE(fake.flush_count == 1);
@@ -861,7 +905,7 @@ TEST_CASE("ParamInfo UI methods notify host and queue", "[params][ui][host]") {
         info.beginGesture();
         REQUIRE(queue.toAudio().try_dequeue(message));
         REQUIRE(message.type == ParamMessageQueue::BEGIN_GESTURE);
-        REQUIRE(message.paramId == id);
+        REQUIRE(message.index == 0);
         REQUIRE(fake.flush_count == 1);
     }
 
@@ -869,7 +913,7 @@ TEST_CASE("ParamInfo UI methods notify host and queue", "[params][ui][host]") {
         info.endGesture();
         REQUIRE(queue.toAudio().try_dequeue(message));
         REQUIRE(message.type == ParamMessageQueue::END_GESTURE);
-        REQUIRE(message.paramId == id);
+        REQUIRE(message.index == 0);
         REQUIRE(fake.flush_count == 1);
     }
 }
@@ -897,7 +941,7 @@ TEST_CASE("ParamInfo UI methods coerce stepped values before notifications", "[p
         for (const float expected : {2.0f, -2.0f}) {
             REQUIRE(queue.toAudio().try_dequeue(message));
             REQUIRE(message.type == ParamMessageQueue::PARAM_VALUE);
-            REQUIRE(message.paramId == info.clapId);
+            REQUIRE(message.index == 0);
             REQUIRE(message.value == expected);
         }
         REQUIRE_FALSE(queue.toAudio().try_dequeue(message));
@@ -1033,47 +1077,500 @@ TEST_CASE("ParamsExtension JSON save and load", "[params][json]") {
         REQUIRE(plugin.params.getInfo("a").getValue() == 1.0f);
     }
 
-    SECTION("loading pushes changes to the UI queue") {
+    SECTION("loading notifies listeners directly instead of queueing") {
         ParamMessageQueue queue;
         plugin.params.setMessageQueue(&queue);
+        float seen = -1.0f;
+        plugin.params.getInfo("a").on_value_changed.connect([&](float value) { seen = value; });
         applause::json state = applause::json::array();
         state.push_back({{"id", id_a}, {"value", 0.42f}});
         REQUIRE(plugin.params.loadFromJson(state));
 
+        REQUIRE(seen == Approx(0.42f));
         ParamMessageQueue::Message message{};
-        REQUIRE(queue.toUi().try_dequeue(message));
-        REQUIRE(message.type == ParamMessageQueue::PARAM_VALUE);
-        REQUIRE(message.paramId == id_a);
-        REQUIRE(message.value == Approx(0.42f));
         REQUIRE_FALSE(queue.toUi().try_dequeue(message));
     }
 
-    SECTION("stepped values are coerced before storage and UI queueing") {
+    SECTION("stepped values are coerced before storage and notification") {
         TestPlugin stepped;
         stepped.params.registerParam(rangedConfig("positive", -10.0f, 10.0f, 0.0f, true));
         stepped.params.registerParam(rangedConfig("negative", -10.0f, 10.0f, 0.0f, true));
-        const clap_id positive_id = stepped.params.getInfo("positive").clapId;
-        const clap_id negative_id = stepped.params.getInfo("negative").clapId;
+        std::vector<float> seen;
+        for (const char* id : {"positive", "negative"})
+            stepped.params.getInfo(id).on_value_changed.connect([&](float value) { seen.push_back(value); });
 
-        ParamMessageQueue queue;
-        stepped.params.setMessageQueue(&queue);
         applause::json state = applause::json::array();
-        state.push_back({{"id", positive_id}, {"value", 2.8f}});
-        state.push_back({{"id", negative_id}, {"value", -2.8f}});
+        state.push_back({{"id", stepped.params.getInfo("positive").clapId}, {"value", 2.8f}});
+        state.push_back({{"id", stepped.params.getInfo("negative").clapId}, {"value", -2.8f}});
         REQUIRE(stepped.params.loadFromJson(state));
 
         REQUIRE(stepped.params.getInfo("positive").getValue() == 2.0f);
         REQUIRE(stepped.params.getInfo("negative").getValue() == -2.0f);
+        REQUIRE(seen == std::vector<float>{2.0f, -2.0f});
+    }
+}
 
+TEST_CASE("Dynamic parameters activate into the pool and deactivate", "[params][dynamic]") {
+    DynamicPlugin plugin;
+    plugin.params.registerParam(makeConfig("gain", 0.5f));
+
+    std::vector<std::pair<uint32_t, bool>> changes;
+    std::string id_at_deactivation;
+    plugin.params.on_dynamic_param_changed.connect([&](uint32_t index, bool active) {
+        changes.emplace_back(index, active);
+        if (!active) id_at_deactivation = plugin.params.getAllParameters()[index].stringId;
+    });
+
+    REQUIRE(plugin.params.activateDynamicParam(rangedConfig("fx/1/rate", 0.1f, 10.0f, 1.0f)));
+    const auto& rate = plugin.params.getInfo("fx/1/rate");
+
+    SECTION("an active dynamic parameter behaves like an internal one") {
+        REQUIRE(rate.getValue() == 1.0f);
+        REQUIRE(plugin.params.getHandle("fx/1/rate").getValue() == 1.0f);
+        REQUIRE(rate.internal);
+        REQUIRE(rate.maxValue == 10.0f);
+        REQUIRE(clapParams(plugin)->count(plugin.clapPlugin()) == 1);
+        REQUIRE(changes == std::vector<std::pair<uint32_t, bool>>{{0, true}});
+    }
+
+    SECTION("static parameters are stored after the pool, and every pool entry is internal") {
+        const auto params = plugin.params.getAllParameters();
+        REQUIRE(params.size() == 4);
+        REQUIRE(params[3].stringId == "gain");
+        REQUIRE(params[1].internal);
+        REQUIRE(params[1].stringId.empty());
+    }
+
+    SECTION("string ids must be unique across static and dynamic parameters") {
+        REQUIRE_FALSE(plugin.params.activateDynamicParam(makeConfig("fx/1/rate", 0.5f)));
+        REQUIRE_FALSE(plugin.params.activateDynamicParam(makeConfig("gain", 0.5f)));
+    }
+
+    SECTION("activation fails once the pool is full") {
+        REQUIRE(plugin.params.activateDynamicParam(makeConfig("fx/1/mix", 0.5f)));
+        REQUIRE(plugin.params.activateDynamicParam(makeConfig("fx/1/depth", 0.5f)));
+        REQUIRE_FALSE(plugin.params.activateDynamicParam(makeConfig("fx/2/mix", 0.5f)));
+    }
+
+    SECTION("deactivation fires the signal while the parameter is still readable, then frees the entry") {
+        plugin.params.deactivateDynamicParam("fx/1/rate");
+        REQUIRE(changes.back() == std::pair<uint32_t, bool>{0, false});
+        REQUIRE(id_at_deactivation == "fx/1/rate");
+        REQUIRE(plugin.params.getAllParameters()[0].stringId.empty());
+        REQUIRE(plugin.params.activateDynamicParam(rangedConfig("fx/1/rate", 0.0f, 2.0f, 2.0f)));
+        REQUIRE(plugin.params.getInfo("fx/1/rate").getValue() == 2.0f);
+    }
+
+    SECTION("freed entries are reused oldest first") {
+        REQUIRE(plugin.params.activateDynamicParam(makeConfig("b", 0.5f)));
+        REQUIRE(plugin.params.activateDynamicParam(makeConfig("c", 0.5f)));
+        plugin.params.deactivateDynamicParam("b");
+        plugin.params.deactivateDynamicParam("fx/1/rate");
+        REQUIRE(plugin.params.activateDynamicParam(makeConfig("d", 0.5f)));
+        REQUIRE(changes.back() == std::pair<uint32_t, bool>{1, true});
+    }
+
+    SECTION("an invalid config throws without taking an entry") {
+        REQUIRE_THROWS_AS(plugin.params.activateDynamicParam(choiceConfig("bad", 0.0f, 0.0f, {"only"})),
+                          std::invalid_argument);
+        REQUIRE(plugin.params.activateDynamicParam(makeConfig("b", 0.5f)));
+        REQUIRE(plugin.params.activateDynamicParam(makeConfig("c", 0.5f)));
+    }
+}
+
+TEST_CASE("Dynamic parameters save and load by string id", "[params][dynamic][json]") {
+    DynamicPlugin plugin;
+    plugin.params.registerParam(makeConfig("gain", 0.5f));
+    REQUIRE(plugin.params.activateDynamicParam(rangedConfig("fx/1/rate", 0.1f, 10.0f, 1.0f)));
+    plugin.params.getInfo("fx/1/rate").setValueSilently(5.0f);
+    plugin.params.getInfo("gain").setValueSilently(0.25f);
+
+    applause::json state;
+    REQUIRE(plugin.params.saveToJson(state));
+    REQUIRE(state.size() == 2);
+    REQUIRE(state[0]["id"] == plugin.params.getInfo("gain").clapId);
+    REQUIRE(state[1]["string_id"] == "fx/1/rate");
+    REQUIRE_FALSE(state[1].contains("id"));
+
+    SECTION("values land on the parameter with the same string id, whatever its pool entry") {
+        DynamicPlugin other;
+        other.params.registerParam(makeConfig("gain", 0.5f));
+        REQUIRE(other.params.activateDynamicParam(makeConfig("fx/2/mix", 0.5f)));
+        REQUIRE(other.params.activateDynamicParam(rangedConfig("fx/1/rate", 0.1f, 10.0f, 1.0f)));
+        REQUIRE(other.params.loadFromJson(state));
+        REQUIRE(other.params.getInfo("fx/1/rate").getValue() == 5.0f);
+        REQUIRE(other.params.getInfo("fx/2/mix").getValue() == 0.5f);
+        REQUIRE(other.params.getInfo("gain").getValue() == 0.25f);
+    }
+
+    SECTION("entries for parameters that aren't active are skipped") {
+        DynamicPlugin other;
+        other.params.registerParam(makeConfig("gain", 0.5f));
+        REQUIRE(other.params.loadFromJson(state));
+        REQUIRE(other.params.getInfo("gain").getValue() == 0.25f);
+    }
+}
+
+TEST_CASE("Automation slots are listed after the static parameters", "[params][slots]") {
+    SlotPlugin plugin;
+    plugin.params.registerParam(makeConfig("gain", 0.5f));
+    auto tab = makeConfig("tab", 0.0f);
+    tab.is_internal = true;
+    plugin.params.registerParam(tab);
+
+    auto* clap_params = clapParams(plugin);
+    REQUIRE(clap_params->count(plugin.clapPlugin()) == 3);
+
+    clap_param_info_t slot{};
+    REQUIRE(clap_params->get_info(plugin.clapPlugin(), 1, &slot));
+    REQUIRE(std::string(slot.name) == "Unused 1");
+    REQUIRE(std::string(slot.module).empty());
+    REQUIRE(slot.min_value == 0.0);
+    REQUIRE(slot.max_value == 1.0);
+    REQUIRE(slot.default_value == 0.0);
+    REQUIRE(slot.flags == CLAP_PARAM_IS_AUTOMATABLE);
+    REQUIRE(slot.cookie != nullptr);
+    REQUIRE(slot.id != plugin.params.getInfo("gain").clapId);
+
+    clap_param_info_t second{};
+    REQUIRE(clap_params->get_info(plugin.clapPlugin(), 2, &second));
+    REQUIRE(std::string(second.name) == "Unused 2");
+    REQUIRE(second.id != slot.id);
+    REQUIRE_FALSE(clap_params->get_info(plugin.clapPlugin(), 3, &second));
+
+    SlotPlugin other;
+    clap_param_info_t other_slot{};
+    REQUIRE(clapParams(other)->get_info(other.clapPlugin(), 0, &other_slot));
+    REQUIRE(other_slot.id == slot.id);
+
+    double value = -1.0;
+    REQUIRE(clap_params->get_value(plugin.clapPlugin(), slot.id, &value));
+    REQUIRE(value == 0.0);
+    char text[64];
+    REQUIRE(clap_params->value_to_text(plugin.clapPlugin(), slot.id, 0.5, text, sizeof(text)));
+    REQUIRE(std::string(text) == "-");
+    REQUIRE_FALSE(clap_params->text_to_value(plugin.clapPlugin(), slot.id, "0.5", &value));
+}
+
+TEST_CASE("setAutomatable binds a dynamic parameter to a slot", "[params][slots]") {
+    FakeHost fake;
+    SlotPlugin plugin(&fake.host);
+    plugin.params.registerParam(makeConfig("gain", 0.5f));
+    auto tab = makeConfig("tab", 0.0f);
+    tab.is_internal = true;
+    plugin.params.registerParam(tab);
+    REQUIRE(plugin.clapPlugin()->init(plugin.clapPlugin()));
+
+    auto rate_config = rangedConfig("fx/1/rate", 0.0f, 10.0f, 1.0f);
+    rate_config.name = "Chorus Rate";
+    rate_config.module = "FX 1";
+    REQUIRE(plugin.params.activateDynamicParam(rate_config));
+    const auto& rate = plugin.params.getInfo("fx/1/rate");
+    auto* clap_params = clapParams(plugin);
+
+    REQUIRE_FALSE(rate.isAutomatable());
+    REQUIRE(rate.setAutomatable(true));
+    REQUIRE(rate.isAutomatable());
+
+    clap_param_info_t slot{};
+    REQUIRE(clap_params->get_info(plugin.clapPlugin(), 1, &slot));
+    REQUIRE(std::string(slot.name) == "Chorus Rate");
+    REQUIRE(std::string(slot.module) == "FX 1");
+    double value = -1.0;
+    REQUIRE(clap_params->get_value(plugin.clapPlugin(), slot.id, &value));
+    REQUIRE(value == Approx(0.1));
+    char text[64];
+    REQUIRE(clap_params->value_to_text(plugin.clapPlugin(), slot.id, 0.5, text, sizeof(text)));
+    REQUIRE(std::string(text) == rate.valueToText(5.0f));
+    REQUIRE(clap_params->text_to_value(plugin.clapPlugin(), slot.id, "2.5", &value));
+    REQUIRE(value == Approx(0.25));
+
+    SECTION("the host rescan waits for the main-thread callback and is coalesced") {
+        REQUIRE(fake.callback_count == 1);
+        REQUIRE(fake.rescan_count == 0);
+        plugin.clapPlugin()->on_main_thread(plugin.clapPlugin());
+        REQUIRE(fake.rescan_count == 1);
+        REQUIRE(fake.last_rescan_flags ==
+                (CLAP_PARAM_RESCAN_INFO | CLAP_PARAM_RESCAN_VALUES | CLAP_PARAM_RESCAN_TEXT));
+        plugin.clapPlugin()->on_main_thread(plugin.clapPlugin());
+        REQUIRE(fake.rescan_count == 1);
+    }
+
+    SECTION("turning automation off frees the slot") {
+        REQUIRE(rate.setAutomatable(false));
+        REQUIRE_FALSE(rate.isAutomatable());
+        REQUIRE(clap_params->get_info(plugin.clapPlugin(), 1, &slot));
+        REQUIRE(std::string(slot.name) == "Unused 1");
+    }
+
+    SECTION("deactivating an automated parameter frees its slot") {
+        plugin.params.deactivateDynamicParam("fx/1/rate");
+        REQUIRE(clap_params->get_info(plugin.clapPlugin(), 1, &slot));
+        REQUIRE(std::string(slot.name) == "Unused 1");
+    }
+
+    SECTION("static parameters report their own automatability and can't borrow slots") {
+        REQUIRE(plugin.params.getInfo("gain").isAutomatable());
+        REQUIRE_FALSE(plugin.params.getInfo("tab").isAutomatable());
+        REQUIRE_FALSE(plugin.params.getInfo("tab").setAutomatable(true));
+    }
+
+    SECTION("setAutomatable fails when every slot is taken") {
+        REQUIRE(plugin.params.activateDynamicParam(makeConfig("a", 0.5f)));
+        REQUIRE(plugin.params.activateDynamicParam(makeConfig("b", 0.5f)));
+        REQUIRE(plugin.params.getInfo("a").setAutomatable(true));
+        REQUIRE_FALSE(plugin.params.getInfo("b").setAutomatable(true));
+    }
+}
+
+TEST_CASE("Slot events drive the bound dynamic parameter", "[params][slots][process]") {
+    SlotPlugin plugin;
+    REQUIRE(plugin.params.activateDynamicParam(rangedConfig("rate", 0.0f, 10.0f, 1.0f)));
+    REQUIRE(plugin.params.activateDynamicParam(choiceConfig("mode", 0.0f, 0.0f, {"a", "b", "c", "d"})));
+    const auto& rate = plugin.params.getInfo("rate");
+    const auto& mode = plugin.params.getInfo("mode");
+    REQUIRE(rate.setAutomatable(true));
+    REQUIRE(mode.setAutomatable(true));
+
+    auto* clap_params = clapParams(plugin);
+    clap_param_info_t rate_slot{};
+    clap_param_info_t mode_slot{};
+    REQUIRE(clap_params->get_info(plugin.clapPlugin(), 0, &rate_slot));
+    REQUIRE(clap_params->get_info(plugin.clapPlugin(), 1, &mode_slot));
+
+    const auto send = [&](const clap_param_info_t& slot, double value, bool cookie = true) {
+        EventList list;
+        list.events.push_back(makeEvent(slot.id, cookie ? slot.cookie : nullptr, value));
+        plugin.params.processEvents(&list.in, nullptr);
+    };
+
+    SECTION("continuous values map through the parameter's range") {
+        ParamMessageQueue queue;
+        plugin.params.setMessageQueue(&queue);
+        send(rate_slot, 0.25);
+        REQUIRE(rate.getValue() == Approx(2.5f));
         ParamMessageQueue::Message message{};
         REQUIRE(queue.toUi().try_dequeue(message));
-        REQUIRE(message.type == ParamMessageQueue::PARAM_VALUE);
-        REQUIRE(message.paramId == positive_id);
-        REQUIRE(message.value == 2.0f);
-        REQUIRE(queue.toUi().try_dequeue(message));
-        REQUIRE(message.type == ParamMessageQueue::PARAM_VALUE);
-        REQUIRE(message.paramId == negative_id);
-        REQUIRE(message.value == -2.0f);
-        REQUIRE_FALSE(queue.toUi().try_dequeue(message));
+        REQUIRE(message.index == 0);
+        REQUIRE(message.value == Approx(2.5f));
+
+        send(rate_slot, 0.75, false);
+        REQUIRE(rate.getValue() == Approx(7.5f));
+        send(rate_slot, std::numeric_limits<double>::quiet_NaN());
+        REQUIRE(rate.getValue() == 0.0f);
     }
+
+    SECTION("stepped values use equal bins in both directions") {
+        const std::vector<std::pair<double, float>> cases{
+            {0.0, 0.0f}, {0.24, 0.0f}, {0.26, 1.0f}, {0.74, 2.0f}, {0.99, 3.0f}, {1.0, 3.0f}};
+        for (const auto& [normalized, expected] : cases) {
+            send(mode_slot, normalized);
+            REQUIRE(mode.getValue() == expected);
+        }
+
+        double value = -1.0;
+        mode.setValueSilently(1.0f);
+        REQUIRE(clap_params->get_value(plugin.clapPlugin(), mode_slot.id, &value));
+        REQUIRE(value == Approx(1.0 / 3.0));
+        mode.setValueSilently(3.0f);
+        REQUIRE(clap_params->get_value(plugin.clapPlugin(), mode_slot.id, &value));
+        REQUIRE(value == 1.0);
+    }
+
+    SECTION("events for an unused slot are dropped") {
+        REQUIRE(rate.setAutomatable(false));
+        send(rate_slot, 0.9);
+        REQUIRE(rate.getValue() == 1.0f);
+    }
+}
+
+TEST_CASE("UI edits of dynamic parameters reach the host only through a slot", "[params][slots][process][out]") {
+    SlotPlugin plugin;
+    REQUIRE(plugin.params.activateDynamicParam(rangedConfig("rate", 0.0f, 10.0f, 1.0f)));
+    ParamMessageQueue queue;
+    plugin.params.setMessageQueue(&queue);
+    OutList out;
+
+    queue.toAudio().enqueue({ParamMessageQueue::PARAM_VALUE, 0, 5.0f});
+    plugin.params.processEvents(nullptr, &out.out);
+    REQUIRE(out.types.empty());
+
+    REQUIRE(plugin.params.getInfo("rate").setAutomatable(true));
+    clap_param_info_t slot{};
+    REQUIRE(clapParams(plugin)->get_info(plugin.clapPlugin(), 0, &slot));
+    queue.toAudio().enqueue({ParamMessageQueue::BEGIN_GESTURE, 0, 0.0f});
+    queue.toAudio().enqueue({ParamMessageQueue::PARAM_VALUE, 0, 5.0f});
+    queue.toAudio().enqueue({ParamMessageQueue::END_GESTURE, 0, 0.0f});
+    plugin.params.processEvents(nullptr, &out.out);
+
+    REQUIRE(out.types == std::vector<uint16_t>{CLAP_EVENT_PARAM_GESTURE_BEGIN, CLAP_EVENT_PARAM_VALUE,
+                                               CLAP_EVENT_PARAM_GESTURE_END});
+    REQUIRE(out.values[0].param_id == slot.id);
+    REQUIRE(out.values[0].value == Approx(0.5));
+    REQUIRE(out.gestures[0].param_id == slot.id);
+    REQUIRE(out.gestures[1].param_id == slot.id);
+}
+
+TEST_CASE("Slot choice prefers the parameter's previous slot, then never-used slots", "[params][slots]") {
+    SlotPlugin plugin(nullptr, 3);
+    for (const char* id : {"a", "b", "c"}) REQUIRE(plugin.params.activateDynamicParam(makeConfig(id, 0.5f)));
+    const auto slotName = [&](uint32_t slot) {
+        clap_param_info_t info{};
+        REQUIRE(clapParams(plugin)->get_info(plugin.clapPlugin(), slot, &info));
+        return std::string(info.name);
+    };
+    const auto& a = plugin.params.getInfo("a");
+    const auto& b = plugin.params.getInfo("b");
+    const auto& c = plugin.params.getInfo("c");
+
+    REQUIRE(a.setAutomatable(true));
+    REQUIRE(slotName(0) == "a");
+    REQUIRE(a.setAutomatable(false));
+    REQUIRE(b.setAutomatable(true));
+    REQUIRE(slotName(1) == "b");
+    REQUIRE(a.setAutomatable(true));
+    REQUIRE(slotName(0) == "a");
+    REQUIRE(b.setAutomatable(false));
+    REQUIRE(c.setAutomatable(true));
+    REQUIRE(slotName(2) == "c");
+}
+
+TEST_CASE("A dynamic entry that held a slot is reused only after the audio thread moves on",
+          "[params][slots][dynamic]") {
+    FakeHost fake;
+    SlotPlugin plugin(&fake.host);
+    REQUIRE(plugin.clapPlugin()->init(plugin.clapPlugin()));
+    REQUIRE(plugin.clapPlugin()->activate(plugin.clapPlugin(), 48000.0, 32, 512));
+    for (const char* id : {"a", "b", "c"}) REQUIRE(plugin.params.activateDynamicParam(makeConfig(id, 0.5f)));
+    REQUIRE(plugin.params.getInfo("a").setAutomatable(true));
+    plugin.params.deactivateDynamicParam("a");
+    REQUIRE(fake.flush_count == 1);
+
+    SECTION("while active, the entry waits for a processEvents() call") {
+        REQUIRE_FALSE(plugin.params.activateDynamicParam(makeConfig("d", 0.5f)));
+        plugin.params.processEvents(nullptr, nullptr);
+        REQUIRE(plugin.params.activateDynamicParam(makeConfig("d", 0.5f)));
+    }
+
+    SECTION("an entry that never held a slot is reusable at once") {
+        plugin.params.deactivateDynamicParam("b");
+        REQUIRE(plugin.params.activateDynamicParam(makeConfig("d", 0.5f)));
+        REQUIRE_FALSE(plugin.params.activateDynamicParam(makeConfig("e", 0.5f)));
+    }
+
+    SECTION("a deactivated plugin reuses entries at once") {
+        plugin.clapPlugin()->deactivate(plugin.clapPlugin());
+        REQUIRE(plugin.params.activateDynamicParam(makeConfig("d", 0.5f)));
+    }
+}
+
+TEST_CASE("Slot bindings are saved and restored to the same slot", "[params][slots][json]") {
+    SlotPlugin plugin;
+    REQUIRE(plugin.params.activateDynamicParam(makeConfig("a", 0.5f)));
+    REQUIRE(plugin.params.activateDynamicParam(makeConfig("b", 0.5f)));
+    REQUIRE(plugin.params.getInfo("a").setAutomatable(true));
+    REQUIRE(plugin.params.getInfo("b").setAutomatable(true));
+    REQUIRE(plugin.params.getInfo("a").setAutomatable(false));
+
+    applause::json state;
+    REQUIRE(plugin.params.saveToJson(state));
+
+    SlotPlugin other;
+    REQUIRE(other.params.activateDynamicParam(makeConfig("b", 0.5f)));
+    REQUIRE(other.params.activateDynamicParam(makeConfig("a", 0.5f)));
+    REQUIRE(other.params.getInfo("a").setAutomatable(true));
+    REQUIRE(other.params.loadFromJson(state));
+
+    REQUIRE(other.params.getInfo("b").isAutomatable());
+    REQUIRE_FALSE(other.params.getInfo("a").isAutomatable());
+    clap_param_info_t slot{};
+    REQUIRE(clapParams(other)->get_info(other.clapPlugin(), 1, &slot));
+    REQUIRE(std::string(slot.name) == "b");
+    REQUIRE(clapParams(other)->get_info(other.clapPlugin(), 0, &slot));
+    REQUIRE(std::string(slot.name) == "Unused 1");
+}
+
+TEST_CASE("Reusing a dynamic entry never leaks the old range into the new parameter", "[params][slots][threading]") {
+    SlotPlugin plugin(nullptr, 1, 1);
+    REQUIRE(plugin.clapPlugin()->activate(plugin.clapPlugin(), 48000.0, 32, 512));
+    clap_param_info_t slot{};
+    REQUIRE(clapParams(plugin)->get_info(plugin.clapPlugin(), 0, &slot));
+
+    std::atomic<bool> stop{false};
+    std::thread audio([&] {
+        EventList list;
+        list.events.push_back(makeEvent(slot.id, slot.cookie, 0.0));
+        while (!stop.load(std::memory_order_relaxed)) {
+            list.events[0].value = list.events[0].value >= 1.0 ? 0.0 : list.events[0].value + 0.013;
+            plugin.params.processEvents(&list.in, nullptr);
+        }
+    });
+
+    bool leaked = false;
+    for (int i = 0; i < 300; ++i) {
+        const auto config =
+            i % 2 == 0 ? rangedConfig("wide", 20.0f, 20000.0f, 20.0f) : rangedConfig("narrow", 0.0f, 1.0f, 0.0f);
+        while (!plugin.params.activateDynamicParam(config)) std::this_thread::yield();
+        const auto& info = plugin.params.getInfo(config.string_id);
+        info.setAutomatable(true);
+        for (int check = 0; check < 20; ++check) {
+            const float value = info.getValue();
+            if (value < config.min_value || value > config.max_value) leaked = true;
+            std::this_thread::yield();
+        }
+        plugin.params.deactivateDynamicParam(config.string_id);
+    }
+
+    stop = true;
+    audio.join();
+    REQUIRE_FALSE(leaked);
+}
+
+TEST_CASE("UI edits queue host messages only for parameters the DAW can see", "[params][slots][ui]") {
+    FakeHost fake;
+    SlotPlugin plugin(&fake.host);
+    auto tab = makeConfig("tab", 0.0f);
+    tab.is_internal = true;
+    plugin.params.registerParam(tab);
+    REQUIRE(plugin.clapPlugin()->init(plugin.clapPlugin()));
+    REQUIRE(plugin.params.activateDynamicParam(rangedConfig("rate", 0.0f, 10.0f, 1.0f)));
+    const auto& rate = plugin.params.getInfo("rate");
+
+    ParamMessageQueue queue;
+    plugin.params.setMessageQueue(&queue);
+    float seen = -1.0f;
+    rate.on_value_changed.connect([&](float value) { seen = value; });
+    ParamMessageQueue::Message message{};
+
+    rate.beginGesture();
+    rate.setValueNotifyingHost(5.0f);
+    rate.endGesture();
+    plugin.params.getInfo("tab").setValueNotifyingHost(1.0f);
+    REQUIRE(rate.getValue() == 5.0f);
+    REQUIRE(seen == 5.0f);
+    REQUIRE_FALSE(queue.toAudio().try_dequeue(message));
+    REQUIRE(fake.flush_count == 0);
+
+    REQUIRE(rate.setAutomatable(true));
+    rate.setValueNotifyingHost(6.0f);
+    REQUIRE(queue.toAudio().try_dequeue(message));
+    REQUIRE(message.index == 0);
+    REQUIRE(message.value == 6.0f);
+    REQUIRE(fake.flush_count == 1);
+}
+
+TEST_CASE("Deactivation handlers may activate other dynamic parameters", "[params][dynamic]") {
+    DynamicPlugin plugin;
+    REQUIRE(plugin.params.activateDynamicParam(makeConfig("a", 0.5f)));
+    plugin.params.on_dynamic_param_changed.connect([&](uint32_t, bool active) {
+        if (!active) {
+            REQUIRE(plugin.params.activateDynamicParam(makeConfig("b", 0.25f)));
+            REQUIRE(plugin.params.activateDynamicParam(makeConfig("c", 0.75f)));
+        }
+    });
+
+    plugin.params.deactivateDynamicParam("a");
+    REQUIRE(plugin.params.getInfo("b").getValue() == 0.25f);
+    REQUIRE(plugin.params.getInfo("c").getValue() == 0.75f);
+    REQUIRE(plugin.params.activateDynamicParam(makeConfig("a", 0.5f)));
 }

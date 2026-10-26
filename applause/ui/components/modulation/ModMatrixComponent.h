@@ -14,7 +14,7 @@
 
 namespace applause {
 
-class ModMatrixComponent : public applause::ScrollableFrame {
+class ModMatrixComponent : public applause::ScrollableFrame, public applause::EventTimer {
 public:
     static inline const ValueToken kRowHeight{"modMatrix.rowHeight", 30.0f};
     static inline const ValueToken kRowGap{"modMatrix.rowGap", 7.0f};  // Between rows.
@@ -58,14 +58,15 @@ public:
     void setFont(const applause::Font& font);
     void rebuildRows();
     void resized() override;
+    void timerCallback() override;
 
 private:
     void addDummyRow();
     void activateRow(Row* row);
-    void deleteRow(Row* row);
     void buildHeader();
 
     applause::ModMatrixControl& matrix_;
+    rocket::scoped_connection connections_changed_;
     applause::Font header_font_;
     std::optional<applause::Font> font_override_;
     applause::Frame header_;

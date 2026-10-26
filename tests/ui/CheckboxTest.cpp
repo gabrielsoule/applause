@@ -48,18 +48,18 @@ void click(applause::Button& button, applause::Point point = {1.0f, 1.0f}, bool 
     button.mouseUp(up);
 }
 
-void requireGesture(applause::ParamMessageQueue& queue, const applause::ParamInfo& parameter, float value) {
+void requireGesture(applause::ParamMessageQueue& queue, float value) {
     applause::ParamMessageQueue::Message message{};
     REQUIRE(queue.toAudio().try_dequeue(message));
     REQUIRE(message.type == applause::ParamMessageQueue::BEGIN_GESTURE);
-    REQUIRE(message.paramId == parameter.clapId);
+    REQUIRE(message.index == 0);
     REQUIRE(queue.toAudio().try_dequeue(message));
     REQUIRE(message.type == applause::ParamMessageQueue::PARAM_VALUE);
-    REQUIRE(message.paramId == parameter.clapId);
+    REQUIRE(message.index == 0);
     REQUIRE(message.value == value);
     REQUIRE(queue.toAudio().try_dequeue(message));
     REQUIRE(message.type == applause::ParamMessageQueue::END_GESTURE);
-    REQUIRE(message.paramId == parameter.clapId);
+    REQUIRE(message.index == 0);
     REQUIRE_FALSE(queue.toAudio().try_dequeue(message));
 }
 
@@ -171,7 +171,7 @@ TEST_CASE("ParamCheckbox sends one complete gesture and synchronizes controls be
     REQUIRE(checkbox.isChecked());
     REQUIRE(changes == std::vector<bool>{true});
     REQUIRE(mirror_changes == 0);
-    requireGesture(queue, parameter, 0.0f);
+    requireGesture(queue, 0.0f);
 
     // Already on, so nothing changes and nothing is sent.
     checkbox.setCheckedAndNotify(true);
@@ -192,7 +192,7 @@ TEST_CASE("ParamCheckbox sends one complete gesture and synchronizes controls be
     REQUIRE(mirror.isChecked());
     REQUIRE(changes == std::vector<bool>{true});
     REQUIRE(mirror_changes == 0);
-    requireGesture(queue, parameter, 0.0f);
+    requireGesture(queue, 0.0f);
 
     checkbox.setChecked(false);
     REQUIRE(parameter.getValue() == 0.0f);

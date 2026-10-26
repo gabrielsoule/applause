@@ -31,7 +31,9 @@ ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(
 
     dst_menu_.onBuildMenu() = [this](NativePopupMenu& menu) {
         for (uint16_t i = 0; i < owner_.matrix_.getDestinationCount(); ++i) {
-            menu.addOption(i + 1, owner_.matrix_.getDestination(i).name);
+            const auto& destination = owner_.matrix_.getDestination(i);
+            if (!destination.active) continue;
+            menu.addOption(i + 1, destination.name);
             if (dst_list_id >= 0 && i + 1 == dst_list_id) menu.select(true);
         }
 
@@ -94,18 +96,8 @@ ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(
 }
 
 void ModMatrixComponent::Row::bindToConnection(const ModConnection& c) {
-    is_dummy = false;
     conn = c;
     src_list_id = c.src_idx;
-
-    // Drop any handlers left over from the dummy state (or a prior bind) so they
-    // don't re-fire activateRow and stack extra dummy rows on subsequent edits.
-    src_menu_.onItemSelected().clear();
-    dst_menu_.onItemSelected().clear();
-    depth_slider_.on_value_changed.clear();
-    bipolar_toggle_.onToggle().clear();
-    delete_button_.onClick().clear();
-
     src_menu_.setText(owner_.matrix_.getSource(c.src_idx).name);
 
     if (c.isDepthMod()) {
@@ -128,33 +120,19 @@ void ModMatrixComponent::Row::bindToConnection(const ModConnection& c) {
 
     bipolar_toggle_.onToggle() += [this](bool on) { conn.setBipolar(on); };
 
+    // Every connection change schedules a rebuild of all rows (see the ModMatrixComponent constructor), which also
+    // drops rows that were merged into a peer or deleted.
     src_menu_.onItemSelected() += [this](int id) {
-        const uint16_t prev_slot = conn.depth_slot;
         conn = owner_.matrix_.reassignSource(conn, owner_.matrix_.getSource(id));
-        if (conn.depth_slot != prev_slot) {  // merged into a peer; rebuild to drop this duplicate row
-            // Defer: rebuildRows would destroy this Row (and the CallbackList we're dispatching from).
-            applause::runOnEventThread([&owner = owner_] { owner.rebuildRows(); });
-            return;
-        }
-        src_list_id = id;
-        src_menu_.setText(owner_.matrix_.getSource(id).name);
     };
 
     if (!c.isDepthMod()) {
         dst_menu_.onItemSelected() += [this](int id) {
-            if (id <= 0) return;
-            const uint16_t prev_slot = conn.depth_slot;
-            conn = owner_.matrix_.reassignDestination(conn, owner_.matrix_.getDestination(id - 1));
-            if (conn.depth_slot != prev_slot) {
-                applause::runOnEventThread([&owner = owner_] { owner.rebuildRows(); });
-                return;
-            }
-            dst_list_id = id;
-            dst_menu_.setText(owner_.matrix_.getDestination(id - 1).name);
+            if (id > 0) conn = owner_.matrix_.reassignDestination(conn, owner_.matrix_.getDestination(id - 1));
         };
     }
 
-    delete_button_.onClick() += [this] { owner_.deleteRow(this); };
+    delete_button_.onClick() += [this] { owner_.matrix_.removeConnection(conn); };
 }
 
 void ModMatrixComponent::Row::setControlsActive(bool active) {
@@ -187,6 +165,15 @@ ModMatrixComponent::ModMatrixComponent(applause::ModMatrixControl& matrix) :
 
     buildHeader();
     addScrolledChild(&header_);
+    rebuildRows();
+
+    // Connections also change from outside, e.g. when a dynamic parameter goes away. Rebuilding is deferred because
+    // rows trigger changes from their own callbacks, and coalesced because one edit can fire several changes.
+    connections_changed_ = matrix_.on_connections_changed.connect([this] { startTimer(1); });
+}
+
+void ModMatrixComponent::timerCallback() {
+    stopTimer();
     rebuildRows();
 }
 
@@ -292,28 +279,11 @@ void ModMatrixComponent::addDummyRow() {
 }
 
 void ModMatrixComponent::activateRow(Row* row) {
-    if (row->dst_list_id < 0) {
-        auto slot = static_cast<uint16_t>(-(row->dst_list_id + 1));
-        auto target = matrix_.findConnection(slot);
-        if (!target) return;
-
-        auto conn = matrix_.addDepthModulation(matrix_.getSource(row->src_list_id), *target, 0.0f);
-        row->bindToConnection(conn);
-    } else {
-        auto conn = matrix_.addConnection(matrix_.getSource(row->src_list_id),
-                                          matrix_.getDestination(row->dst_list_id - 1), 0.0f);
-        row->bindToConnection(conn);
+    if (row->dst_list_id > 0) {
+        matrix_.addConnection(matrix_.getSource(row->src_list_id), matrix_.getDestination(row->dst_list_id - 1), 0.0f);
+    } else if (auto target = matrix_.findConnection(static_cast<uint16_t>(-(row->dst_list_id + 1)))) {
+        matrix_.addDepthModulation(matrix_.getSource(row->src_list_id), *target, 0.0f);
     }
-    addDummyRow();
-
-    resized();
-}
-
-void ModMatrixComponent::deleteRow(Row* row) {
-    matrix_.removeConnection(row->conn);
-    // Defer: we are inside the delete button's onToggle CallbackList, and rebuildRows
-    // would destroy the Row that owns it.
-    applause::runOnEventThread([this] { rebuildRows(); });
 }
 
 }  // namespace applause

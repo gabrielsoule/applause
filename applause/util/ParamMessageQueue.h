@@ -10,7 +10,7 @@ namespace applause {
  *
  * The MessageQueue class provides two distinct message queues for bidirectional
  * communication between the UI thread and the audio thread. Messages consist of
- * a type, a parameter ID, and a value.
+ * a type, the parameter's index in its ParamsExtension, and a value.
  */
 class ParamMessageQueue {
 public:
@@ -18,7 +18,7 @@ public:
 
     struct Message {
         MessageType type;
-        uint32_t paramId;
+        uint32_t index;
         float value;
     };
 

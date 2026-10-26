@@ -4,7 +4,10 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
+#include <atomic>
 #include <span>
+#include <string>
+#include <thread>
 #include <type_traits>
 #include <vector>
 
@@ -1960,4 +1963,242 @@ TEST_CASE("O8: The non-template graph copies scalar destination values", "[modma
     REQUIRE(graph.copyActiveDestinationValues(poly.index, values) == 0);
     REQUIRE(graph.copyActiveDestinationValues(mono.index, values) == 1);
     REQUIRE(values[0] == Catch::Approx(0.4f));
+}
+
+TEST_CASE("P1: setDepth applies on the next process()", "[modmatrix][program]") {
+    ModMatrix<float> matrix(MinimalConfig);
+    auto& src = matrix.registerSource("src", ModSrcType::Mono);
+    auto& dst = matrix.registerDestination("dst", ModDstMode::Mono);
+    matrix.setBaseValue(dst.index, 0.0f);
+    auto connection = matrix.addConnection(src, dst, 0.25f, false);
+    matrix.setMonoSourceValue(src.index, 1.0f);
+
+    matrix.process();
+    REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.25f));
+
+    connection.setDepth(0.75f);
+    REQUIRE(connection.getDepth() == 0.75f);
+    matrix.process();
+    REQUIRE(matrix.getModValue(dst.index) == Catch::Approx(0.75f));
+}
+
+TEST_CASE("P2: Graph edits on the main thread are safe while another thread runs process()",
+          "[modmatrix][program][threading]") {
+    ModMatrix<float> matrix(SmallConfig);
+    auto& lfo = matrix.registerSource("lfo", ModSrcType::Mono, true);
+    std::vector<ModDestination> destinations;
+    for (int i = 0; i < 8; ++i) {
+        const float min = 100.0f * static_cast<float>(i);
+        destinations.push_back(matrix.registerDestination("d" + std::to_string(i), ModDstMode::Mono,
+                                                          {min, min + 50.0f, ValueScaling::linear()}));
+        matrix.setBaseValue(destinations.back().index, min + 25.0f);
+    }
+
+    std::atomic<bool> stop{false};
+    std::atomic<bool> out_of_range{false};
+    std::thread audio([&] {
+        float phase = 0.0f;
+        while (!stop.load(std::memory_order_relaxed)) {
+            phase = phase > 1.0f ? -1.0f : phase + 0.01f;
+            matrix.setMonoSourceValue(lfo.index, phase);
+            matrix.process();
+            for (const auto& destination : destinations) {
+                const float min = 100.0f * static_cast<float>(destination.index);
+                const float value = matrix.getModValue(destination.index);
+                if (!(value >= min && value <= min + 50.0f)) out_of_range = true;
+            }
+        }
+    });
+
+    for (int i = 0; i < 2000; ++i) {
+        const auto& destination = destinations[static_cast<size_t>(i) % destinations.size()];
+        auto connection = matrix.addConnection(lfo, destination, 0.5f, true);
+        connection.setDepth(1.0f);
+        matrix.removeConnection(connection);
+    }
+
+    stop = true;
+    audio.join();
+    REQUIRE_FALSE(out_of_range);
+}
+
+TEST_CASE("P3: Destinations nothing modulates output their base value", "[modmatrix][program]") {
+    ModMatrix<float> matrix(SmallConfig);
+    auto& lfo = matrix.registerSource("lfo", ModSrcType::Mono);
+    const ValueScaleInfo cutoff_scale{20.0f, 20000.0f, ValueScaling::frequency(20.0f, 20000.0f)};
+    auto& mono = matrix.registerDestination("mono", ModDstMode::Mono, cutoff_scale);
+    auto& poly = matrix.registerDestination("poly", ModDstMode::Poly, cutoff_scale);
+    matrix.setBaseValue(mono.index, 1000.0f);
+    matrix.setBaseValue(poly.index, 1000.0f);
+    matrix.notifyVoiceOn(0);
+
+    matrix.process();
+    REQUIRE(matrix.getModValue(mono.index) == Catch::Approx(1000.0f));
+    REQUIRE(matrix.getPolyModValue(poly.index, 0) == Catch::Approx(1000.0f));
+
+    SECTION("a voice that starts later gets the base value") {
+        matrix.notifyVoiceOn(1);
+        matrix.process();
+        REQUIRE(matrix.getPolyModValue(poly.index, 1) == Catch::Approx(1000.0f));
+    }
+
+    SECTION("a destination is modulated while connected and returns to its base value after") {
+        auto connection = matrix.addConnection(lfo, mono, 0.5f, false);
+        matrix.setMonoSourceValue(lfo.index, 1.0f);
+        matrix.process();
+        REQUIRE(matrix.getModValue(mono.index) == Catch::Approx(20000.0f));
+
+        matrix.removeConnection(connection);
+        matrix.process();
+        REQUIRE(matrix.getModValue(mono.index) == Catch::Approx(1000.0f));
+    }
+
+    SECTION("a base value out of range is clamped, as with modulation") {
+        matrix.setBaseValue(mono.index, 50000.0f);
+        matrix.process();
+        REQUIRE(matrix.getModValue(mono.index) == Catch::Approx(20000.0f));
+    }
+}
+
+TEST_CASE("Q1: Dynamic parameters are destinations only while active", "[modmatrix][dynamic]") {
+    ParamsExtension params{2, 2};
+    params.registerParam({.string_id = "gain", .min_value = 0.0f, .max_value = 1.0f, .default_value = 0.5f});
+    ModMatrix<float> matrix(SmallConfig);
+    auto& lfo = matrix.registerSource("lfo", ModSrcType::Mono);
+    auto& env = matrix.registerSource("env", ModSrcType::Mono);
+    matrix.registerFromParamsExtension(params);
+
+    SECTION("unused pool entries are inactive and unnamed") {
+        REQUIRE(matrix.getDestinationCount() == 3);
+        REQUIRE_FALSE(matrix.getDestination(0).active);
+        REQUIRE_FALSE(matrix.getDestination(1).active);
+        REQUIRE(matrix.findDestination("gain")->index == 2);
+    }
+
+    REQUIRE(params.activateDynamicParam(
+        {.string_id = "fx/1/cutoff", .name = "Cutoff", .module = "Filter", .min_value = 20.0f, .max_value = 20020.0f,
+         .default_value = 1020.0f}));
+    const auto* cutoff = matrix.findDestination("fx/1/cutoff");
+    REQUIRE(cutoff != nullptr);
+    REQUIRE(cutoff->index == 0);
+    REQUIRE(cutoff->active);
+    REQUIRE(cutoff->name == "Filter / Cutoff");
+
+    SECTION("an active destination is processed with its parameter's range") {
+        matrix.loadParamBaseValues(params);
+        matrix.process();
+        REQUIRE(matrix.getModValue(cutoff->index) == Catch::Approx(1020.0f));
+
+        matrix.addConnection(lfo, *cutoff, 0.5f, false);
+        matrix.setMonoSourceValue(lfo.index, 1.0f);
+        matrix.process();
+        REQUIRE(matrix.getModValue(cutoff->index) == Catch::Approx(11020.0f));
+    }
+
+    SECTION("deactivation removes the destination's connections and depth mods") {
+        auto connection = matrix.addConnection(lfo, *cutoff, 0.5f, false);
+        matrix.addDepthModulation(env, connection, 0.25f, false);
+        matrix.addConnection(lfo, *matrix.findDestination("gain"), 0.5f, false);
+
+        params.deactivateDynamicParam("fx/1/cutoff");
+        REQUIRE_FALSE(matrix.getDestination(0).active);
+        REQUIRE(matrix.findDestination("fx/1/cutoff") == nullptr);
+        REQUIRE(matrix.getConnections().size() == 1);
+        REQUIRE(matrix.getConnections()[0].dst_idx == 2);
+    }
+
+    SECTION("a reused entry takes the new parameter's range and mode") {
+        params.deactivateDynamicParam("fx/1/cutoff");
+        REQUIRE(params.activateDynamicParam({.string_id = "fill", .default_value = 0.5f}));
+        REQUIRE(params.activateDynamicParam({.string_id = "fx/2/level", .min_value = 0.0f, .max_value = 2.0f,
+                                             .default_value = 2.0f, .is_polyphonic = true}));
+        const auto* level = matrix.findDestination("fx/2/level");
+        REQUIRE(level->index == 0);
+        REQUIRE(level->mode == ModDstMode::Poly);
+
+        matrix.notifyVoiceOn(0);
+        matrix.loadParamBaseValues(params);
+        matrix.process();
+        REQUIRE(matrix.getPolyModValue(level->index, 0) == Catch::Approx(2.0f));
+    }
+}
+
+TEST_CASE("Q2: Parameters that opt out of modulation are never processed", "[modmatrix][dynamic]") {
+    ParamsExtension params{2};
+    params.registerParam({.string_id = "tab", .min_value = 0.0f, .max_value = 1.0f, .default_value = 0.0f,
+                          .is_mod_destination = false});
+    params.registerParam({.string_id = "gain", .min_value = 0.0f, .max_value = 1.0f, .default_value = 0.5f});
+    ModMatrix<float> matrix(SmallConfig);
+    matrix.registerFromParamsExtension(params);
+
+    REQUIRE(matrix.findDestination("tab") == nullptr);
+    REQUIRE_FALSE(matrix.getDestination(0).active);
+
+    params.getInfo("tab").setValueSilently(0.9f);
+    matrix.loadParamBaseValues(params);
+    matrix.process();
+    REQUIRE(matrix.getModValue(0) == 0.0f);
+    REQUIRE(matrix.getModValue(1) == Catch::Approx(0.5f));
+}
+
+TEST_CASE("Q3: A reused dynamic destination is rescaled even when its value is unchanged", "[modmatrix][dynamic]") {
+    ParamsExtension params{1, 1};
+    ModMatrix<float> matrix(SmallConfig);
+    auto& lfo = matrix.registerSource("lfo", ModSrcType::Mono);
+    matrix.registerFromParamsExtension(params);
+
+    REQUIRE(params.activateDynamicParam({.string_id = "fx/1/cutoff", .min_value = 20.0f, .max_value = 20000.0f,
+                                         .default_value = 1000.0f,
+                                         .scaling = ValueScaling::frequency(20.0f, 20000.0f)}));
+    matrix.loadParamBaseValues(params);
+    matrix.process();
+    REQUIRE(matrix.getModValue(0) == Catch::Approx(1000.0f));
+
+    params.deactivateDynamicParam("fx/1/cutoff");
+    REQUIRE(params.activateDynamicParam(
+        {.string_id = "fx/2/level", .min_value = 0.0f, .max_value = 2000.0f, .default_value = 1000.0f}));
+    const auto* level = matrix.findDestination("fx/2/level");
+    REQUIRE(level->index == 0);
+
+    // A source at zero adds nothing, so the output shows the base value as normalized with the new range
+    matrix.addConnection(lfo, *level, 1.0f, false);
+    matrix.loadParamBaseValues(params);
+    matrix.process();
+    REQUIRE(matrix.getModValue(level->index) == Catch::Approx(1000.0f));
+}
+
+TEST_CASE("Q4: Destinations can be handed out and taken back by hand", "[modmatrix][dynamic]") {
+    ModMatrix<float> matrix(SmallConfig);
+    auto& lfo = matrix.registerSource("lfo", ModSrcType::Mono);
+    auto& gain = matrix.registerDestination("gain", ModDstMode::Mono);
+    auto& spare = matrix.registerDestination("free/0", ModDstMode::Mono);
+    matrix.deactivateDestination(spare.index);
+    REQUIRE_FALSE(spare.active);
+    REQUIRE(matrix.findDestination("free/0") == nullptr);
+
+    auto& rate = matrix.activateDestination(spare.index, "fx/1/rate", ModDstMode::Mono, {0.1f, 10.1f,
+                                                                                      ValueScaling::linear()});
+    rate.name = "Chorus / Rate";
+    REQUIRE(matrix.findDestination("fx/1/rate") == &rate);
+    REQUIRE(rate.index == spare.index);
+
+    matrix.setBaseValue(rate.index, 5.1f);
+    matrix.addConnection(lfo, rate, 0.5f, false);
+    matrix.addConnection(lfo, gain, 0.5f, false);
+    matrix.setMonoSourceValue(lfo.index, 1.0f);
+    matrix.process();
+    REQUIRE(matrix.getModValue(rate.index) == Catch::Approx(10.1f));
+
+    matrix.deactivateDestination(rate.index);
+    REQUIRE(matrix.findDestination("fx/1/rate") == nullptr);
+    REQUIRE(matrix.getConnections().size() == 1);
+    REQUIRE(matrix.getConnections()[0].dst_idx == gain.index);
+
+    auto& level = matrix.activateDestination(spare.index, "fx/2/level", ModDstMode::Poly, {0.0f, 2.0f,
+                                                                                         ValueScaling::linear()});
+    matrix.setBaseValue(level.index, 0.0f);
+    matrix.addConnection(lfo, level, 0.5f, false);
+    matrix.notifyVoiceOn(0);
+    matrix.process();
+    REQUIRE(matrix.getPolyModValue(level.index, 0) == Catch::Approx(1.0f));
 }

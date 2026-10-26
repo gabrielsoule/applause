@@ -43,6 +43,8 @@ struct ParamConfig {
     bool is_hidden = false;      /// Whether parameter is hidden from host UI (still enumerated, but flagged CLAP_PARAM_IS_HIDDEN)
     bool is_polyphonic = false;  /// Whether parameter can/should be polyphonically modulated by a modulation system.
                                  ///   for example: osc tuning in a synth would be poly, but master out gain might not
+    bool is_mod_destination = true;  /// Whether a modulation system (e.g. ModMatrix) may target this parameter.
+                                     ///   Turn off for parameters such as UI state that should never be modulated.
 
     ValueScaling scaling = ValueScaling::linear();  /// Parameter scaling for normalization (default: linear)
 
@@ -97,7 +99,7 @@ public:
     /**
      * The internal ID used by the CLAP host
      */
-    uint32_t clapId;
+    uint32_t clapId = CLAP_INVALID_ID;
 
     /**
      * A human-readable name, e.g. "Filter 1 Cutoff".
@@ -131,15 +133,16 @@ public:
     float defaultValue = 0.0f;
 
     /**
-     * If true, the parameter will be entirely "internal" and invisible to the
-     * DAW. It will not be registered with the CLAP ABI. There will be no
-     * automation, modulation, etc.
+     * If true, the parameter is invisible to the DAW: it isn't listed to the host, so the host can't automate it.
+     * Modulation systems such as ModMatrix can still target it. Dynamic parameters are always internal and reach
+     * the DAW only through an automation slot (see setAutomatable()).
      */
     bool internal = false;
 
     /**
-     * If true, the parameter is enumerated to the host but flagged as hidden
-     * from the host's UI. Hosts running the VST3/AU clap-wrapper may not
+     * If true, the parameter is enumerated to the host but flagged as hidden from the host's UI, e.g. a deprecated
+     * parameter kept for old sessions. clap-wrapper turns this into VST3's kIsHidden, which also means "not
+     * automatable", so don't use it on parameters that must stay automatable.
      */
     bool hidden = false;
 
@@ -155,6 +158,11 @@ public:
      * For example, oscillator tuning would be polyphonic, but master volume might not.
      */
     bool polyphonic = false;
+
+    /**
+     * If false, modulation systems such as ModMatrix don't offer this parameter as a destination.
+     */
+    bool modDestination = true;
 
     /**
      * The original string identifier used during registration.
@@ -261,8 +269,26 @@ public:
         return toNormalized(getValue());
     }
 
+    /**
+     * Whether the DAW can automate this parameter: true for static parameters that aren't internal, and for dynamic
+     * parameters while they hold an automation slot. Main thread only.
+     */
+    [[nodiscard]] bool isAutomatable() const noexcept;
+
+    /**
+     * Expose a dynamic parameter to the DAW through a free automation slot, or take it back (for example from a
+     * right-click "Automate" menu). The slot takes the parameter's name, and the DAW is told on the next main-thread
+     * callback. Main thread only.
+     *
+     * @return false if no slot is free or this isn't an active dynamic parameter
+     */
+    bool setAutomatable(bool automatable) const;
+
 private:
+    void notifyHost(ParamMessageQueue::MessageType type, float value) const noexcept;
+
     ParamHandle* handle_ = nullptr;
+    uint32_t index_ = 0;  // Position in the registry's arrays; identifies this parameter in UI/audio messages
 
     // A pointer to the parent registry, so that the host can be notified about
     // parameter changes. In the future, we can and should use an event system
@@ -299,10 +325,21 @@ private:
  *
  * The ParamsExtension has an optional pointer to a ParamMessageQueue which
  * facilitates safe, cross-thread communication between the main UI thread and
- * the audio thread. If your plugin has a GUI, you'll need to make sure that
- * both the ParamsExtension and the GUI share a pointer to a ParamMessageQueue.
- * The applause GUIExtension comes with a ParamMessageQueue that you can plug
- * directly into your ParamsExtension during construction.
+ * the audio thread. ApplauseEditor owns one and connects it to the
+ * ParamsExtension it is given.
+ *
+ * Dynamic parameters (e.g. the controls of an effect the user adds at runtime)
+ * come from a pool sized in the constructor: activateDynamicParam() and
+ * deactivateDynamicParam(). They are internal, and the user can expose one at a
+ * time to the DAW through a fixed set of automation slots, because DAWs freeze a
+ * plugin's parameter list once it is loaded (ParamInfo::setAutomatable()).
+ * Plugins using them must keep this order:
+ *   1. Publish DSP or UI that reads a dynamic parameter only after
+ *      activateDynamicParam() returns.
+ *   2. Stop all DSP and UI use of a dynamic parameter before calling
+ *      deactivateDynamicParam().
+ *   3. In process(), call processEvents() first, then pick up the plugin's own
+ *      DSP changes, then run modulation (e.g. ModMatrix::loadParamBaseValues()).
  */
 class ParamsExtension : public IExtension {
     friend struct ParamHandle;
@@ -326,6 +363,28 @@ private:
 
     void flush(const clap_input_events_t* in, const clap_output_events_t* out) noexcept;
 
+    ParamInfo makeInfo(const ParamConfig& config);
+    void storeParam(uint32_t index, ParamInfo info);
+    clap_id uniqueClapId(std::string_view text) const;
+
+    bool setAutomatable(uint32_t index, bool automatable);
+    void bindSlot(uint32_t index, uint32_t slot);
+    void unbindSlot(uint32_t index);
+    void requestRescan() noexcept;
+
+    // The parameter behind an index from clap_id_to_index_: itself, or what an automation slot is bound to (or kNone)
+    uint32_t hostParam(uint32_t index) const noexcept {
+        return index < capacity_ ? index : slot_param_[index - capacity_].load(std::memory_order_acquire);
+    }
+    // The host reaches dynamic parameters only through 0..1 automation slots; these map host values to and from
+    // a parameter's own range
+    float fromHost(uint32_t param, double value) const noexcept;
+    double toHost(uint32_t param, float plain) const noexcept;
+
+    void onActivate() noexcept override { active_ = true; }
+    void onDeactivate() noexcept override { active_ = false; }
+    void onMainThread() noexcept override;
+
     ParamMessageQueue* message_queue_;
     const clap_host_params_t* host_params_ = nullptr;
     std::unique_ptr<std::atomic<float>[]> values_;
@@ -340,7 +399,26 @@ private:
 
     uint32_t param_count_ = 0;
     uint32_t external_param_count_ = 0;
-    uint32_t max_params_ = 0;
+    uint32_t capacity_ = 0;       // Dynamic pool plus room for static parameters
+    uint32_t dynamic_count_ = 0;  // The dynamic pool occupies indices [0, dynamic_count_)
+    uint32_t slot_count_ = 0;     // DAW automation slots; slot s uses handles_[capacity_ + s] as its cookie
+
+    static constexpr uint32_t kNone = UINT32_MAX;
+
+    // Read on the audio thread. A dynamic parameter's info is only rewritten while no slot points at it.
+    std::unique_ptr<std::atomic<uint32_t>[]> slot_param_;  // slot -> dynamic parameter
+    std::unique_ptr<std::atomic<uint32_t>[]> param_slot_;  // dynamic parameter -> slot
+    std::vector<clap_id> slot_ids_;                         // fixed after construction
+    std::atomic<uint32_t> generation_{0};       // bumped whenever a parameter leaves its slot
+    std::atomic<uint32_t> seen_generation_{0};  // the generation the last finished processEvents() call started with
+
+    // Main thread only
+    std::vector<uint32_t> free_params_;    // unused dynamic entries, oldest released first
+    std::vector<uint32_t> free_slots_;     // never-used slots first, then oldest released
+    std::vector<std::string> slot_owner_;  // string id last bound to each slot
+    std::vector<uint32_t> unbound_at_;     // generation at which each dynamic parameter last left a slot
+    bool active_ = false;
+    bool pending_rescan_ = false;
 
 public:
     static constexpr const char* ID = CLAP_EXT_PARAMS;
@@ -348,10 +426,14 @@ public:
     void onHostReady() noexcept override;
 
     /**
-     * @brief Construct the parameters extension with space for up to
-     * @p max_params parameters.
+     * @brief Construct the parameters extension with space for up to @p max_params static parameters,
+     * @p max_dynamic_params dynamic ones (see activateDynamicParam()), and @p host_slots DAW automation slots that
+     * dynamic parameters can borrow (see ParamInfo::setAutomatable()).
+     *
+     * The DAW lists the slots after the static parameters, named "Unused N" while free. Their number and order
+     * become part of saved DAW automation, so don't change them after shipping.
      */
-    ParamsExtension(uint32_t max_params = 128);
+    ParamsExtension(uint32_t max_params = 128, uint32_t max_dynamic_params = 0, uint32_t host_slots = 0);
 
     // Default converter functions (static members)
     static std::string defaultValueToText(float value, const ParamInfo& info);
@@ -378,6 +460,38 @@ public:
      * @note Generates a stable CLAP ID from the string ID using FNV-1a hash
      */
     void registerParam(const ParamConfig& config);
+
+    /**
+     * @brief Create a parameter at runtime, for example when the user adds an effect. Main thread only.
+     *
+     * The parameter takes an entry from the dynamic pool. It is internal (the DAW doesn't see it), stores real
+     * values like any other parameter, and can be looked up by string id with getHandle() and getInfo(). Use string
+     * ids that name the effect instance (e.g. "fx/7c1e/rate") so they stay stable when effects move.
+     *
+     * Only hand the parameter's handles to the audio thread after this returns.
+     *
+     * While the plugin is active, an entry freed by deactivating an automated parameter becomes reusable only after
+     * the next processEvents() call. Size the pool for the most dynamic parameters alive at once plus host_slots, so
+     * that replacing a whole set of parameters (e.g. loading a preset) always finds free entries.
+     *
+     * @return false if no entry is free or the string id is already in use
+     * @throws std::invalid_argument if enum-param choice metadata is invalid
+     */
+    bool activateDynamicParam(const ParamConfig& config);
+
+    /**
+     * @brief Remove a parameter created with activateDynamicParam(). Main thread only.
+     *
+     * Stop all audio-thread and UI use of the parameter (handles, ParamInfo references) before calling this: its
+     * entry is reused by later activations.
+     */
+    void deactivateDynamicParam(std::string_view string_id);
+
+    /**
+     * Fired on the main thread when a dynamic parameter is activated (true) or deactivated (false), with its index
+     * into getAllParameters(). The parameter's info is still readable when this fires for a deactivation.
+     */
+    mutable rocket::signal<void(uint32_t index, bool active)> on_dynamic_param_changed;
 
     /**
      * @brief Get a lightweight handle for real-time (audio thread) parameter
@@ -519,8 +633,8 @@ inline bool ParamsExtension::saveToJson(applause::json& json) noexcept {
     try {
         auto params = applause::json::array();
 
-        // Save all parameter values (including internal ones)
-        for (uint32_t i = 0; i < param_count_; ++i) {
+        // Save all static parameter values (including internal ones)
+        for (uint32_t i = dynamic_count_; i < param_count_; ++i) {
             const auto& param_info = infos_[i];
 
             // Save each parameter as an object for better readability and
@@ -530,6 +644,18 @@ inline bool ParamsExtension::saveToJson(applause::json& json) noexcept {
             param_obj["value"] = param_info.getValue();
             param_obj["name"] = param_info.name;  // Include name for readability and debugging
 
+            params.push_back(param_obj);
+        }
+
+        // Dynamic parameters are saved by string id. Loaders that predate them skip these entries (no "id").
+        for (uint32_t i = 0; i < dynamic_count_; ++i) {
+            const auto& param_info = infos_[i];
+            if (param_info.stringId.empty()) continue;
+            applause::json param_obj;
+            param_obj["string_id"] = param_info.stringId;
+            param_obj["value"] = param_info.getValue();
+            if (const uint32_t slot = param_slot_[i].load(std::memory_order_relaxed); slot != kNone)
+                param_obj["slot"] = slot;
             params.push_back(param_obj);
         }
 
@@ -556,35 +682,56 @@ inline bool ParamsExtension::loadFromJson(const applause::json& json) noexcept {
         [[maybe_unused]] size_t loaded_count = 0;
         [[maybe_unused]] size_t missing_count = 0;
 
-        // Load each parameter (expects object entries: {"id", "value", ...})
+        const auto apply = [this](uint32_t index, float value) {
+            const auto& info = infos_[index];
+            info.setValueSilently(value);
+            info.on_value_changed(info.getValue());  // Loading runs on the main thread, so listeners are notified directly
+        };
+        std::vector<std::pair<uint32_t, uint32_t>> slot_bindings;  // dynamic parameter, slot
+
+        // Load each parameter (expects object entries: {"id", "value", ...} or {"string_id", "value"})
         for (const auto& param_obj : json) {
             if (!param_obj.is_object()) {
                 LOG_WARN("Skipping invalid parameter entry (expected object)");
                 continue;
             }
 
-            // Expected format: {"id": 123, "value": 0.5, "name": "..."}
-            const clap_id param_id = param_obj.value("id", CLAP_INVALID_ID);
             const float value = param_obj.value("value", 0.0f);
 
-            // Apply the value if we have this parameter
-            auto it = clap_id_to_index_.find(param_id);
-            if (it != clap_id_to_index_.end()) {
-                uint32_t index = it->second;
-                const auto& info = infos_[index];
-                const float coerced = coerceValue(value, info);
-                values_[index].store(coerced, std::memory_order_relaxed);
-
-                // Notify UI of parameter change if message queue exists
-                if (message_queue_) {
-                    message_queue_->toUi().enqueue({ParamMessageQueue::PARAM_VALUE, param_id, coerced});
+            // Dynamic parameters: the plugin activates them before loading
+            if (param_obj.contains("string_id")) {
+                const auto it = string_id_to_index_.find(param_obj.value("string_id", std::string{}));
+                if (it != string_id_to_index_.end() && it->second < dynamic_count_) {
+                    apply(it->second, value);
+                    if (const uint32_t slot = param_obj.value("slot", kNone); slot != kNone)
+                        slot_bindings.emplace_back(it->second, slot);
+                    loaded_count++;
+                } else {
+                    missing_count++;
                 }
+                continue;
+            }
 
+            // Expected format: {"id": 123, "value": 0.5, "name": "..."}
+            const clap_id param_id = param_obj.value("id", CLAP_INVALID_ID);
+
+            // Apply the value if we have this parameter (slot ids map past capacity_ and carry no value)
+            auto it = clap_id_to_index_.find(param_id);
+            if (it != clap_id_to_index_.end() && it->second < capacity_) {
+                apply(it->second, value);
                 loaded_count++;
             } else {
                 missing_count++;
                 LOG_DBG("Parameter with ID {} not found in current plugin", param_id);
             }
+        }
+
+        // Loading replaces every slot binding, so the DAW's automation lanes find the same parameters again
+        for (uint32_t i = 0; i < dynamic_count_; ++i) unbindSlot(i);
+        for (const auto& [index, slot] : slot_bindings) {
+            if (slot < slot_count_ && slot_param_[slot].load(std::memory_order_relaxed) == kNone &&
+                !infos_[index].isAutomatable())
+                bindSlot(index, slot);
         }
 
         LOG_DBG("Loaded {} parameters from JSON state ({} missing/removed)", loaded_count, missing_count);

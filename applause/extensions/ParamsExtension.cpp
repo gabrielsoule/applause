@@ -126,46 +126,28 @@ float ParamInfo::getValue() const noexcept { return handle_->getValue(); }
 
 void ParamInfo::setValueNotifyingHost(float value) const noexcept {
     value = ParamsExtension::coerceValue(value, *this);
-
-    // Queue message to audio thread if message queue exists (GUI is present)
-    if (registry_->message_queue_) {
-        registry_->message_queue_->toAudio().enqueue({ParamMessageQueue::PARAM_VALUE, clapId, value});
-    }
-
     handle_->value_->store(value, std::memory_order_relaxed);
 
     // Immediately notify all UI listeners for instant synchronization
     on_value_changed(value);
 
-    // Request flush from host if available
-    if (registry_->host_params_ && registry_->host_params_->request_flush) {
-        registry_->host_params_->request_flush(registry_->host_);
-    }
+    notifyHost(ParamMessageQueue::PARAM_VALUE, value);
 }
 
 void ParamInfo::setValueSilently(float value) const noexcept {
     handle_->value_->store(ParamsExtension::coerceValue(value, *this), std::memory_order_relaxed);
 }
 
-void ParamInfo::beginGesture() const noexcept {
-    // Queue message to audio thread if message queue exists (GUI is present)
-    if (registry_->message_queue_) {
-        registry_->message_queue_->toAudio().enqueue({ParamMessageQueue::BEGIN_GESTURE, clapId, 0.0f});
-    }
+void ParamInfo::beginGesture() const noexcept { notifyHost(ParamMessageQueue::BEGIN_GESTURE, 0.0f); }
 
-    // Request flush from host if available
-    if (registry_->host_params_ && registry_->host_params_->request_flush) {
-        registry_->host_params_->request_flush(registry_->host_);
-    }
-}
+void ParamInfo::endGesture() const noexcept { notifyHost(ParamMessageQueue::END_GESTURE, 0.0f); }
 
-void ParamInfo::endGesture() const noexcept {
-    // Queue message to audio thread if message queue exists (GUI is present)
-    if (registry_->message_queue_) {
-        registry_->message_queue_->toAudio().enqueue({ParamMessageQueue::END_GESTURE, clapId, 0.0f});
-    }
+void ParamInfo::notifyHost(ParamMessageQueue::MessageType type, float value) const noexcept {
+    // Only parameters the DAW can see have anything to tell it. Skipping the rest also means a queued message for a
+    // dynamic parameter never outlives its slot binding, which is what keeps the audio thread off reused entries.
+    if (!registry_->message_queue_ || !isAutomatable()) return;
+    registry_->message_queue_->toAudio().enqueue({type, index_, value});
 
-    // Request flush from host if available
     if (registry_->host_params_ && registry_->host_params_->request_flush) {
         registry_->host_params_->request_flush(registry_->host_);
     }
@@ -185,7 +167,7 @@ uint32_t ParamsExtension::clap_params_count(const clap_plugin_t* plugin) noexcep
     auto* ext = PluginBase::findExtension<ParamsExtension>(plugin);
     if (!ext) return 0;
 
-    return ext->external_param_count_;
+    return ext->external_param_count_ + ext->slot_count_;
 }
 
 bool ParamsExtension::clap_params_get_info(const clap_plugin_t* plugin, uint32_t param_index,
@@ -193,32 +175,53 @@ bool ParamsExtension::clap_params_get_info(const clap_plugin_t* plugin, uint32_t
     auto* ext = PluginBase::findExtension<ParamsExtension>(plugin);
     if (!ext || !param_info) return false;
 
-    if (param_index >= ext->external_to_internal_index_.size()) return false;
+    std::string name;
+    std::string module;
+    if (param_index < ext->external_param_count_) {
+        // Map external index to internal index
+        uint32_t internal_index = ext->external_to_internal_index_[param_index];
+        const ParamInfo& info = ext->infos_[internal_index];
 
-    // Map external index to internal index
-    uint32_t internal_index = ext->external_to_internal_index_[param_index];
-    const ParamInfo& info = ext->infos_[internal_index];
+        param_info->id = info.clapId;
+        param_info->cookie = &ext->handles_[internal_index];
+        name = info.name;
+        module = info.module;
 
-    param_info->id = info.clapId;
-    param_info->cookie = &ext->handles_[internal_index];
+        param_info->min_value = info.minValue;
+        param_info->max_value = info.maxValue;
+        param_info->default_value = info.defaultValue;
 
-    std::strncpy(param_info->name, info.name.c_str(), CLAP_NAME_SIZE - 1);
+        param_info->flags = 0;
+        if (info.stepped) param_info->flags |= CLAP_PARAM_IS_STEPPED;
+        if (info.isEnumerated()) param_info->flags |= CLAP_PARAM_IS_ENUM;
+        if (info.hidden) param_info->flags |= CLAP_PARAM_IS_HIDDEN;
+
+        // All parameters are automatable by default
+        param_info->flags |= CLAP_PARAM_IS_AUTOMATABLE;
+    } else if (param_index < ext->external_param_count_ + ext->slot_count_) {
+        // Automation slots follow the static parameters. They stay continuous 0..1 and are never hidden: hosts can't
+        // pick up range or flag changes without a restart, and a hidden VST3 parameter can't be automated.
+        const uint32_t slot = param_index - ext->external_param_count_;
+        const uint32_t param = ext->slot_param_[slot].load(std::memory_order_relaxed);
+
+        param_info->id = ext->slot_ids_[slot];
+        param_info->cookie = &ext->handles_[ext->capacity_ + slot];
+        name = param == kNone ? "Unused " + std::to_string(slot + 1) : ext->infos_[param].name;
+        if (param != kNone) module = ext->infos_[param].module;
+
+        param_info->min_value = 0.0;
+        param_info->max_value = 1.0;
+        param_info->default_value = 0.0;
+        param_info->flags = CLAP_PARAM_IS_AUTOMATABLE;
+    } else {
+        return false;
+    }
+
+    std::strncpy(param_info->name, name.c_str(), CLAP_NAME_SIZE - 1);
     param_info->name[CLAP_NAME_SIZE - 1] = '\0';
 
-    std::strncpy(param_info->module, info.module.c_str(), CLAP_PATH_SIZE - 1);
+    std::strncpy(param_info->module, module.c_str(), CLAP_PATH_SIZE - 1);
     param_info->module[CLAP_PATH_SIZE - 1] = '\0';
-
-    param_info->min_value = info.minValue;
-    param_info->max_value = info.maxValue;
-    param_info->default_value = info.defaultValue;
-
-    param_info->flags = 0;
-    if (info.stepped) param_info->flags |= CLAP_PARAM_IS_STEPPED;
-    if (info.isEnumerated()) param_info->flags |= CLAP_PARAM_IS_ENUM;
-    if (info.hidden) param_info->flags |= CLAP_PARAM_IS_HIDDEN;
-
-    // All parameters are automatable by default
-    param_info->flags |= CLAP_PARAM_IS_AUTOMATABLE;
 
     return true;
 }
@@ -231,9 +234,8 @@ bool ParamsExtension::clap_params_get_value(const clap_plugin_t* plugin, clap_id
     auto it = ext->clap_id_to_index_.find(param_id);
     if (it == ext->clap_id_to_index_.end()) return false;
 
-    uint32_t index = it->second;
-    *out_value = static_cast<double>(ext->values_[index].load(std::memory_order_relaxed));
-
+    const uint32_t param = ext->hostParam(it->second);
+    *out_value = param == kNone ? 0.0 : ext->toHost(param, ext->infos_[param].getValue());
     return true;
 }
 
@@ -245,8 +247,8 @@ bool ParamsExtension::clap_params_value_to_text(const clap_plugin_t* plugin, cla
     auto it = ext->clap_id_to_index_.find(param_id);
     if (it == ext->clap_id_to_index_.end()) return false;
 
-    const ParamInfo& info = ext->infos_[it->second];
-    std::string text = info.valueToText(static_cast<float>(value));
+    const uint32_t param = ext->hostParam(it->second);
+    const std::string text = param == kNone ? "-" : ext->infos_[param].valueToText(ext->fromHost(param, value));
     std::strncpy(out_buffer, text.c_str(), out_buffer_capacity - 1);
     out_buffer[out_buffer_capacity - 1] = '\0';
 
@@ -261,11 +263,13 @@ bool ParamsExtension::clap_params_text_to_value(const clap_plugin_t* plugin, cla
     auto it = ext->clap_id_to_index_.find(param_id);
     if (it == ext->clap_id_to_index_.end()) return false;
 
-    const ParamInfo& info = ext->infos_[it->second];
-    auto parsed = info.textToValue(param_value_text);
+    const uint32_t param = ext->hostParam(it->second);
+    if (param == kNone) return false;
+
+    auto parsed = ext->infos_[param].textToValue(param_value_text);
     if (!parsed.has_value()) return false;
 
-    *out_value = static_cast<double>(parsed.value());
+    *out_value = ext->toHost(param, parsed.value());
     return true;
 }
 
@@ -277,7 +281,8 @@ void ParamsExtension::clap_params_flush(const clap_plugin_t* plugin, const clap_
     ext->flush(in, out);
 }
 
-ParamsExtension::ParamsExtension(uint32_t max_params) : message_queue_(nullptr) {
+ParamsExtension::ParamsExtension(uint32_t max_params, uint32_t max_dynamic_params, uint32_t host_slots) :
+    message_queue_(nullptr) {
     clap_struct_ = {};
     clap_struct_.count = clap_params_count;
     clap_struct_.get_info = clap_params_get_info;
@@ -286,11 +291,37 @@ ParamsExtension::ParamsExtension(uint32_t max_params) : message_queue_(nullptr) 
     clap_struct_.text_to_value = clap_params_text_to_value;
     clap_struct_.flush = clap_params_flush;
 
-    max_params_ = max_params;
-    values_ = std::make_unique<std::atomic<float>[]>(max_params_);
-    handles_ = std::make_unique<ParamHandle[]>(max_params_);
-    infos_ = std::make_unique<ParamInfo[]>(max_params_);
-    scale_info_ = std::make_unique<ValueScaleInfo[]>(max_params_);
+    dynamic_count_ = max_dynamic_params;
+    capacity_ = max_dynamic_params + max_params;
+    slot_count_ = host_slots;
+    values_ = std::make_unique<std::atomic<float>[]>(capacity_);
+    handles_ = std::make_unique<ParamHandle[]>(capacity_ + slot_count_);  // Slot cookies follow the parameters
+    infos_ = std::make_unique<ParamInfo[]>(capacity_);
+    scale_info_ = std::make_unique<ValueScaleInfo[]>(capacity_);
+    for (uint32_t i = 0; i < capacity_; ++i) handles_[i].value_ = &values_[i];
+
+    // The dynamic pool comes first. Its entries are internal, and an empty string id marks one as unused.
+    param_slot_ = std::make_unique<std::atomic<uint32_t>[]>(dynamic_count_);
+    unbound_at_.assign(dynamic_count_, 0);
+    for (uint32_t i = 0; i < dynamic_count_; ++i) {
+        ParamInfo info;
+        info.internal = true;
+        info.value_to_text_ = defaultValueToText;
+        info.text_to_value_ = defaultTextToValue;
+        storeParam(i, std::move(info));
+        param_slot_[i].store(kNone, std::memory_order_relaxed);
+        free_params_.push_back(i);
+    }
+    param_count_ = dynamic_count_;
+
+    slot_param_ = std::make_unique<std::atomic<uint32_t>[]>(slot_count_);
+    slot_owner_.resize(slot_count_);
+    for (uint32_t slot = 0; slot < slot_count_; ++slot) {
+        slot_param_[slot].store(kNone, std::memory_order_relaxed);
+        slot_ids_.push_back(uniqueClapId("applause/automation_slot/" + std::to_string(slot)));
+        clap_id_to_index_[slot_ids_.back()] = capacity_ + slot;
+        free_slots_.push_back(slot);
+    }
 }
 
 void ParamsExtension::onHostReady() noexcept {
@@ -306,10 +337,8 @@ void ParamsExtension::onHostReady() noexcept {
     }
 }
 
-void ParamsExtension::registerParam(const ParamConfig& config) {
-    ASSERT(param_count_ < max_params_,
-           "Too many parameters registered! Allocate more through the "
-           "ParamRegistry constructor.");
+ParamInfo ParamsExtension::makeInfo(const ParamConfig& config) {
+    ASSERT(!config.string_id.empty(), "Parameters need a string id");
 
     if (!config.choices.empty()) {
         if (config.choices.size() < 2)
@@ -362,42 +391,13 @@ void ParamsExtension::registerParam(const ParamConfig& config) {
     info.hidden = config.is_hidden;
     info.scaling_ = config.choices.empty() ? config.scaling : ValueScaling::linear();
     info.polyphonic = config.is_polyphonic;
+    info.modDestination = config.is_mod_destination;
     info.stringId = config.string_id;
     info.choice_names_ = config.choices;
     info.value_to_text_ = config.value_to_text ? config.value_to_text : defaultValueToText;
     info.text_to_value_ = config.text_to_value ? config.text_to_value : defaultTextToValue;
 
-    std::string id;
-
-    if (config.module.empty()) {
-        id = config.string_id;
-    } else {
-        id = config.module + "/" + config.string_id;
-    }
-
-    // Generate stable CLAP ID using FNV-1a hash
-    {
-        const char* str = id.c_str();
-        uint32_t hash = 2166136261u;
-        while (*str) {
-            hash ^= static_cast<uint32_t>(*str++);
-            hash *= 16777619u;
-        }
-        info.clapId = hash;
-    }
-
-    // Check for hash collisions
-    if (clap_id_to_index_.count(info.clapId) > 0) {
-        // Simple collision resolution: linear probing
-        uint32_t originalId = info.clapId;
-        uint32_t probe = 1;
-        while (clap_id_to_index_.count(info.clapId) > 0) {
-            info.clapId = originalId + probe;
-            probe++;
-        }
-    }
-
-    uint32_t index = param_count_;
+    // Rendering choice labels can call back into the parameter, so the converters get a provisional handle.
     std::atomic<float> provisional_value{info.defaultValue};
     ParamHandle provisional_handle;
     provisional_handle.value_ = &provisional_value;
@@ -428,31 +428,166 @@ void ParamsExtension::registerParam(const ParamConfig& config) {
         }
     }
 
-    // Store in dense arrays using current count as index
-    values_[index].store(info.defaultValue);
-    handles_[index].value_ = &values_[index];
+    return info;
+}
+
+void ParamsExtension::storeParam(uint32_t index, ParamInfo info) {
+    info.index_ = index;
     info.handle_ = &handles_[index];
-    infos_[index] = info;
-    infos_[index].registry_ = this;
+    info.registry_ = this;
+    values_[index].store(info.defaultValue, std::memory_order_relaxed);
+    scale_info_[index] = ValueScaleInfo{info.minValue, info.maxValue, info.scaling_};
+    infos_[index] = std::move(info);
+}
 
-    // Populate DSP-safe scale info array
-    scale_info_[index] = ValueScaleInfo{
-        info.minValue,
-        info.maxValue,
-        info.scaling_
-    };
+clap_id ParamsExtension::uniqueClapId(std::string_view text) const {
+    // Stable FNV-1a hash, with linear probing past ids that are already taken
+    uint32_t hash = 2166136261u;
+    for (const char c : text) {
+        hash ^= static_cast<uint32_t>(c);  // Keeps the original id for non-ASCII bytes, so saved automation still finds it
+        hash *= 16777619u;
+    }
+    while (clap_id_to_index_.contains(hash)) ++hash;
+    return hash;
+}
 
-    // Update lookup structures
+void ParamsExtension::registerParam(const ParamConfig& config) {
+    ASSERT(param_count_ < capacity_,
+           "Too many parameters registered! Allocate more through the ParamsExtension constructor.");
+
+    ParamInfo info = makeInfo(config);
+    info.clapId = uniqueClapId(config.module.empty() ? config.string_id : config.module + "/" + config.string_id);
+
+    const uint32_t index = param_count_++;
     clap_id_to_index_[info.clapId] = index;
     string_id_to_index_[config.string_id] = index;
-
-    // Track external parameters for host enumeration
     if (!info.internal) {
         external_to_internal_index_.push_back(index);
         external_param_count_++;
     }
+    storeParam(index, std::move(info));
+}
 
-    param_count_++;
+bool ParamsExtension::activateDynamicParam(const ParamConfig& config) {
+    if (string_id_to_index_.contains(config.string_id)) return false;
+
+    // An entry that held a slot is only reused once a processEvents() call that started after it left the slot has
+    // finished, so the audio thread can't still be converting a slot value with its old range.
+    const uint32_t seen = seen_generation_.load(std::memory_order_acquire);
+    const auto entry =
+        std::ranges::find_if(free_params_, [&](uint32_t index) { return !active_ || unbound_at_[index] <= seen; });
+    if (entry == free_params_.end()) return false;
+
+    ParamInfo info = makeInfo(config);
+    info.internal = true;
+
+    const uint32_t index = *entry;
+    free_params_.erase(entry);
+    string_id_to_index_[config.string_id] = index;
+    storeParam(index, std::move(info));
+    on_dynamic_param_changed(index, true);
+    return true;
+}
+
+void ParamsExtension::deactivateDynamicParam(std::string_view string_id) {
+    const auto it = string_id_to_index_.find(std::string(string_id));
+    if (it == string_id_to_index_.end()) return;
+    const uint32_t index = it->second;
+    ASSERT(index < dynamic_count_, "'{}' is a static parameter and can't be deactivated", string_id);
+    if (index >= dynamic_count_) return;
+
+    unbindSlot(index);
+    on_dynamic_param_changed(index, false);
+    // Erase by key: a signal handler may have activated parameters and invalidated the iterator
+    string_id_to_index_.erase(infos_[index].stringId);
+    infos_[index].stringId.clear();
+    free_params_.push_back(index);
+}
+
+bool ParamInfo::isAutomatable() const noexcept {
+    if (index_ >= registry_->dynamic_count_) return !internal;
+    return registry_->param_slot_[index_].load(std::memory_order_relaxed) != ParamsExtension::kNone;
+}
+
+bool ParamInfo::setAutomatable(bool automatable) const { return registry_->setAutomatable(index_, automatable); }
+
+bool ParamsExtension::setAutomatable(uint32_t index, bool automatable) {
+    if (index >= dynamic_count_ || infos_[index].stringId.empty()) return false;
+    if (!automatable) {
+        unbindSlot(index);
+        return true;
+    }
+    if (infos_[index].isAutomatable()) return true;
+
+    // Prefer the slot this parameter had last, so the DAW automation recorded on it drives the parameter again
+    const auto& string_id = infos_[index].stringId;
+    auto slot = std::ranges::find_if(free_slots_, [&](uint32_t candidate) { return slot_owner_[candidate] == string_id; });
+    if (slot == free_slots_.end()) slot = free_slots_.begin();
+    if (slot == free_slots_.end()) return false;
+    bindSlot(index, *slot);
+    return true;
+}
+
+void ParamsExtension::bindSlot(uint32_t index, uint32_t slot) {
+    std::erase(free_slots_, slot);
+    slot_owner_[slot] = infos_[index].stringId;
+    // The release stores publish the parameter's info to the audio thread along with the binding
+    param_slot_[index].store(slot, std::memory_order_release);
+    slot_param_[slot].store(index, std::memory_order_release);
+    requestRescan();
+}
+
+void ParamsExtension::unbindSlot(uint32_t index) {
+    const uint32_t slot = param_slot_[index].load(std::memory_order_relaxed);
+    if (slot == kNone) return;
+
+    slot_param_[slot].store(kNone, std::memory_order_relaxed);
+    param_slot_[index].store(kNone, std::memory_order_relaxed);
+    unbound_at_[index] = generation_.fetch_add(1, std::memory_order_release) + 1;  // publishes the unbinding above
+    free_slots_.push_back(slot);
+    requestRescan();
+
+    // A sleeping plugin may not process for a while, and a flush lets the audio side confirm the unbinding
+    if (active_ && host_params_ && host_params_->request_flush) host_params_->request_flush(host_);
+}
+
+void ParamsExtension::requestRescan() noexcept {
+    // Sent from onMainThread(), never inline: hosts mishandle renames sent from inside setState() or activate()
+    if (std::exchange(pending_rescan_, true)) return;
+    if (host_ && host_->request_callback) host_->request_callback(host_);
+}
+
+void ParamsExtension::onMainThread() noexcept {
+    if (std::exchange(pending_rescan_, false))
+        rescan(CLAP_PARAM_RESCAN_INFO | CLAP_PARAM_RESCAN_VALUES | CLAP_PARAM_RESCAN_TEXT);
+}
+
+float ParamsExtension::fromHost(uint32_t param, double value) const noexcept {
+    const ParamInfo& info = infos_[param];
+    if (param >= dynamic_count_) return coerceValue(static_cast<float>(value), info);
+
+    const float n = std::fmin(std::fmax(static_cast<float>(value), 0.0f), 1.0f);  // NaN becomes 0
+    if (!info.stepped) return coerceValue(info.fromNormalized(n), info);
+
+    // Equal bins, so every step gets the same share of an automation lane
+    const float low = std::trunc(info.minValue);
+    const float steps = std::trunc(info.maxValue) - low + 1.0f;
+    return coerceValue(low + std::fmin(std::floor(n * steps), steps - 1.0f), info);
+}
+
+double ParamsExtension::toHost(uint32_t param, float plain) const noexcept {
+    const ParamInfo& info = infos_[param];
+    if (param >= dynamic_count_) return plain;
+
+    float n;
+    if (info.stepped) {
+        const float low = std::trunc(info.minValue);
+        const float span = std::trunc(info.maxValue) - low;
+        n = span > 0.0f ? (std::trunc(plain) - low) / span : 0.0f;
+    } else {
+        n = info.toNormalized(plain);
+    }
+    return std::fmin(std::fmax(n, 0.0f), 1.0f);
 }
 
 ParamHandle& ParamsExtension::getHandle(clap_id paramId) {
@@ -473,7 +608,7 @@ ParamHandle& ParamsExtension::getHandle(std::string_view stringId) {
 
 ParamInfo& ParamsExtension::getInfo(clap_id paramId) {
     auto it = clap_id_to_index_.find(paramId);
-    ASSERT(it != clap_id_to_index_.end(), "Parameter with CLAP ID {} not found", paramId);
+    ASSERT(it != clap_id_to_index_.end() && it->second < capacity_, "Parameter with CLAP ID {} not found", paramId);
     return infos_[it->second];
 }
 
@@ -488,6 +623,9 @@ std::span<ParamInfo> ParamsExtension::getAllParameters() const noexcept {
 }
 
 void ParamsExtension::processEvents(const clap_input_events_t* in, const clap_output_events_t* out) {
+    // Slot bindings as of this call; reported back at the end so the main thread knows when it can reuse entries
+    const uint32_t generation = generation_.load(std::memory_order_acquire);
+
     if (in) {
         uint32_t event_count = in->size(in);
 
@@ -505,26 +643,30 @@ void ParamsExtension::processEvents(const clap_input_events_t* in, const clap_ou
                 uint32_t index;
                 if (param_event->cookie) [[likely]] {
                     index = static_cast<uint32_t>(static_cast<ParamHandle*>(param_event->cookie) - handles_.get());
-                    ASSERT(index < param_count_ && infos_[index].clapId == param_id,
+                    ASSERT((index < param_count_ && infos_[index].clapId == param_id) ||
+                               (index >= capacity_ && slot_ids_[index - capacity_] == param_id),
                            "Cookie for parameter ID {} does not match registry", param_id);
                 } else {
                     auto it = clap_id_to_index_.find(param_id);
                     ASSERT(it != clap_id_to_index_.end(), "Parameter ID {} not found in registry", param_id);
                     index = it->second;
                 }
-                const auto& param_info = infos_[index];
-                ASSERT(!param_info.internal,
-                       "Received parameter event for internal parameter '{}' "
-                       "(ID {})",
-                       param_info.name, param_id);
 
-                const float new_value = coerceValue(static_cast<float>(param_event->value), param_info);
+                // An automation slot forwards to the dynamic parameter bound to it, if any
+                if (index >= capacity_) {
+                    index = slot_param_[index - capacity_].load(std::memory_order_acquire);
+                    if (index == kNone) continue;
+                } else {
+                    ASSERT(!infos_[index].internal, "Received parameter event for internal parameter '{}' (ID {})",
+                           infos_[index].name, param_id);
+                }
 
+                const float new_value = fromHost(index, param_event->value);
                 values_[index].store(new_value, std::memory_order_relaxed);
 
                 // Notify UI of parameter change from host
                 if (message_queue_)
-                    message_queue_->toUi().enqueue({ParamMessageQueue::PARAM_VALUE, param_id, new_value});
+                    message_queue_->toUi().enqueue({ParamMessageQueue::PARAM_VALUE, index, new_value});
             }
         }
     }
@@ -534,6 +676,19 @@ void ParamsExtension::processEvents(const clap_input_events_t* in, const clap_ou
         ParamMessageQueue::Message message{};
 
         while (message_queue_->toAudio().try_dequeue(message)) {
+            // Static parameters reach the host directly; dynamic ones only through the slot they're bound to, and
+            // their info may only be read while that binding holds
+            clap_id host_id;
+            if (message.index < dynamic_count_) {
+                const uint32_t slot = param_slot_[message.index].load(std::memory_order_acquire);
+                if (slot == kNone) continue;
+                host_id = slot_ids_[slot];
+            } else {
+                const ParamInfo& info = infos_[message.index];
+                if (info.internal) continue;  // The host doesn't know this parameter
+                host_id = info.clapId;
+            }
+
             switch (message.type) {
                 case ParamMessageQueue::PARAM_VALUE: {
                     clap_event_param_value_t event = {};
@@ -543,13 +698,13 @@ void ParamsExtension::processEvents(const clap_input_events_t* in, const clap_ou
                     event.header.type = CLAP_EVENT_PARAM_VALUE;
                     event.header.flags = 0;
 
-                    event.param_id = message.paramId;
+                    event.param_id = host_id;
                     event.cookie = nullptr;  // hosts route plugin output by param_id, not cookie
                     event.note_id = -1;     // Wildcard - not note-specific
                     event.port_index = -1;  // Wildcard
                     event.channel = -1;     // Wildcard
                     event.key = -1;         // Wildcard
-                    event.value = message.value;
+                    event.value = toHost(message.index, message.value);
 
                     out->try_push(out, &event.header);
                     break;
@@ -563,7 +718,7 @@ void ParamsExtension::processEvents(const clap_input_events_t* in, const clap_ou
                     event.header.type = CLAP_EVENT_PARAM_GESTURE_BEGIN;
                     event.header.flags = 0;
 
-                    event.param_id = message.paramId;
+                    event.param_id = host_id;
 
                     out->try_push(out, &event.header);
                     break;
@@ -577,7 +732,7 @@ void ParamsExtension::processEvents(const clap_input_events_t* in, const clap_ou
                     event.header.type = CLAP_EVENT_PARAM_GESTURE_END;
                     event.header.flags = 0;
 
-                    event.param_id = message.paramId;
+                    event.param_id = host_id;
 
                     out->try_push(out, &event.header);
                     break;
@@ -585,6 +740,8 @@ void ParamsExtension::processEvents(const clap_input_events_t* in, const clap_ou
             }
         }
     }
+
+    seen_generation_.store(generation, std::memory_order_release);
 }
 
 void ParamsExtension::flush(const clap_input_events_t* in, const clap_output_events_t* out) noexcept {

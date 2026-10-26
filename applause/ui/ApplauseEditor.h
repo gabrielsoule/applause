@@ -74,7 +74,7 @@ public:
 
 private:
     ParamMessageQueue message_queue_;  // Owned by the editor
-    std::vector<ParamMessageQueue::Message> pending_values_;
+    std::vector<uint8_t> pending_params_;  // per parameter index: a new value arrived this tick
     ParamsExtension* params_ = nullptr;
     std::unique_ptr<TooltipDisplay> tooltip_display_;
 #ifndef NDEBUG

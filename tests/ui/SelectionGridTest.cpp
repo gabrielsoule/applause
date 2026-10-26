@@ -317,14 +317,14 @@ TEST_CASE("ParamSelectionGrid sends one complete gesture and follows parameter c
     applause::ParamMessageQueue::Message message{};
     REQUIRE(queue.toAudio().try_dequeue(message));
     REQUIRE(message.type == applause::ParamMessageQueue::BEGIN_GESTURE);
-    REQUIRE(message.paramId == parameter.clapId);
+    REQUIRE(message.index == 0);
     REQUIRE(queue.toAudio().try_dequeue(message));
     REQUIRE(message.type == applause::ParamMessageQueue::PARAM_VALUE);
-    REQUIRE(message.paramId == parameter.clapId);
+    REQUIRE(message.index == 0);
     REQUIRE(message.value == 1.0f);
     REQUIRE(queue.toAudio().try_dequeue(message));
     REQUIRE(message.type == applause::ParamMessageQueue::END_GESTURE);
-    REQUIRE(message.paramId == parameter.clapId);
+    REQUIRE(message.index == 0);
     REQUIRE_FALSE(queue.toAudio().try_dequeue(message));
 
     parameter.setValueSilently(2.0f);

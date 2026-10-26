@@ -123,21 +123,19 @@ void ApplauseEditor::timerCallback() {
     // Only process messages if we have params
     if (!params_) return;
 
-    // Listeners only display the latest value, so collapse each parameter's burst into one notification.
-    pending_values_.clear();
+    // Listeners only display the latest value, so collapse each parameter's burst into one notification. The value is
+    // read back from the parameter, because a queued one may belong to a dynamic parameter's previous owner.
+    const auto params = params_->getAllParameters();
+    pending_params_.resize(params.size());
     ParamMessageQueue::Message msg{};
     while (message_queue_.toUi().try_dequeue(msg)) {
-        if (msg.type == ParamMessageQueue::MessageType::PARAM_VALUE) {
-            auto it = std::ranges::find(pending_values_, msg.paramId, &ParamMessageQueue::Message::paramId);
-            if (it != pending_values_.end())
-                it->value = msg.value;
-            else
-                pending_values_.push_back(msg);
-        } else {
+        if (msg.type == ParamMessageQueue::MessageType::PARAM_VALUE)
+            pending_params_[msg.index] = 1;
+        else
             ASSERT_FALSE("ApplauseEditor received unexpected message type");
-        }
     }
 
-    for (const auto& pending : pending_values_) params_->getInfo(pending.paramId).on_value_changed(pending.value);
+    for (uint32_t index = 0; index < params.size(); ++index)
+        if (std::exchange(pending_params_[index], 0)) params[index].on_value_changed(params[index].getValue());
 }
 }  // namespace applause

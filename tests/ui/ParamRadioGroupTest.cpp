@@ -53,18 +53,19 @@ void requireEmpty(applause::ParamMessageQueue& queue) {
     REQUIRE_FALSE(queue.toAudio().try_dequeue(message));
 }
 
-void requireGesture(applause::ParamMessageQueue& queue, clap_id id, float value) {
+// The fixture registers a single parameter, so every message refers to index 0.
+void requireGesture(applause::ParamMessageQueue& queue, float value) {
     applause::ParamMessageQueue::Message message{};
     REQUIRE(queue.toAudio().try_dequeue(message));
     REQUIRE(message.type == applause::ParamMessageQueue::BEGIN_GESTURE);
-    REQUIRE(message.paramId == id);
+    REQUIRE(message.index == 0);
     REQUIRE(queue.toAudio().try_dequeue(message));
     REQUIRE(message.type == applause::ParamMessageQueue::PARAM_VALUE);
-    REQUIRE(message.paramId == id);
+    REQUIRE(message.index == 0);
     REQUIRE(message.value == value);
     REQUIRE(queue.toAudio().try_dequeue(message));
     REQUIRE(message.type == applause::ParamMessageQueue::END_GESTURE);
-    REQUIRE(message.paramId == id);
+    REQUIRE(message.index == 0);
     requireEmpty(queue);
 }
 
@@ -118,7 +119,7 @@ TEST_CASE("ParamRadioGroup attaches later without notifications and synchronizes
         REQUIRE(parameter.getValue() == 4.0f + id);
         REQUIRE(group.selectedId() == id);
         for (int i = 0; i < 3; ++i) REQUIRE(buttons[i].isChecked() == (i == id));
-        requireGesture(queue, parameter.clapId, 4.0f + id);
+        requireGesture(queue, 4.0f + id);
         changes.push_back(id);
     };
 
@@ -138,7 +139,7 @@ TEST_CASE("ParamRadioGroup attaches later without notifications and synchronizes
     group.onSelectionChanged().clear();
     click(buttons[1]);
     REQUIRE(parameter.getValue() == 5.0f);
-    requireGesture(queue, parameter.clapId, 5.0f);
+    requireGesture(queue, 5.0f);
 }
 
 TEST_CASE("ParamRadioGroup can retry attachment after validation fails", "[ui][radio-group][params]") {
@@ -162,7 +163,7 @@ TEST_CASE("ParamRadioGroup can retry attachment after validation fails", "[ui][r
     requireEmpty(queue);
     click(buttons[0]);
     REQUIRE(parameter.getValue() == 4.0f);
-    requireGesture(queue, parameter.clapId, 4.0f);
+    requireGesture(queue, 4.0f);
 }
 
 TEST_CASE("ParamRadioGroup fixes member IDs while allowing atomic replacement", "[ui][radio-group][params]") {
@@ -193,7 +194,7 @@ TEST_CASE("ParamRadioGroup fixes member IDs while allowing atomic replacement", 
         requireEmpty(queue);
         click(replacement);
         REQUIRE(parameter.getValue() == 5.0f);
-        requireGesture(queue, parameter.clapId, 5.0f);
+        requireGesture(queue, 5.0f);
     }
 
     group.removeButton(replacement);
@@ -266,5 +267,5 @@ TEST_CASE("ParamRadioGroup synchronizes controls bound to the same parameter", "
     REQUIRE(first_group.selectedId() == 2);
     REQUIRE(second_group.selectedId() == 2);
     REQUIRE(second_changes == 0);
-    requireGesture(queue, parameter.clapId, 6.0f);
+    requireGesture(queue, 6.0f);
 }
