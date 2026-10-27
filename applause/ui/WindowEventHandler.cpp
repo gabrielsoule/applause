@@ -255,12 +255,14 @@ void WindowEventHandler::handleMouseDown(MouseButton button_id, int x, int y, in
     temporary_frame_ = mouse_down_frame_;
     while (temporary_frame_ && !temporary_frame_->acceptsKeystrokes()) temporary_frame_ = temporary_frame_->parent();
 
-    if (keyboard_focused_frame_ && temporary_frame_ != keyboard_focused_frame_)
-        keyboard_focused_frame_->processFocusChanged(false, true);
-
-    keyboard_focused_frame_ = temporary_frame_;
+    // Focus changes only when the click lands on another frame. Telling an already-focused frame it gained focus again
+    // would make a select-on-focus text field select all on every click, so a click could never place a caret.
+    if (temporary_frame_ != keyboard_focused_frame_) {
+        if (keyboard_focused_frame_) keyboard_focused_frame_->processFocusChanged(false, true);
+        keyboard_focused_frame_ = temporary_frame_;
+        if (keyboard_focused_frame_) keyboard_focused_frame_->processFocusChanged(true, true);
+    }
     temporary_frame_ = nullptr;
-    if (keyboard_focused_frame_) keyboard_focused_frame_->processFocusChanged(true, true);
 
     if (mouse_down_frame_) {
         mouse_event.position = mouse_event.window_position - mouse_down_frame_->positionInWindow();
