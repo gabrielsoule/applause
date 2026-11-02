@@ -141,7 +141,8 @@ TEST_CASE("Accent-colored parts have no fixed shades of their own", "[theme]") {
     REQUIRE(color(button, Button::kPrimary) == Color(0xffffaa33));
     REQUIRE(color(cell, applause::SelectionGridCell::kContentSelected) == Color(0xffffaa33));
     REQUIRE(color(cell, applause::SelectionGridCell::kContentSelectedHover) == Color(0xffffaa33));
-    REQUIRE(color(root, applause::PopupMenu::kSelection) == Color(0xffffaa33));
+    REQUIRE(color(root, applause::PopupMenu::kHighlight) == Color(0xffffaa33));
+    REQUIRE(color(root, applause::PopupMenu::kCheck) == Color(0xffffaa33));
 }
 
 TEST_CASE("A theme value set on one button leaves the others alone", "[theme]") {
