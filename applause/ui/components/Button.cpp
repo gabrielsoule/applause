@@ -23,8 +23,8 @@
 
 #include "RadioGroup.h"
 
-#include <applause/ui/ApplauseEditor.h>
 #include <applause/ui/NativePopupMenu.h>
+#include <applause/ui/PopupMenu.h>
 
 #include <embedded/applause_fonts.h>
 
@@ -262,19 +262,16 @@ PopupMenuButton::PopupMenuButton(std::string text) : Button(std::move(text)) {
 void PopupMenuButton::showPopup() {
     if (!on_build_menu_) return;
 
-    auto* editor = findParent<applause::ApplauseEditor>();
-    if (!editor) return;
-
-    void* native_handle = editor->getNativeHandle();
-    if (!native_handle) return;
-
     NativePopupMenu menu("Select");
     on_build_menu_(menu);
 
-    menu.onSelection() += [this](int id) { on_item_selected_.callback(id); };
-
-    auto pos = positionInWindow();
-    menu.show(native_handle, pos.x, pos.y + height());
+    menu.onSelection() += [button = std::weak_ptr(reference_)](int id) {
+        if (auto alive = button.lock()) (*alive)->on_item_selected_.callback(id);
+    };
+    if (native_)
+        menu.show(this, {0.0f, height()});
+    else
+        menu.showDrawn(this, {PopupMenu::kNotSet, PopupMenu::kNotSet});
 }
 
 }  // namespace applause

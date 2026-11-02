@@ -1,9 +1,8 @@
 #include "ExampleShowcaseEditor.h"
 
 #include <applause/ui/ApplauseUI.h>
-#ifdef __APPLE__
 #include <applause/ui/NativePopupMenu.h>
-#endif
+#include <applause/ui/PopupMenu.h>
 #include <applause/ui/Tooltip.h>
 #include <applause/util/DebugHelpers.h>
 #ifndef NDEBUG
@@ -30,8 +29,6 @@ namespace {
 // Inline icons, so the buttons demo needs no resource files.
 constexpr std::string_view kFolderIcon =
     R"(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 5 L9 5 L11 7 L22 7 L22 20 L2 20 Z"/></svg>)";
-constexpr std::string_view kStarIcon =
-    R"(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2 L15 9 L22 9 L16.5 13.5 L18.5 21 L12 16.5 L5.5 21 L7.5 13.5 L2 9 L9 9 Z"/></svg>)";
 
 applause::Svg icon(std::string_view svg) {
     return {reinterpret_cast<const unsigned char*>(svg.data()), static_cast<int>(svg.size())};
@@ -162,9 +159,8 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
     load_file_button_->onClick() += [this] { onLoadFileClicked(); };
     buttons_panel_.content().addChild(load_file_button_.get());
 
-#ifdef __APPLE__
-    popup_menu_button_ = std::make_unique<applause::Button>("Show Menu");
-    popup_menu_button_->onClick() += [this] {
+    native_popup_menu_button_ = std::make_unique<applause::Button>("Native Popup Menu");
+    native_popup_menu_button_->onClick() += [this] {
         applause::NativePopupMenu menu("Demo Menu");
 
         menu.addOption(1, "Option 1").select(true).withKeyboardShortcut(applause::NativePopupMenu::Modifier::Cmd, "1");
@@ -175,19 +171,42 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
 
         menu.addBreak();
 
-        menu.addSubMenu("Submenu").addOption(10, "Sub Option A").addOption(11, "Sub Option B");
+        auto& submenu = menu.addSubMenu("Submenu");
+        submenu.addOption(10, "Sub Option A");
+        submenu.addOption(11, "Sub Option B");
 
         menu.onSelection() += [](int id) { LOG_INFO("Popup menu selected: {}", id); };
 
         menu.onCancel() += []() { LOG_INFO("Popup menu cancelled"); };
 
-        if (void* native_handle = getNativeHandle()) {
-            auto pos = popup_menu_button_->positionInWindow();
-            menu.show(native_handle, pos.x, pos.y + popup_menu_button_->height());
-        }
+        menu.show(native_popup_menu_button_.get(), {0.0f, native_popup_menu_button_->height()});
+    };
+    buttons_panel_.content().addChild(native_popup_menu_button_.get());
+
+    popup_menu_button_ = std::make_unique<applause::Button>("Popup Menu");
+    popup_menu_button_->onClick() += [this] {
+        applause::PopupMenu menu("Demo Menu");
+
+        menu.addOption(1, "Option 1").select(true);
+
+        menu.addOption(2, "Option 2");
+
+        menu.addOption(3, "Disabled Option").enable(false);
+
+        menu.addBreak();
+
+        applause::PopupMenu submenu("Submenu");
+        submenu.addOption(10, "Sub Option A");
+        submenu.addOption(11, "Sub Option B");
+        menu.addSubMenu(std::move(submenu));
+
+        menu.onSelection() += [](int id) { LOG_INFO("Popup menu selected: {}", id); };
+
+        menu.onCancel() += []() { LOG_INFO("Popup menu cancelled"); };
+
+        menu.show(popup_menu_button_.get());
     };
     buttons_panel_.content().addChild(popup_menu_button_.get());
-#endif
 
     inactive_button_ = std::make_unique<applause::Button>("Inactive");
     inactive_button_->setEnabled(false);
@@ -202,18 +221,6 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
     buttons_panel_.content().addChild(inspector_button_.get());
     applause::setTooltip(*inspector_button_, "Open the UI Inspector (Cmd+I)");
 #endif
-
-    flat_button_ = std::make_unique<applause::Button>("Flat");
-    flat_button_->setRole(applause::Button::Role::Flat);
-    flat_button_->onClick() += [] { LOG_INFO("Flat button clicked!"); };
-    buttons_panel_.content().addChild(flat_button_.get());
-
-    star_button_ = std::make_unique<applause::Button>(icon(kStarIcon));
-    star_button_->setRole(applause::Button::Role::Flat);
-    star_button_->setCheckable(true);
-    star_button_->onToggle() += [](bool on) { LOG_INFO("Star state: {}", on ? "ON" : "OFF"); };
-    buttons_panel_.content().addChild(star_button_.get());
-    applause::setTooltip(*star_button_, "A flat, checkable icon button");
 
     small_button_ = std::make_unique<applause::Button>("TINY");
     small_button_->onClick() += [] { LOG_INFO("Small button clicked!"); };
@@ -480,15 +487,12 @@ void ExampleShowcaseEditor::resized() {
         placeButton(action_button_.get());
         placeButton(toggle_button_.get());
         placeButton(load_file_button_.get());
-#ifdef __APPLE__
+        placeButton(native_popup_menu_button_.get());
         placeButton(popup_menu_button_.get());
-#endif
         placeButton(inactive_button_.get());
 #ifndef NDEBUG
         placeButton(inspector_button_.get());
 #endif
-        placeButton(flat_button_.get());
-        placeButton(star_button_.get());
 
         if (col != 0) {
             col = 0;

@@ -24,8 +24,7 @@ ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(
 
     src_menu_.onBuildMenu() = [this](NativePopupMenu& menu) {
         for (uint16_t i = 0; i < owner_.matrix_.getSourceCount(); ++i) {
-            menu.addOption(i, owner_.matrix_.getSource(i).name);
-            if (i == src_list_id) menu.select(true);
+            menu.addOption(i, owner_.matrix_.getSource(i).name).select(i == src_list_id);
         }
     };
 
@@ -33,8 +32,7 @@ ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(
         for (uint16_t i = 0; i < owner_.matrix_.getDestinationCount(); ++i) {
             const auto& destination = owner_.matrix_.getDestination(i);
             if (!destination.active) continue;
-            menu.addOption(i + 1, destination.name);
-            if (dst_list_id >= 0 && i + 1 == dst_list_id) menu.select(true);
+            menu.addOption(i + 1, destination.name).select(i + 1 == dst_list_id);
         }
 
         bool has_connections = false;

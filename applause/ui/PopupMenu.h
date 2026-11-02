@@ -40,18 +40,36 @@ class PopupMenu {
 public:
     static constexpr int kNotSet = INT_MIN;
 
-    static inline const ColorToken kBackground{"popupMenu.background", 0xff262a2e};
-    static inline const ColorToken kBorder{"popupMenu.border", 0xff606265};
-    static inline const ColorToken kText{"popupMenu.text", 0xffeeeeee};
-    static inline const ColorToken kDisabledText{"popupMenu.disabledText", 0xff888888};
-    static inline const ColorToken kSelection{"popupMenu.selection", theme::kAccent};
-    static inline const ColorToken kSelectionText{"popupMenu.selectionText", 0xffffffff};
+    static inline const ColorToken kBackground{"popupMenu.background", 0xff1e1e24};
+    static inline const ColorToken kBorder{"popupMenu.border", 0xff3a3a42};
+    static inline const ColorToken kShadow{"popupMenu.shadow", 0x99000000};
+    static inline const ColorToken kText{"popupMenu.text", 0xffcccccc};
+    static inline const ColorToken kDisabledText{"popupMenu.disabledText", 0xff666666};
+    static inline const ColorToken kSeparator{"popupMenu.separator", 0xff2e2e34};
+    // The row under the mouse, tinted by kHighlightOpacity, and the text on it.
+    static inline const ColorToken kHighlight{"popupMenu.highlight", theme::kAccent};
+    static inline const ColorToken kHighlightText{"popupMenu.highlightText", 0xffffffff};
+    // The check mark of a selected option.
+    static inline const ColorToken kCheck{"popupMenu.check", theme::kAccent};
+    // The arrow of an option that opens a submenu.
+    static inline const ColorToken kArrow{"popupMenu.arrow", 0xff848789};
 
-    static inline const ValueToken kOptionHeight{"popupMenu.optionHeight", 22.0f};
-    static inline const ValueToken kMinWidth{"popupMenu.minWidth", 175.0f};
-    static inline const ValueToken kTextPadding{"popupMenu.textPadding", 9.0f};
-    static inline const ValueToken kFontSize{"popupMenu.fontSize", 14.0f};
-    static inline const ValueToken kSelectionPadding{"popupMenu.selectionPadding", 4.0f};
+    static inline const ValueToken kHighlightOpacity{"popupMenu.highlightOpacity", 0.22f};
+    static inline const ValueToken kRounding{"popupMenu.rounding", 6.0f};
+    static inline const ValueToken kHighlightRounding{"popupMenu.highlightRounding", 4.0f};
+    static inline const ValueToken kBorderWidth{"popupMenu.borderWidth", 1.0f};
+    static inline const ValueToken kShadowWidth{"popupMenu.shadowWidth", 16.0f};
+    static inline const ValueToken kOptionHeight{"popupMenu.optionHeight", 24.0f};
+    static inline const ValueToken kSeparatorHeight{"popupMenu.separatorHeight", 9.0f};
+    static inline const ValueToken kMinWidth{"popupMenu.minWidth", 140.0f};
+    // Space between the border and the options.
+    static inline const ValueToken kPadding{"popupMenu.padding", 4.0f};
+    // The columns on either side of an option's text, which hold its check mark and submenu arrow.
+    static inline const ValueToken kGutter{"popupMenu.gutter", 22.0f};
+    static inline const ValueToken kCheckSize{"popupMenu.checkSize", 11.0f};
+    // Space on each side of a ValueDisplay's text.
+    static inline const ValueToken kTextPadding{"popupMenu.textPadding", 8.0f};
+    static inline const ValueToken kFontSize{"popupMenu.fontSize", 13.0f};
 
     PopupMenu() = default;
     PopupMenu(const String& name, int id = -1, std::vector<PopupMenu> options = {}, bool is_break = false) :
@@ -175,6 +193,8 @@ public:
     }
 
 private:
+    float optionHeight(const PopupMenu& option) const;
+
     std::vector<Listener*> listeners_;
     std::vector<PopupMenu> options_;
     float opacity_ = 0.0f;

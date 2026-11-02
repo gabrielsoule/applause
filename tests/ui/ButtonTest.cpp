@@ -1,6 +1,8 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <applause/ui/NativePopupMenu.h>
+#include <applause/ui/PopupMenu.h>
 #include <applause/ui/components/Button.h>
 
 #include <string>
@@ -23,6 +25,12 @@ void click(applause::Button& button, bool release_inside = true) {
     applause::MouseEvent up;
     up.position = release_inside ? applause::Point{1.0f, 1.0f} : applause::Point{-1.0f, -1.0f};
     button.mouseUp(up);
+}
+
+// The top-level options of the drawn menu a popup menu button opened under root.
+applause::PopupList* openedList(applause::Frame& root) {
+    auto* popup = dynamic_cast<applause::PopupMenuFrame*>(root.children().back());
+    return popup ? dynamic_cast<applause::PopupList*>(popup->children().front()) : nullptr;
 }
 
 }  // namespace
@@ -146,4 +154,32 @@ TEST_CASE("A button's icon is centered with its text and follows the icon size t
     const applause::Frame& beside = *icon_and_text.children().front();
     const float content_width = icon_and_text.preferredWidth() - 20.0f;
     REQUIRE(beside.x() == Catch::Approx((200.0f - content_width) * 0.5f));
+}
+
+TEST_CASE("A popup menu button opens the drawn menu by default and reports the chosen option", "[ui][button]") {
+    applause::Frame root;
+    root.setBounds(0.0f, 0.0f, 300.0f, 200.0f);
+    applause::PopupMenuButton button("Pick");
+    root.addChild(button);
+    button.setBounds(10.0f, 10.0f, 80.0f, 24.0f);
+    REQUIRE_FALSE(button.isNative());
+
+    button.onBuildMenu() = [](applause::NativePopupMenu& menu) {
+        menu.addOption(1, "One");
+        menu.addOption(2, "Two").select(true);
+        menu.addOption(3, "Three").enable(false);
+    };
+    int chosen = 0;
+    button.onItemSelected() += [&](int id) { chosen = id; };
+    button.click();
+
+    applause::PopupList* list = openedList(root);
+    REQUIRE(list);
+    REQUIRE(list->numOptions() == 3);
+    REQUIRE(list->option(1).selected());
+    REQUIRE_FALSE(list->option(2).enabled());
+
+    list->setHoverFromPosition({1.0f, list->yForIndex(1) + 1.0f});
+    list->selectHoveredIndex();
+    REQUIRE(chosen == 2);
 }

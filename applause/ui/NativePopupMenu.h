@@ -11,9 +11,8 @@ namespace applause {
  * @class NativePopupMenu
  * @brief A native platform popup/context menu implementation.
  *
- * Provides a fluent API for building and displaying native context menus.
- *
- * Right now, only MacOS is supported... Windows would be great, though! High on priority list.
+ * Provides a fluent API for building and displaying native context menus: NSMenu on macOS and Win32 menus on
+ * Windows. Linux falls back to the drawn PopupMenu.
  */
 class NativePopupMenu {
 public:
@@ -95,14 +94,28 @@ public:
 
     /// Callback triggered when the menu is cancelled (dismissed without selection)
     auto &onCancel() { return on_cancel_; }
+    const auto &onCancel() const { return on_cancel_; }
 
     /**
      * @brief Display the popup menu at the specified position.
-     * @param native_view_handle Platform-specific view handle (NSView* on macOS)
-     * @param x X coordinate relative to the view
-     * @param y Y coordinate relative to the view
+     *
+     * On macOS and Windows this blocks until the menu closes. The drawn Linux menu returns immediately and runs the
+     * callbacks later.
+     *
+     * @param source Frame the menu opens from; it must be inside an ApplicationEditor's window
+     * @param position Top-left corner of the menu, relative to source
      */
-    void show(void *native_view_handle, float x, float y);
+    void show(Frame *source, Point position);
+
+    /**
+     * @brief Display the menu as the drawn, themed PopupMenu instead, on any platform.
+     *
+     * Returns immediately and runs the callbacks later.
+     *
+     * @param source Frame the menu opens from
+     * @param position Top-left corner of the menu, relative to source, or PopupMenu::kNotSet to open below source
+     */
+    void showDrawn(Frame *source, Point position);
 
     [[nodiscard]] const std::string &name() const { return name_; }
     [[nodiscard]] int id() const { return id_; }

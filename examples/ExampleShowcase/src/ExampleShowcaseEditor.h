@@ -59,9 +59,8 @@ private:
     std::unique_ptr<applause::Button> action_button_;
     std::unique_ptr<applause::Button> toggle_button_;
     std::unique_ptr<applause::Button> load_file_button_;
-#ifdef __APPLE__
+    std::unique_ptr<applause::Button> native_popup_menu_button_;
     std::unique_ptr<applause::Button> popup_menu_button_;
-#endif
 
     // Inactive button
     std::unique_ptr<applause::Button> inactive_button_;
@@ -71,10 +70,6 @@ private:
     // ApplauseEditor base class.
     std::unique_ptr<applause::Button> inspector_button_;
 #endif
-
-    // Flat buttons: one with text, and a checkable icon.
-    std::unique_ptr<applause::Button> flat_button_;
-    std::unique_ptr<applause::Button> star_button_;
 
     // Small buttons
     std::unique_ptr<applause::Button> small_button_;

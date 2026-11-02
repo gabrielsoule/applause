@@ -30,15 +30,19 @@ void PopupMenu::show(Frame* source, Point position) {
     frame_ptr->show(std::move(frame), source, position);
 }
 
+float PopupList::optionHeight(const PopupMenu& option) const {
+    return value(*this, option.isBreak() ? PopupMenu::kSeparatorHeight : PopupMenu::kOptionHeight);
+}
+
 float PopupList::renderHeight() const {
-    float popup_height = value(*this, PopupMenu::kOptionHeight);
-    float selection_padding = value(*this, PopupMenu::kSelectionPadding);
-    return options_.size() * popup_height + 2.0f * selection_padding;
+    float height = 2.0f * value(*this, PopupMenu::kPadding);
+    for (const PopupMenu& option : options_) height += optionHeight(option);
+    return height;
 }
 
 float PopupList::renderWidth() const {
     float width = value(*this, PopupMenu::kMinWidth);
-    float x_padding = value(*this, PopupMenu::kSelectionPadding) + value(*this, PopupMenu::kTextPadding);
+    float x_padding = value(*this, PopupMenu::kPadding) + value(*this, PopupMenu::kGutter);
     for (const PopupMenu& option : options_) {
         float string_width = font_.stringWidth(option.name().c_str(), option.name().size()) + 2 * x_padding;
         width = std::max(width, string_width);
@@ -48,7 +52,9 @@ float PopupList::renderWidth() const {
 }
 
 int PopupList::yForIndex(int index) const {
-    return value(*this, PopupMenu::kSelectionPadding) + index * value(*this, PopupMenu::kOptionHeight);
+    float y = value(*this, PopupMenu::kPadding);
+    for (int i = 0; i < index && i < options_.size(); ++i) y += optionHeight(options_[i]);
+    return y;
 }
 
 void PopupList::selectHoveredIndex() {
@@ -64,10 +70,9 @@ void PopupList::selectHoveredIndex() {
 }
 
 void PopupList::setHoverFromPosition(Point position) {
-    int y = value(*this, PopupMenu::kSelectionPadding);
-
-    int option_height = value(*this, PopupMenu::kOptionHeight);
+    float y = value(*this, PopupMenu::kPadding);
     for (int i = 0; i < options_.size(); ++i) {
+        float option_height = optionHeight(options_[i]);
         if (!options_[i].isBreak() && options_[i].enabled() && position.y >= y && position.y < y + option_height) {
             hover_index_ = i;
             return;
@@ -85,52 +90,69 @@ void PopupList::selectFromPosition(Point position) {
 }
 
 void PopupList::draw(Canvas& canvas) {
-    static constexpr float kTriangleWidthRatio = 0.25f;
+    const float rounding = value(*this, PopupMenu::kRounding);
+    const float border_width = value(*this, PopupMenu::kBorderWidth);
+    canvas.setColor(color(*this, PopupMenu::kBackground).withMultipliedAlpha(opacity_));
+    canvas.roundedRectangle(0, 0, width(), height(), rounding);
+    canvas.setColor(color(*this, PopupMenu::kBorder).withMultipliedAlpha(opacity_));
+    canvas.roundedRectangleBorder(0, 0, width(), height(), rounding, border_width);
 
-    Color background = color(*this, PopupMenu::kBackground).withMultipliedAlpha(opacity_);
-    Color border = color(*this, PopupMenu::kBorder).withMultipliedAlpha(opacity_);
-    canvas.setColor(background);
-    canvas.roundedRectangle(0, 0, width(), height(), 8.0f);
+    const float padding = value(*this, PopupMenu::kPadding);
+    const float gutter = value(*this, PopupMenu::kGutter);
+    const float check_size = value(*this, PopupMenu::kCheckSize);
+    const float stroke = check_size * 0.15f;
+    const float row_width = width() - 2.0f * padding;
+    const Font font = font_.withSize(value(*this, PopupMenu::kFontSize));
 
-    canvas.setColor(border);
-    canvas.roundedRectangleBorder(0, 0, width(), height(), 8.0f, 1);
-
-    int selection_padding = value(*this, PopupMenu::kSelectionPadding);
-    int x_padding = selection_padding + value(*this, PopupMenu::kTextPadding);
-    int option_height = value(*this, PopupMenu::kOptionHeight);
-    int y = selection_padding - yPosition();
-
-    Color text = color(*this, PopupMenu::kText).withMultipliedAlpha(opacity_);
-    Color disabled_text = color(*this, PopupMenu::kDisabledText).withMultipliedAlpha(opacity_);
-    Color selected_text = color(*this, PopupMenu::kSelectionText).withMultipliedAlpha(opacity_);
+    float y = padding - yPosition();
     for (int i = 0; i < options_.size(); ++i) {
-        if (y + option_height > 0 && y < height()) {
-            if (options_[i].isBreak())
-                canvas.rectangle(x_padding, y + option_height / 2, width() - 2 * x_padding, 1);
-            else {
-                if (i == hover_index_) {
-                    Color selected = color(*this, PopupMenu::kSelection).withMultipliedAlpha(opacity_);
-                    canvas.setColor(selected);
-                    canvas.roundedRectangle(selection_padding, y, width() - 2 * selection_padding, option_height, 4.0f);
-                    canvas.setColor(selected_text);
-                } else if (options_[i].enabled())
-                    canvas.setColor(text);
-                else
-                    canvas.setColor(disabled_text);
-
-                int popup_font_size = value(*this, PopupMenu::kFontSize);
-                Font font = font_.withSize(popup_font_size);
-                canvas.text(options_[i].name(), font, Font::kLeft, x_padding, y, width(), option_height);
-
-                if (options_[i].hasOptions()) {
-                    int triangle_width = popup_font_size * kTriangleWidthRatio;
-                    int triangle_x = width() - x_padding - triangle_width;
-                    int triangle_y = y + option_height / 2 - triangle_width;
-                    canvas.triangleRight(triangle_x, triangle_y, triangle_width);
-                }
-            }
+        const PopupMenu& option = options_[i];
+        const float h = optionHeight(option);
+        if (y + h <= 0 || y >= height()) {
+            y += h;
+            continue;
         }
-        y += option_height;
+
+        if (option.isBreak()) {
+            canvas.setColor(color(*this, PopupMenu::kSeparator).withMultipliedAlpha(opacity_));
+            canvas.rectangle(2.0f * padding, y + (h - border_width) * 0.5f, width() - 4.0f * padding, border_width);
+            y += h;
+            continue;
+        }
+
+        const bool highlighted = i == hover_index_;
+        if (highlighted) {
+            const float alpha = value(*this, PopupMenu::kHighlightOpacity) * opacity_;
+            canvas.setColor(color(*this, PopupMenu::kHighlight).withMultipliedAlpha(alpha));
+            canvas.roundedRectangle(padding, y, row_width, h, value(*this, PopupMenu::kHighlightRounding));
+        }
+
+        Color text = color(*this, highlighted ? PopupMenu::kHighlightText : PopupMenu::kText);
+        if (!option.enabled()) text = color(*this, PopupMenu::kDisabledText);
+        canvas.setColor(text.withMultipliedAlpha(opacity_));
+        canvas.text(option.name(), font, Font::kLeft, padding + gutter, y, row_width - 2.0f * gutter, h);
+
+        if (option.selected()) {
+            const Color check = color(*this, PopupMenu::kCheck);
+            canvas.setColor((option.enabled() ? check : check.interpolateWith(Color(0xff000000), 0.5f))
+                                .withMultipliedAlpha(opacity_));
+            const float x = padding + (gutter - check_size) * 0.5f;
+            const float top = y + (h - check_size) * 0.5f;
+            canvas.segment(x + check_size * 0.1f, top + check_size * 0.55f, x + check_size * 0.38f,
+                           top + check_size * 0.82f, stroke, true);
+            canvas.segment(x + check_size * 0.38f, top + check_size * 0.82f, x + check_size * 0.9f,
+                           top + check_size * 0.2f, stroke, true);
+        }
+
+        if (option.hasOptions()) {
+            canvas.setColor((highlighted ? text : color(*this, PopupMenu::kArrow)).withMultipliedAlpha(opacity_));
+            const float arrow = check_size * 0.32f;
+            const float x = width() - padding - (gutter + arrow) * 0.5f;
+            const float center = y + h * 0.5f;
+            canvas.segment(x, center - arrow, x + arrow, center, stroke, true);
+            canvas.segment(x + arrow, center, x, center + arrow, stroke, true);
+        }
+        y += h;
     }
 }
 
@@ -191,7 +213,7 @@ void PopupList::mouseUp(const MouseEvent& e) {
     redraw();
 }
 
-PopupMenuFrame::PopupMenuFrame(PopupMenu menu) : menu_(std::move(menu)), font_(10, fonts::Lato_Regular_ttf) {
+PopupMenuFrame::PopupMenuFrame(PopupMenu menu) : menu_(std::move(menu)), font_(13, fonts::Barlow_Medium_ttf) {
     opacity_animation_.setTargetValue(1.0f);
     setAcceptsKeystrokes(true);
     setIgnoresMouseEvents(true, true);
@@ -208,6 +230,16 @@ PopupMenuFrame::~PopupMenuFrame() = default;
 void PopupMenuFrame::draw(Canvas& canvas) {
     float opacity = opacity_animation_.update();
     for (auto& list : lists_) list.setOpacity(opacity);
+
+    // The lists can't draw outside their bounds, so their shadows are drawn here, behind them.
+    const float rounding = value(*this, PopupMenu::kRounding);
+    const float shadow = value(*this, PopupMenu::kShadowWidth);
+    canvas.setColor(color(*this, PopupMenu::kShadow).withMultipliedAlpha(opacity));
+    for (auto& list : lists_) {
+        if (list.isVisible())
+            canvas.roundedRectangleShadow(list.x(), list.y() + 0.25f * shadow, list.width(), list.height(), rounding,
+                                          shadow);
+    }
 
     if (opacity_animation_.isAnimating())
         redraw();
@@ -237,7 +269,7 @@ void PopupMenuFrame::show(std::unique_ptr<PopupMenuFrame> self, Frame* source, P
     int bottom = y + h;
     int right = x + w;
     if (bottom > height()) {
-        int top = point.y == PopupMenu::kNotSet ? window_bounds.y() : point.y;
+        int top = point.y == PopupMenu::kNotSet ? window_bounds.y() : window_bounds.y() + point.y;
         y = std::max(0, top - h);
     }
     if (right > width()) x = std::max(0, x - w);
@@ -328,7 +360,8 @@ void PopupMenuFrame::subMenuSelected(const PopupMenu& option, int selection_y, P
         lists_[source_index + 1].setOptions(option.options());
         int h = lists_[source_index + 1].renderHeight();
         int w = lists_[source_index + 1].renderWidth();
-        int y = list->y() + selection_y;
+        // Lines the submenu's first option up with the option that opened it.
+        int y = list->y() + selection_y - value(*this, PopupMenu::kPadding);
         int bottom = y + h;
         int x = lists_[source_index].right();
         int right = x + w;
@@ -338,6 +371,7 @@ void PopupMenuFrame::subMenuSelected(const PopupMenu& option, int selection_y, P
         lists_[source_index + 1].setBounds(x, y, w, h);
         lists_[source_index + 1].setNoHover();
         lists_[source_index + 1].setVisible(true);
+        redraw();
     }
 }
 
@@ -381,7 +415,7 @@ void ValueDisplay::showDisplay(const String& text, Bounds bounds, Font::Justific
     text_ = text;
 
     Font font = font_.withSize(value(*this, PopupMenu::kFontSize));
-    int x_padding = value(*this, PopupMenu::kSelectionPadding) + value(*this, PopupMenu::kTextPadding);
+    int x_padding = value(*this, PopupMenu::kPadding) + value(*this, PopupMenu::kTextPadding);
     int width = font.stringWidth(text.c_str(), text.length()) + 2 * x_padding;
     int height = value(*this, PopupMenu::kOptionHeight);
     int x = bounds.xCenter() - width / 2;
@@ -401,11 +435,12 @@ void ValueDisplay::showDisplay(const String& text, Bounds bounds, Font::Justific
 
 void ValueDisplay::draw(Canvas& canvas) {
     Font font = font_.withSize(value(*this, PopupMenu::kFontSize));
+    const float rounding = value(*this, PopupMenu::kRounding);
     canvas.setColor(color(*this, PopupMenu::kBackground));
-    canvas.roundedRectangle(0, 0, width(), height(), 8.0f);
+    canvas.roundedRectangle(0, 0, width(), height(), rounding);
 
     canvas.setColor(color(*this, PopupMenu::kBorder));
-    canvas.roundedRectangleBorder(0, 0, width(), height(), 8.0f, 1.0f);
+    canvas.roundedRectangleBorder(0, 0, width(), height(), rounding, value(*this, PopupMenu::kBorderWidth));
 
     canvas.setColor(color(*this, PopupMenu::kText));
     canvas.text(text_, font, Font::kCenter, 0, 0, width(), height());

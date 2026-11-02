@@ -103,56 +103,22 @@ static const NativePopupMenu* findOptionById(const NativePopupMenu& menu, int id
     return nullptr;
 }
 
-NativePopupMenu::NativePopupMenu() = default;
-NativePopupMenu::NativePopupMenu(const std::string& name, int id) : name_(name), id_(id) {}
-NativePopupMenu::~NativePopupMenu() = default;
-NativePopupMenu::NativePopupMenu(NativePopupMenu&& other) noexcept = default;
-NativePopupMenu& NativePopupMenu::operator=(NativePopupMenu&& other) noexcept = default;
-
-NativePopupMenu& NativePopupMenu::addOption(int option_id, const std::string& option_name) {
-    options_.emplace_back(option_name, option_id);
-    return options_.back();
-}
-
-void NativePopupMenu::addBreak() {
-    NativePopupMenu separator;
-    separator.is_break_ = true;
-    options_.push_back(std::move(separator));
-}
-
-NativePopupMenu& NativePopupMenu::addSubMenu(const std::string& name) {
-    options_.emplace_back(name);
-    return options_.back();
-}
-
-NativePopupMenu& NativePopupMenu::enable(bool enabled) {
-    enabled_ = enabled;
-    return *this;
-}
-
-NativePopupMenu& NativePopupMenu::select(bool selected) {
-    selected_ = selected;
-    return *this;
-}
-
-NativePopupMenu& NativePopupMenu::withKeyboardShortcut(Modifier modifiers, const std::string& key) {
-    shortcut_modifiers_ = modifiers;
-    shortcut_key_ = key;
-    return *this;
-}
-
-void NativePopupMenu::show(void* native_view_handle, float x, float y) {
-    if (!native_view_handle)
+void NativePopupMenu::show(Frame* source, Point position) {
+    auto* editor = dynamic_cast<ApplicationEditor*>(source);
+    if (!editor)
+        editor = source->findParent<ApplicationEditor>();
+    if (!editor || !editor->window())
         return;
 
-    NSView* view = (__bridge NSView*)native_view_handle;
+    NSView* view = (__bridge NSView*)editor->window()->nativeHandle();
+    Point window_position = source->positionInWindow() + position;
     ApplauseNativeMenuHandler* handler = [[ApplauseNativeMenuHandler alloc] init];
 
     NSMenu* menu = [[NSMenu alloc] init];
     [menu setAutoenablesItems:NO];
     buildNSMenu(menu, *this, handler);
 
-    NSPoint location = NSMakePoint(x, view.bounds.size.height - y);
+    NSPoint location = NSMakePoint(window_position.x, view.bounds.size.height - window_position.y);
     [menu popUpMenuPositioningItem:nil atLocation:location inView:view];
 
     if (handler.selectionMade) {
