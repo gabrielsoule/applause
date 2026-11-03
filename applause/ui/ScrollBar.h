@@ -59,12 +59,12 @@ public:
         redraw();
     }
 
-    void setPosition(int position) {
+    void setPosition(float position) {
         position_ = position;
         redraw();
     }
 
-    void setViewPosition(int range, int view_height, int position) {
+    void setViewPosition(float range, float view_height, float position) {
         range_ = range;
         view_height_ = view_height;
         position_ = position;
@@ -74,8 +74,8 @@ public:
         redraw();
     }
 
-    int viewRange() const { return range_; }
-    int viewHeight() const { return view_height_; }
+    float viewRange() const { return range_; }
+    float viewHeight() const { return view_height_; }
 
     void setLeftSide(bool left) { left_ = left; }
 
@@ -85,12 +85,12 @@ private:
     Animation<float> color_;
     Animation<float> width_;
 
-    int last_drag_ = 0;
+    float last_drag_ = 0.0f;
 
     bool active_ = false;
     bool left_ = false;
-    int range_ = 0.0f;
-    int view_height_ = 0.0f;
+    float range_ = 0.0f;
+    float view_height_ = 0.0f;
     float position_ = 0.0f;
     float rounding_ = 0.0f;
 
@@ -112,6 +112,7 @@ public:
             if (child == bottom_most_child_) updateScrollableHeight();
         };
 
+        smooth_timer_.onTimerCallback() = [this] { smoothScrollUpdate(); };
         addChild(&scroll_bar_);
         scroll_bar_.addScrollCallback([this](float position) {
             scrollPositionChanged(position);
@@ -127,7 +128,7 @@ public:
         container_.addChild(frame, make_visible);
     }
 
-    void addScrolledChild(Frame& frame, bool make_visible = true) { addScrolledChild(&frame); }
+    void addScrolledChild(Frame& frame, bool make_visible = true) { addScrolledChild(&frame, make_visible); }
 
     void addScrolledChild(std::unique_ptr<Frame> frame, bool make_visible = true) {
         container_.setVisible(true);
@@ -142,7 +143,7 @@ public:
     }
 
     bool scrollDown() {
-        setYPosition(y_position_ + height() / 8);
+        setYPosition(std::max(0.0f, std::min(maxScroll(), y_position_ + height() / 8.0f)));
         return true;
     }
 
@@ -224,21 +225,15 @@ private:
         smooth_position_ = std::max(0.0f, smooth_position_);
 
         smooth_start_time_ = time::milliseconds();
-        if (!smooth_scroll_pending_) {
-            smooth_scroll_pending_ = true;
-            runOnEventThread([this] { smoothScrollUpdate(); });
-        }
+        smooth_timer_.startTimer(1);
         return true;
     }
 
     void smoothScrollUpdate() {
         float t = (time::milliseconds() - smooth_start_time_) / (smooth_time_ * 1000.0f);
-        int position = smooth_start_position_ + (smooth_position_ - smooth_start_position_) * t;
-        smooth_scroll_pending_ = t >= 0.0f && t < 1.0f;
-        if (smooth_scroll_pending_)
-            runOnEventThread([this] { smoothScrollUpdate(); });
-        else if (t >= 1.0f)
-            position = smooth_position_;
+        float position = smooth_start_position_ + (smooth_position_ - smooth_start_position_) * t;
+        if (t >= 1.0f) position = smooth_position_;
+        if (t >= 1.0f || t < 0.0f) smooth_timer_.stopTimer();
 
         if (position == y_position_) return;
         scrollPositionChanged(position);
@@ -257,7 +252,7 @@ private:
 
     float smooth_start_position_ = 0;
     long long smooth_start_time_ = 0;
-    bool smooth_scroll_pending_ = false;
+    EventTimer smooth_timer_;
 
     APPLAUSE_LEAK_CHECKER(ScrollableFrame)
 };

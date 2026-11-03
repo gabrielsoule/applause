@@ -24,18 +24,35 @@
 #include <applause/graphics/Canvas.h>
 
 namespace applause {
+Region::~Region() {
+    detachEffect(post_effect_);
+    detachEffect(backdrop_effect_);
+}
+
 void Region::removeRegion(Region* region) {
+    region->invalidate();
     region->clear();
     region->parent_ = nullptr;
     region->setCanvas(nullptr);
-    region->setNeedsLayer(false);
     sub_regions_.erase(std::find(sub_regions_.begin(), sub_regions_.end(), region));
+}
+
+void Region::replaceRegion(Region* region, Region* replacement) {
+    APPLAUSE_ASSERT(replacement->parent_ == nullptr);
+    *std::find(sub_regions_.begin(), sub_regions_.end(), region) = replacement;
+    region->parent_ = nullptr;
+    replacement->parent_ = this;
+    replacement->setCanvas(canvas_);
+    replacement->setLayerIndex(replacement->needsLayer() ? layer_index_ + 1 : layer_index_);
 }
 
 void Region::setCanvas(Canvas* canvas) {
     if (canvas_ == canvas) return;
 
-    if (canvas_ && needsLayer()) canvas_->removeFromPackedLayer(this, layer_index_);
+    if (canvas_ && needsLayer()) {
+        canvas_->removeFromPackedLayer(this, layer_index_);
+        intermediate_region_ = nullptr;
+    }
 
     canvas_ = canvas;
     for (auto& sub_region : sub_regions_) sub_region->setCanvas(canvas);
@@ -47,7 +64,11 @@ int Region::computeBackdropCount(int current) {
     if (backdrop_effect_) current++;
 
     backdrop_count_ = current;
-    for (auto& sub_region : sub_regions_) current = sub_region->computeBackdropCount(current);
+    for (bool on_top : {false, true}) {
+        for (auto& sub_region : sub_regions_) {
+            if (sub_region->isOnTop() == on_top) current = sub_region->computeBackdropCount(current);
+        }
+    }
     backdrop_count_children_ = current;
 
     if (intermediate_region_) {
@@ -65,6 +86,8 @@ void Region::invalidateRect(IBounds rect) {
     Region* region = this;
     while (region->parent_) {
         if (region->needsLayer()) {
+            if (region->post_effect_ && region->post_effect_->appliedInPlace())
+                rect = {0, 0, region->width_, region->height_};
             canvas_->invalidateRectInRegion(rect, region, layer_index);
             --layer_index;
 
@@ -87,17 +110,11 @@ void Region::clear() {
     old_brushes_ = std::move(brushes_);
 
     if (backdrop_effect_) {
-        Point point;
-        Region* parent = this;
-        while (parent->parent_) {
-            point += Point(parent->x_, parent->y_);
-            parent = parent->parent_;
-        }
-
         const PackedBrush* brush = addBrush(canvas_->gradientAtlas(), Brush::solid(0xffffffff));
-        SampleRegion parent_region({0.0f, 0.0f, width_ * 1.0f, height_ * 1.0f}, brush, -point.x, -point.y,
-                                   parent->width_, parent->height_, this, backdrop_effect_);
-        shape_batcher_.addShape(parent_region);
+        SampleRegion sample_region({0.0f, 0.0f, width_ * 1.0f, height_ * 1.0f}, brush, 0, 0, width_, height_, this,
+                                   backdrop_effect_);
+        sample_region.backdrop = true;
+        shape_batcher_.addShape(sample_region);
     }
 }
 
@@ -105,11 +122,13 @@ void Region::setupIntermediateRegion() {
     if (intermediate_region_) {
         intermediate_region_->setBounds(x_, y_, width_, height_);
         intermediate_region_->clearAll();
-        const PackedBrush* brush = intermediate_region_->addBrush(canvas_->gradientAtlas(), Brush::solid(0xffffffff));
+        const PackedBrush* brush =
+            intermediate_region_->addBrush(canvas_->gradientAtlas(), Brush::solid(Color(0xffffffff).withAlpha(alpha_)));
 
+        PostEffect* composite_effect = post_effect_ && !post_effect_->appliedInPlace() ? post_effect_ : nullptr;
         SampleRegion sample_region({0.0f, 0.0f, width_ * 1.0f, height_ * 1.0f}, brush, 0, 0, width_, height_, this,
-                                   post_effect_);
-        intermediate_region_->shape_batcher_.addShape(sample_region);
+                                   composite_effect, alpha_);
+        intermediate_region_->shape_batcher_.addShape(sample_region, layer_blend_mode_);
         canvas_->changePackedLayer(this, layer_index_, layer_index_);
     }
 }
@@ -131,7 +150,37 @@ void Region::setNeedsLayer(bool needs_layer) {
     invalidate();
 }
 
-void Region::setBackdropEffect(PostEffect* backdrop_effect) { backdrop_effect_ = backdrop_effect; }
+void Region::setPostEffect(PostEffect* post_effect) {
+    detachEffect(post_effect_);
+    post_effect_ = post_effect;
+    attachEffect(post_effect);
+    setupIntermediateRegion();
+}
+
+void Region::setBackdropEffect(PostEffect* backdrop_effect) {
+    detachEffect(backdrop_effect_);
+    backdrop_effect_ = backdrop_effect;
+    attachEffect(backdrop_effect);
+}
+
+void Region::attachEffect(PostEffect* effect) {
+    if (effect == nullptr) return;
+
+    std::vector<Region*>& regions = effect->attached_regions_;
+    if (std::find(regions.begin(), regions.end(), this) == regions.end()) regions.push_back(this);
+}
+
+void Region::detachEffect(PostEffect* effect) {
+    if (effect == nullptr) return;
+
+    std::vector<Region*>& regions = effect->attached_regions_;
+    regions.erase(std::remove(regions.begin(), regions.end(), this), regions.end());
+}
+
+void Region::removeEffect(PostEffect* effect) {
+    if (post_effect_ == effect) setPostEffect(nullptr);
+    if (backdrop_effect_ == effect) setBackdropEffect(nullptr);
+}
 
 void Region::setLayerIndex(int layer_index) {
     if (needsLayer()) canvas_->changePackedLayer(this, layer_index_, layer_index);

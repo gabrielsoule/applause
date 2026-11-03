@@ -38,20 +38,28 @@ public:
     ~Layer();
 
     void checkFrameBuffer();
+    void resizeFrameBuffer();
     void destroyFrameBuffer();
 
-    bgfx::FrameBufferHandle& frameBuffer() const;
+    gpu::FrameBufferHandle& frameBuffer() const;
     int frameBufferFormat() const;
+    gpu::FrameBufferHandle temporaryFrameBuffer(int width, int height);
+    void releaseTemporaryFrameBuffer(gpu::FrameBufferHandle handle);
+    void destroyIdleTemporaryFrameBuffers();
 
     GradientAtlas* gradientAtlas() const { return gradient_atlas_; }
 
+    void invalidateBackdropsIfAllInvalidated();
     void checkBackdropInvalidation(const std::vector<IBounds>& top_level_invalid_rects);
     bool hasBackdropEffect() const;
     void clearInvalidRectAreas(int submit_pass);
     int submit(int submit_pass, int backdrop_count);
 
     void setIntermediateLayer(bool intermediate_layer) { intermediate_layer_ = intermediate_layer; }
+    static int reserveViews(int submit_pass);
+    static int viewFlushes() { return view_flushes_; }
     void addRegion(Region* region);
+    void updateHdr(const Layer& destination);
     void removeRegion(const Region* region) {
         auto it = std::find(regions_.begin(), regions_.end(), region);
         if (it != regions_.end())
@@ -78,15 +86,25 @@ public:
         vertices[3].texture_y = rect.bottom;
     }
 
+    void invalidateContents() {
+        needs_full_clear_ = true;
+        invalidate();
+    }
+
     void invalidate() {
         invalid_rects_.clear();
         for (const auto& region : regions_) invalid_rects_[region].push_back(boundsForRegion(region));
+        invalidated_all_ = true;
     }
 
     const std::map<const Region*, std::vector<IBounds>>& invalidRects() const { return invalid_rects_; }
 
     void invalidateRectInRegion(IBounds rect, const Region* region);
     bool anyInvalidRects() const { return !invalid_rects_.empty(); }
+    bool hasInvalidRects(const Region* region) const {
+        auto it = invalid_rects_.find(region);
+        return it != invalid_rects_.end() && !it->second.empty();
+    }
     void clearInvalidRects() { invalid_rects_.clear(); }
 
     void setDimensions(int width, int height) {
@@ -94,7 +112,7 @@ public:
 
         width_ = width;
         height_ = height;
-        destroyFrameBuffer();
+        resizeFrameBuffer();
         invalidate();
     }
     int width() const { return width_; }
@@ -106,16 +124,18 @@ public:
 
     void setHdr(bool hdr) {
         hdr_ = hdr;
-        destroyFrameBuffer();
+        resizeFrameBuffer();
+        invalidate();
     }
     bool hdr() const { return hdr_; }
 
     void requestScreenshot();
     const Screenshot& screenshot() const;
-    void pairToWindow(void* window_handle, int width, int height) {
+    void pairToWindow(void* window_handle, int width, int height, bool transparent = false) {
+        if (window_handle != window_handle_ || transparent != transparent_window_) destroyFrameBuffer();
         window_handle_ = window_handle;
+        transparent_window_ = transparent;
         setDimensions(width, height);
-        destroyFrameBuffer();
     }
 
     void setWindowlessRender(int width, int height) {
@@ -125,10 +145,7 @@ public:
     }
     bool isHeadlessRender() const { return headless_render_; }
 
-    void removeFromWindow() {
-        window_handle_ = nullptr;
-        destroyFrameBuffer();
-    }
+    bool removeFromWindow();
 
     void clear() {
         regions_.clear();
@@ -136,14 +153,18 @@ public:
     }
 
 private:
+    int preprocessPostEffects(int submit_pass, int backdrop_count);
+
     bool bottom_left_origin_ = false;
     bool hdr_ = false;
+    bool needs_full_clear_ = false;
     int width_ = 0;
     int height_ = 0;
     double render_time_ = 0.0;
     bool intermediate_layer_ = false;
 
     void* window_handle_ = nullptr;
+    bool transparent_window_ = false;
     bool headless_render_ = false;
     bool screenshot_requested_ = false;
     Screenshot screenshot_;
@@ -154,6 +175,9 @@ private:
     PackedAtlasMap<const Region*> atlas_map_;
     std::map<const Region*, std::vector<IBounds>> invalid_rects_;
     std::vector<IBounds> invalid_rect_pieces_;
+    bool invalidated_all_ = false;
     std::vector<Region*> regions_;
+
+    static int view_flushes_;
 };
 }  // namespace applause

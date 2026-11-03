@@ -24,6 +24,11 @@
 
 #include <algorithm>
 #include <freetype/freetype.h>
+#include <map>
+
+#if APPLAUSE_LINUX
+#include <fontconfig/fontconfig.h>
+#endif
 
 namespace applause {
 
@@ -49,18 +54,67 @@ public:
 
         if (FT_Render_Glyph(face_->glyph, FT_RENDER_MODE_NORMAL)) return;
 
-        int height = face_->glyph->bitmap.rows;
-        int width = face_->glyph->bitmap.width;
-        unsigned int* source = (unsigned int*)face_->glyph->bitmap.buffer;
+        const FT_Bitmap& bitmap = face_->glyph->bitmap;
+        if (bitmap.pixel_mode != FT_PIXEL_MODE_BGRA && bitmap.pixel_mode != FT_PIXEL_MODE_GRAY) return;
+
+        int height = bitmap.rows;
+        int width = bitmap.width;
         int offset_x = std::max(0, write_width - width) / 2;
         int offset_y = std::max(0, write_width - height) / 2;
         for (int y = 0; y < height && y < write_width; ++y) {
+            const unsigned char* row = bitmap.buffer + y * bitmap.pitch;
             for (int x = 0; x < width && x < write_width; ++x) {
                 int i = (dest_y + y + offset_y) * dest_width + dest_x + x + offset_x;
-                dest[i] = source[y * width + x];
+                if (bitmap.pixel_mode == FT_PIXEL_MODE_BGRA)
+                    dest[i] = reinterpret_cast<const unsigned int*>(row)[x];
+                else
+                    dest[i] = row[x] * 0x01010101u;
             }
         }
     }
+
+#if APPLAUSE_LINUX
+    const FallbackFont& fallbackFont(char32_t character) {
+        auto found = fallback_fonts_.find(character);
+        if (found != fallback_fonts_.end()) return found->second;
+
+        FallbackFont& fallback = fallback_fonts_[character];
+        if (FT_Get_Char_Index(face_, character)) return fallback;
+
+        FcPattern* pattern = FcPatternCreate();
+        FcCharSet* char_set = FcCharSetCreate();
+        FcCharSetAddChar(char_set, character);
+        FcPatternAddCharSet(pattern, FC_CHARSET, char_set);
+        FcPatternAddString(pattern, FC_FAMILY, reinterpret_cast<const FcChar8*>("sans-serif"));
+        FcConfigSubstitute(nullptr, pattern, FcMatchPattern);
+        FcDefaultSubstitute(pattern);
+
+        FcResult result = FcResultNoMatch;
+        FcFontSet* font_set = FcFontSort(nullptr, pattern, FcFalse, nullptr, &result);
+        for (int i = 0; font_set && i < font_set->nfont; ++i) {
+            FcPattern* font = font_set->fonts[i];
+            FcCharSet* font_chars = nullptr;
+            FcBool scalable = FcFalse;
+            FcBool color = FcFalse;
+            FcChar8* file = nullptr;
+            if (FcPatternGetCharSet(font, FC_CHARSET, 0, &font_chars) != FcResultMatch ||
+                !FcCharSetHasChar(font_chars, character))
+                continue;
+            if (FcPatternGetBool(font, FC_SCALABLE, 0, &scalable) != FcResultMatch || !scalable) continue;
+            if (FcPatternGetBool(font, FC_COLOR, 0, &color) == FcResultMatch && color) continue;
+            if (FcPatternGetString(font, FC_FILE, 0, &file) != FcResultMatch) continue;
+
+            fallback.path = reinterpret_cast<const char*>(file);
+            FcPatternGetInteger(font, FC_INDEX, 0, &fallback.index);
+            break;
+        }
+
+        if (font_set) FcFontSetDestroy(font_set);
+        FcCharSetDestroy(char_set);
+        FcPatternDestroy(pattern);
+        return fallback;
+    }
+#endif
 
     ~EmojiRasterizerImpl() {
         FT_Done_Face(face_);
@@ -70,6 +124,7 @@ public:
 private:
     FT_Library library_ = nullptr;
     FT_Face face_ = nullptr;
+    std::map<char32_t, FallbackFont> fallback_fonts_;
 };
 
 EmojiRasterizer::EmojiRasterizer() { impl_ = std::make_unique<EmojiRasterizerImpl>(); }
@@ -80,4 +135,8 @@ void EmojiRasterizer::drawIntoBuffer(char32_t emoji, int font_size, int write_wi
                                      int x, int y) {
     impl_->drawIntoBuffer(emoji, font_size, write_width, dest, dest_width, x, y);
 }
+
+#if APPLAUSE_LINUX
+const FallbackFont& EmojiRasterizer::fallbackFont(char32_t character) { return impl_->fallbackFont(character); }
+#endif
 }  // namespace applause

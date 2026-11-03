@@ -72,6 +72,13 @@ void ApplicationWindow::show(const Dimension& width, const Dimension& height, vo
 void ApplicationWindow::show(const Dimension& width, const Dimension& height) { show({}, {}, width, height); }
 
 void ApplicationWindow::show(const Dimension& x, const Dimension& y, const Dimension& width, const Dimension& height) {
+    if (window_ && !window_->isClosed()) {
+        IBounds bounds = computeWindowBounds(x, y, width, height);
+        setNativeWindowDimensions(bounds.width(), bounds.height());
+        applyWindowSettings();
+        return window_->show();
+    }
+
     removeFromWindow();
     window_ = createWindow(x, y, width, height, decoration_);
     showWindow(false);
@@ -80,6 +87,11 @@ void ApplicationWindow::show(const Dimension& x, const Dimension& y, const Dimen
 void ApplicationWindow::showMaximized() {
     static constexpr float kUnmaximizedWidthPercent = 85.0f;
 
+    if (window_ && !window_->isClosed()) {
+        applyWindowSettings();
+        return window_->showMaximized();
+    }
+
     removeFromWindow();
     window_ = createWindow({}, {}, Dimension::widthPercent(kUnmaximizedWidthPercent),
                            Dimension::heightPercent(kUnmaximizedWidthPercent), decoration_);
@@ -87,24 +99,28 @@ void ApplicationWindow::showMaximized() {
 }
 
 void ApplicationWindow::hide() {
-    if (window_ && onCloseRequested().callback()) return window_->hide();
+    if (window_ && (onCloseRequested().isEmpty() || onCloseRequested().callback())) return window_->hide();
 }
 
 void ApplicationWindow::close() {
-    if (window_ && onCloseRequested().callback()) {
-        removeFromWindow();
-        window_ = nullptr;
-    }
+    if (window_) window_->close();
 }
 
 bool ApplicationWindow::isShowing() const { return window_ && window_->isShowing(); }
 
-void ApplicationWindow::runEventLoop() { window_->runEventLoop(); }
+void ApplicationWindow::runEventLoop() {
+    if (window_) window_->runEventLoop();
+}
 
-void ApplicationWindow::showWindow(bool maximized) {
+void ApplicationWindow::applyWindowSettings() {
     if (!title_.empty()) window_->setWindowTitle(title_);
     if (always_on_top_) window_->setAlwaysOnTop(true);
+}
 
+void ApplicationWindow::showWindow(bool maximized) {
+    if (window_ == nullptr) return;
+
+    applyWindowSettings();
     addToWindow(window_.get());
     if (maximized)
         window_->showMaximized();

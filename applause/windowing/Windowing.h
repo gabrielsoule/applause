@@ -40,6 +40,32 @@ public:
 
     enum class Decoration { Native, Client, Popup };
 
+    enum class FrameButton { NoButton, Minimize, Maximize, Close };
+
+    struct FrameDecoration {
+        int width = 0;
+        int height = 0;
+        IBounds window;
+        IBounds title_bar;
+        IBounds minimize_button;
+        IBounds maximize_button;
+        IBounds close_button;
+        float dpi_scale = 1.0f;
+        float corner_radius = 0.0f;
+        bool shadow = false;
+        std::string title;
+        std::string title_font;
+        float title_font_size = 0.0f;
+        unsigned int header_color = 0;
+        unsigned int window_color = 0;
+        unsigned int foreground_color = 0;
+        unsigned int shade_color = 0;
+        bool active = false;
+        bool maximized = false;
+        FrameButton hovered_button = FrameButton::NoButton;
+        FrameButton pressed_button = FrameButton::NoButton;
+    };
+
     static void setDoubleClickSpeed(int ms) { double_click_speed_ = ms; }
     static int doubleClickSpeed() { return double_click_speed_; }
 
@@ -91,28 +117,54 @@ public:
 
     virtual void runEventLoop() = 0;
     virtual void* nativeHandle() const = 0;
+    virtual void* graphicsHandle() const { return nativeHandle(); }
     virtual void windowContentsResized(int width, int height) = 0;
 
     virtual void* initWindow() const { return nullptr; }
     virtual void* globalDisplay() const { return nullptr; }
+    virtual bool waylandDisplay() const { return false; }
+    virtual void* frameDecorationHandle() const { return nullptr; }
     virtual void processPluginFdEvents() {}
-    virtual int posixFd() const { return 0; }
+    virtual int posixFd() const { return -1; }
 
     virtual void show() = 0;
     virtual void showMaximized() = 0;
     virtual void hide() = 0;
     virtual void close() = 0;
     virtual bool isShowing() const = 0;
+    virtual bool isClosed() const { return false; }
     virtual void setWindowTitle(const std::string& title) = 0;
     virtual void setFixedAspectRatio(bool fixed) {}
     virtual IPoint maxWindowDimensions() const = 0;
     virtual void setAlwaysOnTop(bool on_top) {}
+    virtual void framePresented() {}
+    virtual void setFrameRenderTime(double seconds) {}
+    virtual void waitForFrame() {}
+    virtual void setFrameWaiter(std::function<bool(int)> waiter) {}
 
     void setDrawCallback(std::function<void(double)> callback) { draw_callback_ = std::move(callback); }
 
     void drawCallback(double time) const {
-        if (draw_callback_) draw_callback_(time);
+        if (draw_callback_) {
+            std::function<void(double)> callback = draw_callback_;
+            callback(time);
+        }
     }
+
+    void setFrameDecorationCallback(std::function<void(const FrameDecoration&)> callback) {
+        frame_decoration_callback_ = std::move(callback);
+        frameDecorationChanged();
+    }
+
+    void frameDecorationCallback(const FrameDecoration& decoration) const {
+        if (frame_decoration_callback_) {
+            std::function<void(const FrameDecoration&)> callback = frame_decoration_callback_;
+            callback(decoration);
+        }
+    }
+
+    virtual void frameDecorationChanged() {}
+    bool hasFrameDecorationCallback() const { return frame_decoration_callback_ != nullptr; }
 
     bool isVisible() const { return visible_; }
 
@@ -176,11 +228,14 @@ public:
     void setVisible(bool visible) { visible_ = visible; }
 
 private:
+    static constexpr int kDoubleClickDistance = 2;
     static int double_click_speed_;
 
     struct RepeatClick {
         int click_count = 0;
         long long last_click_ms = 0;
+        MouseButton last_button = kMouseButtonNone;
+        IPoint first_click_position;
     };
 
     EventHandler* event_handler_ = nullptr;
@@ -188,6 +243,7 @@ private:
     RepeatClick mouse_repeat_clicks_;
 
     std::function<void(double)> draw_callback_ = nullptr;
+    std::function<void(const FrameDecoration&)> frame_decoration_callback_ = nullptr;
     float dpi_scale_ = 1.0f;
     bool visible_ = true;
     bool mouse_relative_mode_ = false;

@@ -123,7 +123,7 @@ void SelectionGrid::replaceCell(int index, std::unique_ptr<SelectionGridCell> ce
 
     configureCell(*cell, index);
     group_.replaceButton(index, *cell);
-    removeAllChildren();
+    for (Frame* child : std::vector<Frame*>(children())) removeChild(child);
     cells_[index] = std::move(cell);
     rebuildChildren();
     resized();

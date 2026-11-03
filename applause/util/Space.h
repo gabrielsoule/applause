@@ -77,7 +77,7 @@ struct BasePoint {
         y /= scalar;
         return *this;
     }
-    friend BasePoint operator/(T scalar, const BasePoint& point) { return {point.x / scalar, point.y / scalar}; }
+    friend BasePoint operator/(T scalar, const BasePoint& point) { return {scalar / point.x, scalar / point.y}; }
 
     bool operator==(const BasePoint& other) const noexcept { return x == other.x && y == other.y; }
     bool operator!=(const BasePoint& other) const noexcept { return !(*this == other); }
@@ -153,6 +153,12 @@ struct BaseMatrix {
         return {matrix[0][0] / scalar, matrix[0][1] / scalar, matrix[1][0] / scalar, matrix[1][1] / scalar};
     }
 
+    bool operator==(const BaseMatrix& other) const noexcept {
+        return matrix[0][0] == other.matrix[0][0] && matrix[0][1] == other.matrix[0][1] &&
+            matrix[1][0] == other.matrix[1][0] && matrix[1][1] == other.matrix[1][1];
+    }
+    bool operator!=(const BaseMatrix& other) const noexcept { return !(*this == other); }
+
     static BaseMatrix identity() { return {1, 0, 0, 1}; }
 
     static BaseMatrix rotation(T angle) {
@@ -170,8 +176,9 @@ struct BaseMatrix {
     BaseMatrix transposed() const { return {matrix[0][0], matrix[1][0], matrix[0][1], matrix[1][1]}; }
 
     BaseMatrix inversed() const {
-        T det = matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0];
-        if (std::abs(det) < std::numeric_limits<T>::epsilon()) return {0, 0, 0, 0};
+        T det = determinant();
+        T scale = std::abs(matrix[0][0] * matrix[1][1]) + std::abs(matrix[0][1] * matrix[1][0]);
+        if (std::abs(det) <= std::numeric_limits<T>::epsilon() * scale) return {0, 0, 0, 0};
         return {matrix[1][1] / det, -matrix[0][1] / det, -matrix[1][0] / det, matrix[0][0] / det};
     }
 
@@ -337,8 +344,8 @@ public:
     }
 
     IBounds unioned(const IBounds& other) const {
-        if (width() <= 0) return other;
-        if (other.width() <= 0) return *this;
+        if (width() <= 0 && height() <= 0) return other;
+        if (other.width() <= 0 && other.height() <= 0) return *this;
 
         auto x = std::min(x_, other.x_);
         auto y = std::min(y_, other.y_);
@@ -358,6 +365,11 @@ public:
     // Returns true if subtracting the other rectangle result in only one rectangle
     // Stores that rectangle in _result_
     bool subtract(const IBounds& other, IBounds& result) const {
+        if (!overlaps(other)) {
+            result = *this;
+            return true;
+        }
+
         bool left_edge_inside = x_ < other.x_ && other.x_ < right();
         bool right_edge_inside = x_ < other.right() && other.right() < right();
         bool top_edge_inside = y_ < other.y_ && other.y_ < bottom();
@@ -439,8 +451,9 @@ public:
         x_(other.x()), y_(other.y()), width_(other.width()), height_(other.height()) {}
 
     IBounds round() const {
-        return {static_cast<int>(std::round(x_)), static_cast<int>(std::round(y_)),
-                static_cast<int>(std::round(width_)), static_cast<int>(std::round(height_))};
+        int x = static_cast<int>(std::round(x_));
+        int y = static_cast<int>(std::round(y_));
+        return {x, y, static_cast<int>(std::round(right())) - x, static_cast<int>(std::round(bottom())) - y};
     }
 
     float x() const { return x_; }
@@ -526,8 +539,8 @@ public:
     }
 
     Bounds unioned(const Bounds& other) const {
-        if (width() <= 0.0f) return other;
-        if (other.width() <= 0.0f) return *this;
+        if (width() <= 0.0f && height() <= 0.0f) return other;
+        if (other.width() <= 0.0f && other.height() <= 0.0f) return *this;
 
         float x = std::min(x_, other.x_);
         float y = std::min(y_, other.y_);

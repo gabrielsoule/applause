@@ -9,7 +9,7 @@
 #include "PickCaptureFrame.h"
 #include "SelectionHighlightFrame.h"
 
-#include <bgfx/bgfx.h>
+#include <applause/graphics/gpu/Gpu.h>
 #include <embedded/applause_fonts.h>
 
 #include <algorithm>
@@ -215,13 +215,6 @@ void InspectorWindow::draw(applause::Canvas& canvas) {
     canvas.setColor(color(*this, kToolbarBackground));
     canvas.rectangle(0, 0, width(), kToolbarHeight);
 
-    // BGFX is initialized lazily by Visage on first window show, so we can
-    // only safely flip its profiler flag once we're inside a draw call.
-    if (!bgfx_profiler_enabled_) {
-        bgfx::setDebug(BGFX_DEBUG_PROFILER);
-        bgfx_profiler_enabled_ = true;
-    }
-
     // First few frames give bogus dt (deltaTime() is 0 until a previous frame
     // exists). Ignore samples outside a plausible 1 Hz – 1000 Hz range so the
     // EMA doesn't seed with a junk value it then takes seconds to drift off of.
@@ -233,23 +226,15 @@ void InspectorWindow::draw(applause::Canvas& canvas) {
             : smoothed_fps_ + kMetricSmoothing * (inst_fps - smoothed_fps_);
     }
 
-    const bgfx::Stats* s = bgfx::getStats();
-    // cpuTimeBegin/End bracket the render-thread submit work and exclude the
-    // vsync wait, unlike cpuTimeFrame (which is wall-clock between frame()
-    // calls and just reports the budget back at you).
-    const float inst_cpu_ms = s->cpuTimerFreq > 0
-        ? float(1000.0 * double(s->cpuTimeEnd - s->cpuTimeBegin) / double(s->cpuTimerFreq)) : 0.0f;
-    const float inst_gpu_ms = s->gpuTimerFreq > 0
-        ? float(1000.0 * double(s->gpuTimeEnd - s->gpuTimeBegin) / double(s->gpuTimerFreq)) : 0.0f;
-    smoothed_cpu_ms_ += kMetricSmoothing * (inst_cpu_ms - smoothed_cpu_ms_);
-    smoothed_gpu_ms_ += kMetricSmoothing * (inst_gpu_ms - smoothed_gpu_ms_);
+    // The GPU layer fills these in when it submits a frame: the CPU time covers the submit work and leaves out the
+    // wait for vsync.
+    const applause::gpu::Stats* s = applause::gpu::getStats();
+    smoothed_cpu_ms_ += kMetricSmoothing * (float(s->cpu_frame_ms) - smoothed_cpu_ms_);
+    smoothed_gpu_ms_ += kMetricSmoothing * (float(s->gpu_frame_ms) - smoothed_gpu_ms_);
 
-    // numDraw / numPrims are written by the BGFX render thread; with Visage's
-    // single-threaded multi-window setup they don't propagate reliably here.
-    // We surface fields that getPerfStats() fills synchronously instead.
-    const float tex_mb       = float(s->textureMemoryUsed) / (1024.0f * 1024.0f);
-    const int   fb_count     = int(s->numFrameBuffers);
-    const int   tex_count    = int(s->numTextures);
+    const int   fb_count     = s->num_frame_buffers;
+    const int   tex_count    = s->num_textures;
+    const int   draw_count   = s->num_draws;
     const int   frame_count  = last_frame_count_;
 
     const int cpu_pct = int(std::round(100.0f * smoothed_cpu_ms_ / kFrameBudgetMs));
@@ -264,7 +249,7 @@ void InspectorWindow::draw(applause::Canvas& canvas) {
         std::snprintf(buf[2], sizeof(buf[2]), "— gpu");
     std::snprintf(buf[3], sizeof(buf[3]), "%d fbs", fb_count);
     std::snprintf(buf[4], sizeof(buf[4]), "%d tex", tex_count);
-    std::snprintf(buf[5], sizeof(buf[5]), "%.1f MB tex", tex_mb);
+    std::snprintf(buf[5], sizeof(buf[5]), "%d draws", draw_count);
     std::snprintf(buf[6], sizeof(buf[6]), "%d frames", frame_count);
 
     const float slot_widths[7] = {
@@ -273,7 +258,7 @@ void InspectorWindow::draw(applause::Canvas& canvas) {
         kMetricSlotWidth,  // gpu
         kMetricSlotWidth,  // fbs
         kMetricSlotWidth,  // tex
-        kMetricSlotWidth,  // tex MB
+        kMetricSlotWidth,  // draws
         kMetricSlotWidth,  // frames
     };
 

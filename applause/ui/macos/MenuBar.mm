@@ -49,15 +49,16 @@ private:
 
 - (void)invoke:(id)sender {
     const applause::PopupMenu* menu = (const applause::PopupMenu*)[[sender representedObject] pointerValue];
-    menu->onSelection().callback(menu->id());
-    applause::NativeMenu::menu().onSelection().callback(menu->id());
+    int id = menu->id();
+    menu->onSelection().callback(id);
+    applause::NativeMenu::menu().onSelection().callback(id);
 }
 @end
 
 namespace applause {
 NSMenu* buildMenu(const PopupMenu& popup_menu, id target) {
+    static ApplausePopupMenuTarget* handler = [[ApplausePopupMenuTarget alloc] init];
     NSMenu* menu = [[NSMenu alloc] init];
-    auto handler = [[ApplausePopupMenuTarget alloc] init];
 
     for (const auto& item : popup_menu.options()) {
         NSString* name = [NSString stringWithUTF8String:item.name().toUtf8().c_str()];
@@ -96,8 +97,12 @@ NSMenu* buildMenu(const PopupMenu& popup_menu, id target) {
 
 void setNativeMenuBar(const PopupMenu& popup_menu) {
     @autoreleasepool {
+        NSMenu* previous_menu = [NSApp mainMenu];
         NativeMenu::setPopup(popup_menu);
         [NSApp setMainMenu:buildMenu(NativeMenu::menu(), nil)];
+        dispatch_async(dispatch_get_main_queue(), ^{
+          (void)previous_menu;
+        });
     }
 }
 }  // namespace applause

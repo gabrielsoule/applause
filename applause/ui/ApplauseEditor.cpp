@@ -81,6 +81,14 @@ void ApplauseEditor::setWindowDimensions(uint32_t width, uint32_t height) {
                                                    static_cast<int>(height));
 }
 
+void ApplauseEditor::setWindowDimensionsFromHost(uint32_t width, uint32_t height) {
+#if __APPLE__
+    applause::ApplicationWindow::setWindowDimensionsFromHost(static_cast<int>(width), static_cast<int>(height));
+#else
+    applause::ApplicationWindow::setNativeWindowDimensionsFromHost(static_cast<int>(width), static_cast<int>(height));
+#endif
+}
+
 void ApplauseEditor::setFixedAspectRatio(bool fixed) {
     applause::ApplicationWindow::setFixedAspectRatio(fixed);
 }

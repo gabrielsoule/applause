@@ -124,7 +124,6 @@ private:
     float smoothed_fps_ = 0.0f;
     float smoothed_cpu_ms_ = 0.0f;
     float smoothed_gpu_ms_ = 0.0f;
-    bool bgfx_profiler_enabled_ = false;
 
     applause::CallbackList<void(applause::Frame*)> on_selection_changed_;
     applause::CallbackList<void(applause::Frame*)> on_hover_changed_;

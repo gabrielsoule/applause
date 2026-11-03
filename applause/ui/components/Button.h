@@ -127,6 +127,7 @@ private:
     bool checkable_ = false;
     bool checked_ = false;
     bool pressed_ = false;
+    applause::MouseButton pressed_button_ = applause::kMouseButtonNone;
     bool triggered_on_mouse_down_ = false;
 
     APPLAUSE_LEAK_CHECKER(Button)

@@ -207,7 +207,7 @@ bool GUIExtension::clap_gui_set_size(const clap_plugin_t* plugin, uint32_t width
 
     // Update editor size if it exists
     if (ext->editor_) {
-        ext->editor_->setWindowDimensions(width, height);
+        ext->editor_->setWindowDimensionsFromHost(width, height);
     }
 
     return true;
@@ -225,7 +225,7 @@ bool GUIExtension::clap_gui_set_parent(const clap_plugin_t* plugin, const clap_w
     if (ext->hostFdSupport_ && ext->editor_) {
         int fd = ext->editor_->getPosixFd();
         if (fd >= 0) {
-            int fd_flags = CLAP_POSIX_FD_READ | CLAP_POSIX_FD_WRITE | CLAP_POSIX_FD_ERROR;
+            int fd_flags = CLAP_POSIX_FD_READ | CLAP_POSIX_FD_ERROR;
             return ext->hostFdSupport_->register_(ext->host_, fd, fd_flags);
         }
     }

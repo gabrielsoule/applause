@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstdarg>
 
 namespace applause {
@@ -45,6 +46,7 @@ inline void debugLog(const char* file, unsigned int line, const char* format, ..
 
 void debugAssert(bool condition, const char* file, unsigned int line);
 void forceCrash();
+bool hasStaticStorage(const void* address);
 }  // namespace applause
 
 #define APPLAUSE_FORCE_CRASH() applause::forceCrash()
@@ -71,7 +73,7 @@ public:
     void remove() { count_--; }
 
 private:
-    int count_ = 0;
+    std::atomic<int> count_ = 0;
 };
 
 template <typename T>
@@ -93,8 +95,19 @@ public:
 #else
 #define APPLAUSE_ASSERT(x) ((void)0)
 #define APPLAUSE_LOG(x, ...) ((void)0)
-#define APPLAUSE_LEAK_CHECKER(className)
 #define no_except noexcept
+
+namespace applause {
+template <typename T>
+class LeakChecker {
+public:
+    LeakChecker() {}
+    LeakChecker(const LeakChecker& other) {}
+    ~LeakChecker() {}
+};
+}  // namespace applause
+
+#define APPLAUSE_LEAK_CHECKER(className) applause::LeakChecker<className> leakChecker;
 #endif
 
 #if APPLAUSE_WINDOWS

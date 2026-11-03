@@ -28,8 +28,12 @@
 #include <cstring>
 #include <iosfwd>
 #include <string>
+#include <type_traits>
 
 namespace applause {
+template <typename T>
+using EnableIfArgb = std::enable_if_t<std::is_convertible_v<T, unsigned int> && !std::is_floating_point_v<T>>;
+
 class Color {
 public:
     enum { kBlue, kGreen, kRed, kAlpha, kNumChannels };
@@ -116,6 +120,8 @@ public:
         if (color_string.empty()) return 0;
 
         std::string hex = color_string[0] == '#' ? color_string.substr(1) : color_string;
+        if (hex.find_first_not_of("0123456789abcdefABCDEF") != std::string::npos) return {};
+
         if (hex.size() == 3)
             hex = std::string("ff") + hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
         else if (hex.size() == 4)
@@ -124,11 +130,7 @@ public:
             hex = "ff" + hex;
         else if (hex.size() != 8)
             return {};
-        try {
-            return fromARGB(std::stoul(hex, nullptr, 16));
-        } catch (...) {
-            return {};
-        }
+        return fromARGB(std::stoul(hex, nullptr, 16));
     }
 
     Color() = default;
@@ -141,8 +143,9 @@ public:
     }
     Color(const Color&) = default;
 
-    Color(unsigned int argb, float hdr = 1.0f) noexcept {
-        loadARGB(argb);
+    template <typename T, typename = EnableIfArgb<T>>
+    Color(T argb, float hdr = 1.0f) noexcept {
+        loadARGB(static_cast<unsigned int>(argb));
         hdr_ = hdr;
     }
 
@@ -273,8 +276,10 @@ public:
     unsigned int hexBlue() const { return floatToHex(values_[kBlue]); }
 
     Color& operator=(const Color&) = default;
-    Color& operator=(unsigned int argb) {
-        loadARGB(argb);
+    template <typename T, typename = EnableIfArgb<T>>
+    Color& operator=(T argb) {
+        loadARGB(static_cast<unsigned int>(argb));
+        hdr_ = 1.0f;
         return *this;
     }
     Color operator-(const Color& other) const {
@@ -348,9 +353,9 @@ private:
             return sign | (exponent << 10) | (mantissa >> 13);
         }
 
-        if (exponent > 103) {  // Subnormal case
+        if (exponent > 102) {  // Subnormal case
             mantissa |= 0x00800000;  // Add implicit leading 1 bit
-            return sign | ((mantissa >> (113 - exponent)) & 0x3FF);
+            return sign | ((mantissa >> (126 - exponent)) & 0x3FF);
         }
 
         return sign;  // Underflow to zero

@@ -7,6 +7,7 @@
 
 #include <applause/ui/ApplauseUI.h>
 
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -24,12 +25,19 @@ public:
     static constexpr char32_t kUmlautCharacter = U'¨';
     static constexpr char32_t kCircumflexCharacter = U'ˆ';
 
-    static bool isAlphaNumeric(char character) {
+    static bool isAlphaNumeric(char32_t character) {
         return (character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z') ||
             (character >= '0' && character <= '9');
     }
 
-    static bool isVariableCharacter(char character) { return isAlphaNumeric(character) || character == '_'; }
+    static bool isWhiteSpace(char32_t character) {
+        return character == ' ' || character == '\t' || character == '\n' || character == '\r' || character == 0xa0 ||
+            (character >= 0x2000 && character <= 0x200b) || character == 0x3000;
+    }
+
+    static bool isVariableCharacter(char32_t character) {
+        return isAlphaNumeric(character) || character == '_' || (character >= 0x80 && !isWhiteSpace(character));
+    }
 
     enum ActionState {
         kNone,
@@ -111,6 +119,7 @@ public:
     void doubleClick(const applause::MouseEvent& e);
     void tripleClick(const applause::MouseEvent& e);
     bool handleDeadKey(const applause::KeyEvent& key);
+    bool handleKeyPress(const applause::KeyEvent& key);
     bool keyPress(const applause::KeyEvent& key) override;
     bool keyRelease(const applause::KeyEvent& key) override;
     bool receivesTextInput() override { return active_; }
@@ -141,7 +150,7 @@ public:
     bool undo();
     bool redo();
 
-    void insertTextAtCaret(const applause::String& insert_text);
+    int insertTextAtCaret(const applause::String& insert_text);
 
     void setBackgroundRounding(float rounding) {
         background_rounding_ = rounding;
@@ -173,10 +182,14 @@ public:
         if (text_.multiLine() && text_.font().packedFont()) {
             line_breaks_ =
                 text_.font().lineBreaks(text_.text().c_str(), text_.text().length(), width() - 2 * xMargin());
-        }
+        } else
+            line_breaks_.clear();
     }
 
     void setText(const applause::String& text) {
+        undo_history_.clear();
+        undone_history_.clear();
+        action_state_ = kNone;
         if (max_characters_)
             text_.setText(text.substring(0, max_characters_));
         else
@@ -194,6 +207,7 @@ public:
         text_.setMultiLine(multi_line);
         default_text_.setMultiLine(multi_line);
         if (multi_line) x_position_ = 0;
+        setLineBreaks();
     }
     void setSelectOnFocus(bool select_on_focus) { select_on_focus_ = select_on_focus; }
     void setJustification(applause::Font::Justification justification) {
@@ -218,7 +232,10 @@ public:
 
 protected:
     float xMarginSize() const { return set_x_margin_ ? set_x_margin_ : value(*this, kMarginX); }
-    void addUndoPosition() { undo_history_.emplace_back(text_.text(), caret_position_); }
+    void addUndoPosition() {
+        if (undo_history_.size() >= kMaxUndoHistory) undo_history_.erase(undo_history_.begin());
+        undo_history_.emplace_back(text_.text(), caret_position_);
+    }
 
     // The background / border / text tokens for the current state
     // (active vs disabled vs focused vs hover). Centralized here so both
@@ -257,6 +274,7 @@ protected:
     bool mouse_focus_ = false;
     bool hovered_ = false;
     bool active_ = true;
+    std::set<applause::KeyCode> consumed_keys_;
 
     float background_rounding_ = 1.0f;
     float set_x_margin_ = 0.0f;

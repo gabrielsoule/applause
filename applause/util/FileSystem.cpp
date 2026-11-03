@@ -21,8 +21,10 @@
 
 #include <applause/util/FileSystem.h>
 
-#include <chrono>
+#include <applause/util/StringUtils.h>
+
 #include <fstream>
+#include <random>
 #include <regex>
 #include <string>
 
@@ -30,31 +32,48 @@
 #include <ShlObj.h>
 #include <windows.h>
 #elif APPLAUSE_MAC
+#include <cstdlib>
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
+#include <unistd.h>
 #else
 #include <cstdlib>
 #include <dlfcn.h>
 #include <unistd.h>
+#endif
 
+#if !APPLAUSE_WINDOWS
+static applause::File homeFolder(const char* folder) {
+    const char* home = getenv("HOME");
+    return applause::File(home ? home : "") / folder;
+}
+#endif
+
+#if !APPLAUSE_WINDOWS && !APPLAUSE_MAC
 static applause::File xdgFolder(const char* env_var, const char* default_folder) {
     const char* xdg_folder = getenv(env_var);
-    if (xdg_folder) return xdg_folder;
+    if (xdg_folder && xdg_folder[0] == '/') return xdg_folder;
 
-    return default_folder;
+    return homeFolder(default_folder);
 }
 #endif
 
 namespace applause {
+static std::string utf8Path(const File& file) {
+#if APPLAUSE_WINDOWS
+    return String::convertToUtf8(file.wstring());
+#else
+    return file.string();
+#endif
+}
+
 bool replaceFileWithData(const File& file, const unsigned char* data, size_t size) {
     std::ofstream stream(file, std::ios::binary);
     if (!stream) return false;
 
     stream.write(reinterpret_cast<const char*>(data), size);
-
-    if (stream.fail()) return false;
-
-    return true;
+    stream.close();
+    return !stream.fail();
 }
 
 bool replaceFileWithText(const File& file, const std::string& text) {
@@ -62,14 +81,19 @@ bool replaceFileWithText(const File& file, const std::string& text) {
     if (!stream) return false;
 
     stream << text;
-    if (stream.fail()) return false;
-
-    return true;
+    stream.close();
+    return !stream.fail();
 }
 
 bool hasWriteAccess(const File& file) {
-    std::filesystem::file_status status = std::filesystem::status(file);
-    return (status.permissions() & std::filesystem::perms::owner_write) != std::filesystem::perms::none;
+#if APPLAUSE_WINDOWS
+    std::error_code error;
+    std::filesystem::file_status status = std::filesystem::status(file, error);
+    return std::filesystem::exists(status) &&
+        (status.permissions() & std::filesystem::perms::owner_write) != std::filesystem::perms::none;
+#else
+    return access(file.c_str(), W_OK) == 0;
+#endif
 }
 
 bool fileExists(const File& file) { return std::filesystem::exists(file); }
@@ -81,32 +105,42 @@ bool appendTextToFile(const File& file, const std::string& text) {
     if (!stream) return false;
 
     stream << text;
-    if (stream.fail()) return false;
+    stream.close();
+    return !stream.fail();
+}
 
-    return true;
+static bool openRegularFile(const File& file, std::ifstream& stream, std::streamoff& length) {
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(file, error)) return false;
+
+    stream.open(file, std::ios::binary | std::ios::ate);
+    if (!stream) return false;
+
+    length = stream.tellg();
+    stream.seekg(0, std::ios::beg);
+    return length >= 0 && stream;
 }
 
 std::unique_ptr<unsigned char[]> loadFileData(const File& file, size_t& size) {
-    std::ifstream stream(file, std::ios::binary | std::ios::ate);
-    if (!stream) return {};
+    std::ifstream stream;
+    std::streamoff length = 0;
+    if (!openRegularFile(file, stream, length)) return {};
 
-    size = stream.tellg();
-    stream.seekg(0, std::ios::beg);
-
-    auto data = std::make_unique<unsigned char[]>(size);
-    stream.read(reinterpret_cast<char*>(data.get()), size);
+    auto data = std::make_unique<unsigned char[]>(length);
+    stream.read(reinterpret_cast<char*>(data.get()), length);
+    size = stream.gcount();
     return data;
 }
 
 std::string loadFileAsString(const File& file) {
-    std::ifstream stream(file, std::ios::binary);
-    if (!stream) return {};
+    std::ifstream stream;
+    std::streamoff length = 0;
+    if (!openRegularFile(file, stream, length)) return {};
 
-    stream.seekg(0, std::ios::end);
     std::string out;
-    out.resize(stream.tellg());
-    stream.seekg(0, std::ios::beg);
-    stream.read(out.data(), out.size());
+    out.resize(length);
+    stream.read(out.data(), length);
+    out.resize(stream.gcount());
     return out;
 }
 
@@ -114,9 +148,8 @@ File hostExecutable() {
 #if APPLAUSE_WINDOWS
     static File path;
     if (path.empty()) {
-        char buffer[MAX_PATH];
-        GetModuleFileNameA(nullptr, buffer, MAX_PATH);
-        path = buffer;
+        wchar_t buffer[MAX_PATH];
+        if (GetModuleFileNameW(nullptr, buffer, MAX_PATH)) path = buffer;
     }
     return path;
 #elif APPLAUSE_MAC
@@ -142,14 +175,14 @@ File appDataDirectory() {
 #if APPLAUSE_WINDOWS
     static File path;
     if (path.empty()) {
-        char buffer[MAX_PATH];
-        if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_APPDATA, nullptr, 0, buffer))) path = buffer;
+        wchar_t buffer[MAX_PATH];
+        if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_APPDATA, nullptr, 0, buffer))) path = buffer;
     }
     return path;
 #elif APPLAUSE_MAC
-    return "~/Library";
+    return homeFolder("Library");
 #elif APPLAUSE_LINUX
-    return xdgFolder("XDG_DATA_HOME", "~/.config");
+    return xdgFolder("XDG_DATA_HOME", ".local/share");
 #else
     return {};
 #endif
@@ -159,43 +192,58 @@ File userDocumentsDirectory() {
 #if APPLAUSE_WINDOWS
     static File path;
     if (path.empty()) {
-        char buffer[MAX_PATH];
-        if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_PERSONAL, nullptr, 0, buffer))) path = buffer;
+        wchar_t buffer[MAX_PATH];
+        if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_PERSONAL, nullptr, 0, buffer))) path = buffer;
     }
     return path;
 #elif APPLAUSE_MAC
-    return "~/Documents";
+    return homeFolder("Documents");
 #elif APPLAUSE_LINUX
-    return xdgFolder("XDG_DOCUMENTS_DIR", "~/Documents");
+    return xdgFolder("XDG_DOCUMENTS_DIR", "Documents");
 #else
     return {};
 #endif
 }
 
 File createTemporaryFile(const std::string& extension) {
-    auto now = std::chrono::system_clock::now().time_since_epoch();
-    long long ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
-    std::string unique_file = std::to_string(ms) + "." + extension;
-    return std::filesystem::temp_directory_path() / unique_file;
+    static constexpr char kHexDigits[] = "0123456789abcdef";
+    static constexpr int kNameLength = 16;
+
+    std::random_device random_device;
+    File directory = std::filesystem::temp_directory_path();
+    File file;
+    std::error_code error;
+    do {
+        std::string name = "visage_";
+        for (int i = 0; i < kNameLength; ++i) name.push_back(kHexDigits[random_device() % 16]);
+        file = directory / (name + "." + extension);
+    } while (std::filesystem::exists(file, error));
+
+    return file;
 }
 
 void createDirectory(const File& file) { std::filesystem::create_directories(file); }
 
-std::string fileName(const File& file) { return file.filename().string(); }
+std::string fileName(const File& file) { return utf8Path(file.filename()); }
 
-std::string fileStem(const File& file) { return file.stem().string(); }
+std::string fileStem(const File& file) { return utf8Path(file.stem()); }
 
 std::string hostName() { return fileStem(hostExecutable()); }
 
 std::vector<File> searchForFiles(const File& directory, const std::string& regex) {
-    if (!std::filesystem::is_directory(directory)) return {};
+    std::error_code error;
+    if (!std::filesystem::is_directory(directory, error)) return {};
 
     std::vector<File> matches;
     std::regex match_pattern(regex);
 
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(directory)) {
-        std::string file_name = entry.path().filename().string();
-        if (entry.is_regular_file() && std::regex_search(file_name, match_pattern)) matches.push_back(entry.path());
+    auto options = std::filesystem::directory_options::skip_permission_denied;
+    std::filesystem::recursive_directory_iterator entry(directory, options, error);
+    for (; !error && entry != std::filesystem::recursive_directory_iterator(); entry.increment(error)) {
+        std::error_code type_error;
+        std::string file_name = utf8Path(entry->path().filename());
+        if (entry->is_regular_file(type_error) && std::regex_search(file_name, match_pattern))
+            matches.push_back(entry->path());
     }
 
     return matches;
@@ -208,7 +256,7 @@ std::vector<File> searchForDirectories(const File& directory, const std::string&
     std::regex match_pattern(regex);
 
     for (const auto& entry : std::filesystem::recursive_directory_iterator(directory)) {
-        std::string file_name = entry.path().filename().string();
+        std::string file_name = utf8Path(entry.path().filename());
         if (entry.is_directory() && std::regex_search(file_name, match_pattern)) matches.push_back(entry.path());
     }
 

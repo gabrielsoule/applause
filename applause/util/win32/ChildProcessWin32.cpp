@@ -20,6 +20,7 @@
  */
 
 #include <applause/util/ChildProcess.h>
+#include <applause/util/StringUtils.h>
 
 #ifndef NOMINMAX
 #define NOMINMAX 1
@@ -31,7 +32,7 @@
 
 namespace applause {
 bool spawnChildProcess(const std::string& command, const std::string& arguments, std::string& output, int timeout_ms) {
-    STARTUPINFO si;
+    STARTUPINFOW si;
     PROCESS_INFORMATION pi;
 
     SECURITY_ATTRIBUTES sa;
@@ -58,16 +59,18 @@ bool spawnChildProcess(const std::string& command, const std::string& arguments,
     si.dwFlags |= STARTF_USESTDHANDLES;
     ZeroMemory(&pi, sizeof(pi));
 
-    std::string full_command = command + " " + arguments;
-    std::vector<char> command_buffer(full_command.begin(), full_command.end());
-    command_buffer.push_back('\0');
-    if (!CreateProcess(nullptr, command_buffer.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si,
-                       &pi)) {
+    std::wstring full_command = String::convertToWide("\"" + command + "\" " + arguments);
+    std::vector<wchar_t> command_buffer(full_command.begin(), full_command.end());
+    command_buffer.push_back(L'\0');
+    if (!CreateProcessW(nullptr, command_buffer.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si,
+                        &pi)) {
         DWORD error_code = GetLastError();
         char message_buffer[256];
-        FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, error_code, 0, message_buffer,
-                       sizeof(message_buffer), NULL);
-        output = message_buffer;
+        if (FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, error_code, 0,
+                           message_buffer, sizeof(message_buffer), NULL))
+            output = message_buffer;
+        else
+            output = "Error creating process: " + std::to_string(error_code);
 
         CloseHandle(std_out_read);
         CloseHandle(std_out_write);
@@ -86,11 +89,10 @@ bool spawnChildProcess(const std::string& command, const std::string& arguments,
         if (total_output_size >= kMaxOutputSize) return false;
 
         if (PeekNamedPipe(std_out_read, nullptr, 0, nullptr, &bytes_available, nullptr) && bytes_available > 0) {
-            DWORD bytes_to_read = std::min<DWORD>(bytes_available, sizeof(buffer) - 1);
+            DWORD bytes_to_read = std::min<DWORD>(bytes_available, sizeof(buffer));
             if (ReadFile(std_out_read, buffer, bytes_to_read, &bytes_read, nullptr) && bytes_read > 0) {
                 bytes_read = std::min<DWORD>(bytes_read, kMaxOutputSize - total_output_size);
-                buffer[bytes_read] = '\0';
-                stream << buffer;
+                stream.write(buffer, bytes_read);
                 total_output_size += bytes_read;
                 return true;
             }
@@ -104,7 +106,8 @@ bool spawnChildProcess(const std::string& command, const std::string& arguments,
     while (wait_result == WAIT_TIMEOUT) {
         wait_result = WaitForSingleObject(pi.hProcess, 0);
 
-        if (read_available_output() && total_output_size >= kMaxOutputSize) break;
+        while (read_available_output());
+        if (total_output_size >= kMaxOutputSize) break;
 
         if (GetTickCount64() - start_time >= (DWORD)timeout_ms) {
             wait_result = WAIT_TIMEOUT;

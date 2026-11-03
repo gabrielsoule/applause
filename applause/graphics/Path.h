@@ -24,6 +24,7 @@
 #include <applause/graphics/GraphicsUtils.h>
 #include <applause/util/Space.h>
 
+#include <algorithm>
 #include <cfloat>
 #include <complex>
 #include <limits>
@@ -62,9 +63,16 @@ public:
     static constexpr float kDefaultMiterLimit = 4.0f;
     static constexpr float kPi = 3.14159265358979323846f;
 
+    struct Tangents {
+        Point in;
+        Point out;
+        bool smooth = false;
+    };
+
     struct SubPath {
         std::vector<Point> points;
         bool closed = false;
+        std::vector<Tangents> tangents;
     };
 
     struct Command {
@@ -140,6 +148,9 @@ public:
         void addEllipse(float cx, float cy, float rx, float ry);
         void addCircle(float cx, float cy, float r);
 
+        Point quadraticControl(int index) const;
+        std::pair<Point, Point> tangentPoints(int index) const;
+
         Point direction(int index) const {
             auto check_delta = [](const Point& current, const Point& check) {
                 return check != Point(FLT_MAX, FLT_MAX) && check != current;
@@ -149,24 +160,24 @@ public:
             Point command = at(index).end;
             Point prev_point = command;
             for (int i = index; i >= 0 && prev_point == command; --i) {
-                const auto& prev = at(i);
-                if (check_delta(command, prev.end))
-                    prev_point = prev.end;
-                else if (check_delta(command, prev.control2))
-                    prev_point = prev.control2;
-                else if (check_delta(command, prev.control1))
-                    prev_point = prev.control1;
+                auto [first, last] = tangentPoints(i);
+                if (check_delta(command, at(i).end))
+                    prev_point = at(i).end;
+                else if (check_delta(command, last))
+                    prev_point = last;
+                else if (check_delta(command, first))
+                    prev_point = first;
             }
 
             Point next_point = command;
             for (int i = index + 1; i < static_cast<int>(size()) && next_point == command; ++i) {
-                const auto& next = at(i);
-                if (check_delta(command, next.control1))
-                    next_point = next.control1;
-                else if (check_delta(command, next.control2))
-                    next_point = next.control2;
-                else if (check_delta(command, next.end))
-                    next_point = next.end;
+                auto [first, last] = tangentPoints(i);
+                if (check_delta(command, first))
+                    next_point = first;
+                else if (check_delta(command, last))
+                    next_point = last;
+                else if (check_delta(command, at(i).end))
+                    next_point = at(i).end;
             }
 
             Point prev_direction = (command - prev_point).normalized();
@@ -213,6 +224,7 @@ public:
         if (relative) point += last_point_;
 
         last_point_ = point;
+        current_control_points_ = ControlPoints::Linear;
     }
 
     void moveTo(float x, float y, bool relative = false) { moveTo(Point(x, y), relative); }
@@ -223,6 +235,7 @@ public:
         if (relative) point += last_point_;
 
         addPoint(point);
+        current_control_points_ = ControlPoints::Linear;
     }
 
     void lineTo(float x, float y, bool relative = false) { lineTo(Point(x, y), relative); }
@@ -251,6 +264,7 @@ public:
             addPoint(paths_.back().points.front());
 
         currentPath().closed = true;
+        current_control_points_ = ControlPoints::Linear;
     }
 
     void quadraticTo(Point control, Point end, bool relative = false) {
@@ -265,7 +279,7 @@ public:
         Point control1 = from + (2.0f / 3.0f) * (control - from);
         Point control2 = end + (2.0f / 3.0f) * (control - end);
         smooth_control_point_ = end + (end - control);
-        recurseBezierTo(from, control1, control2, end);
+        addBezier(from, control1, control2, end);
         current_control_points_ = ControlPoints::Quadratic;
     }
 
@@ -295,7 +309,7 @@ public:
             end += from;
         }
 
-        recurseBezierTo(from, control1, control2, end);
+        addBezier(from, control1, control2, end);
         smooth_control_point_ = end + (end - control2);
         current_control_points_ = ControlPoints::Cubic;
     }
@@ -309,7 +323,7 @@ public:
             end_control += last_point_;
             end += last_point_;
         }
-        if (current_control_points_ != ControlPoints::Cubic) smooth_control_point_ = end_control;
+        if (current_control_points_ != ControlPoints::Cubic) smooth_control_point_ = last_point_;
 
         bezierTo(smooth_control_point_, end_control, end);
     }
@@ -349,12 +363,13 @@ public:
     void addEllipse(float cx, float cy, float rx, float ry);
     void addCircle(float cx, float cy, float r);
 
-    Path combine(Path& other, FillRule fill_rule = FillRule::EvenOdd) const;
-    SubPath singlePointOffset(Point point, float amount, EndCap end_cap);
+    Path combine(const Path& other, FillRule fill_rule = FillRule::EvenOdd) const;
+    SubPath singlePointOffset(Point point, float amount, EndCap end_cap) const;
     Path offset(float amount, Join join = Join::Square, EndCap end_cap = EndCap::Butt,
-                float miter_limit = kDefaultMiterLimit);
+                float miter_limit = kDefaultMiterLimit) const;
     Path stroke(float stroke_width, Join join = Join::Round, EndCap end_cap = EndCap::Round,
-                std::vector<float> dash_array = {}, float dash_offset = 0.0f, float miter_limit = kDefaultMiterLimit);
+                std::vector<float> dash_array = {}, float dash_offset = 0.0f,
+                float miter_limit = kDefaultMiterLimit) const;
 
     Path scaled(float mult) const {
         Path result = *this;
@@ -365,6 +380,10 @@ public:
     void scale(float mult) {
         for (auto& path : paths_) {
             for (Point& point : path.points) point *= mult;
+            for (auto& tangents : path.tangents) {
+                tangents.in *= mult;
+                tangents.out *= mult;
+            }
         }
     }
 
@@ -384,18 +403,7 @@ public:
 
     void translate(float x, float y) { translate(Point(x, y)); }
 
-    void rotate(float angle) {
-        Point row1 = {cosf(angle), sinf(angle)};
-        Point row2 = {-sinf(angle), cosf(angle)};
-        for (auto& path : paths_) {
-            for (Point& point : path.points) {
-                float x = point.x;
-                float y = point.y;
-                point.x = row1.x * x + row1.y * y;
-                point.y = row2.x * x + row2.y * y;
-            }
-        }
-    }
+    void rotate(float angle) { transform(Transform::rotation(angle)); }
 
     Path rotated(float angle) const {
         Path result = *this;
@@ -412,6 +420,10 @@ public:
     void transform(const Transform& transform) {
         for (auto& path : paths_) {
             for (Point& point : path.points) point = transform * point;
+            for (auto& tangents : path.tangents) {
+                tangents.in = transform.matrix * tangents.in;
+                tangents.out = transform.matrix * tangents.out;
+            }
         }
     }
 
@@ -422,7 +434,7 @@ public:
     }
 
     void reverse() {
-        for (auto& path : paths_) std::reverse(path.points.begin(), path.points.end());
+        for (auto& path : paths_) reverseSubPath(path);
     }
 
     void setFillRule(FillRule fill_rule) { fill_rule_ = fill_rule; }
@@ -466,7 +478,7 @@ public:
     const Matrix& resolutionMatrix() const { return resolution_matrix_; }
 
 private:
-    Path offset(float amount, Join join, Join inner_join, EndCap end_cap, float miter_limit);
+    Path offset(float amount, Join join, bool pivot_inner_joins, EndCap end_cap, float miter_limit) const;
 
     static Point deltaFromLine(const Point& point, const Point& line_from, const Point& line_to) {
         if (line_from == line_to) return point - line_from;
@@ -479,13 +491,23 @@ private:
         return point - closest_point;
     }
 
-    void recurseBezierTo(const Point& from, const Point& control1, const Point& control2, const Point& to) {
+    static Point bezierEndTangent(const Point& from, const Point& control1, const Point& control2, const Point& to) {
+        return to != control2 ? to - control2 : (to != control1 ? to - control1 : to - from);
+    }
+
+    void recurseBezierTo(const Point& from, const Point& control1, const Point& control2, const Point& to, bool curve,
+                         int depth = 0) {
+        static constexpr int kMaxBezierDepth = 16;
         float error_squared = error_tolerance_ * error_tolerance_;
 
         Point delta1 = resolution_matrix_ * deltaFromLine(control1, from, to);
         Point delta2 = resolution_matrix_ * deltaFromLine(control2, from, to);
-        if (delta1.squareMagnitude() <= error_squared && delta2.squareMagnitude() <= error_squared) {
-            addPoint(to);
+        bool within_error = !(delta1.squareMagnitude() > error_squared) && !(delta2.squareMagnitude() > error_squared);
+        if (within_error || depth >= kMaxBezierDepth) {
+            if (curve)
+                addCurvePoint(to, bezierEndTangent(from, control1, control2, to));
+            else
+                addPoint(to);
             return;
         }
 
@@ -498,8 +520,50 @@ private:
 
         Point break_point = (midmid1 + midmid2) * 0.5f;
 
-        recurseBezierTo(from, mid1, midmid1, break_point);
-        recurseBezierTo(break_point, midmid2, mid3, to);
+        recurseBezierTo(from, mid1, midmid1, break_point, curve, depth + 1);
+        recurseBezierTo(break_point, midmid2, mid3, to, curve, depth + 1);
+    }
+
+    void addBezier(const Point& from, const Point& control1, const Point& control2, const Point& to) {
+        static constexpr float kLineSlop = 0.00001f;
+        float extent = std::max({(control1 - from).length(), (control2 - from).length(), (to - from).length(),
+                                 (control2 - control1).length(), (to - control1).length(), (to - control2).length()});
+        float slop = extent * extent * kLineSlop;
+        bool line = deltaFromLine(control1, from, to).squareMagnitude() <= slop &&
+            deltaFromLine(control2, from, to).squareMagnitude() <= slop;
+
+        int start_index = currentPath().points.size() - 1;
+        recurseBezierTo(from, control1, control2, to, !line);
+        if (line) return;
+
+        Point start = control1 != from ? control1 - from : (control2 != from ? control2 - from : to - from);
+        setCurveTangents(start_index, start, bezierEndTangent(from, control1, control2, to));
+    }
+
+    void addCurvePoint(const Point& point, const Point& tangent) {
+        int num_points = currentPath().points.size();
+        addPoint(point);
+        SubPath& path = currentPath();
+        if (static_cast<int>(path.points.size()) == num_points) return;
+
+        path.tangents.resize(path.points.size());
+        path.tangents.back() = {tangent, tangent, true};
+    }
+
+    void setCurveTangents(int start_index, const Point& start, const Point& end) {
+        SubPath& path = currentPath();
+        int end_index = path.points.size() - 1;
+        if (start_index < 0 || end_index <= start_index) return;
+
+        path.tangents.resize(path.points.size());
+        path.tangents[start_index].out = start;
+        path.tangents[end_index] = {end, {}, false};
+    }
+
+    static void reverseSubPath(SubPath& path) {
+        std::reverse(path.points.begin(), path.points.end());
+        std::reverse(path.tangents.begin(), path.tangents.end());
+        for (auto& tangents : path.tangents) tangents = {-tangents.out, -tangents.in, tangents.smooth};
     }
 
     void startNewPath() {
@@ -518,6 +582,7 @@ private:
 
         last_point_ = point;
         currentPath().points.push_back(point);
+        if (!currentPath().tangents.empty()) currentPath().tangents.push_back({});
         current_control_points_ = ControlPoints::Linear;
     }
 
@@ -533,10 +598,16 @@ private:
 };
 
 struct PathAtlasTexture;
+class PathTileRenderer;
 
 class PathAtlas {
 public:
     static constexpr int kBuffer = 1;
+
+    enum class Binning { Cpu, Gpu };
+
+    static void setBinning(Binning binning);
+    static Binning activeBinning();
 
     struct PackedPathRect {
         explicit PackedPathRect(const Path& p) : path(p) {}
@@ -546,6 +617,7 @@ public:
         int y = 0;
         int w = 0;
         int h = 0;
+        int index = 0;
         bool needs_update = true;
     };
 
@@ -612,6 +684,7 @@ public:
         packed_path_rect->w = rect.w;
         packed_path_rect->h = rect.h;
         auto packed_rect = packed_path_rect.get();
+        packed_rect->index = paths_.size();
         paths_.push_back(std::move(packed_path_rect));
 
         auto reference = std::make_shared<PackedPathReference>(reference_, packed_rect);
@@ -621,18 +694,19 @@ public:
 
     int updatePaths(int submit_pass);
     void destroy();
+    void invalidateAll();
     int width() const { return width_; }
     int height() const { return height_; }
 
-    const bgfx::FrameBufferHandle& frameBufferHandle();
+    const gpu::FrameBufferHandle& frameBufferHandle();
 
     void removePath(const PackedPathRect* packed_path_rect) {
         atlas_map_.removeRect(packed_path_rect);
         references_.erase(packed_path_rect);
-        paths_.erase(
-            std::remove_if(paths_.begin(), paths_.end(),
-                           [&](const std::unique_ptr<PackedPathRect>& ptr) { return ptr.get() == packed_path_rect; }),
-            paths_.end());
+        int index = packed_path_rect->index;
+        std::swap(paths_[index], paths_.back());
+        paths_[index]->index = index;
+        paths_.pop_back();
     }
 
     static void setPathAtlasCoordinates(TextureVertex* vertices, const PackedPath& rect) {
@@ -657,7 +731,7 @@ public:
     }
 
 private:
-    bool clearUpdatedPathAreas(int submit_pass);
+    bool beginUpdate(int submit_pass);
     void checkInit();
     void resize();
 
@@ -665,9 +739,11 @@ private:
     std::vector<std::unique_ptr<PackedPathRect>> paths_;
     PackedAtlasMap<const PackedPathRect*> atlas_map_;
     std::unique_ptr<PathAtlasTexture> frame_buffer_;
+    std::unique_ptr<PathTileRenderer> tile_renderer_;
     int width_ = 0;
     int height_ = 0;
     bool needs_packing_ = false;
+    bool needs_full_clear_ = false;
     std::shared_ptr<PathAtlas*> reference_;
 
     APPLAUSE_LEAK_CHECKER(PathAtlas)

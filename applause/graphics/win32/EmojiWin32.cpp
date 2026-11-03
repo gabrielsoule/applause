@@ -35,7 +35,8 @@ class EmojiRasterizerImpl {
 public:
     EmojiRasterizerImpl() {
         HRESULT hr = CoInitialize(nullptr);
-        if (FAILED(hr)) return;
+        com_initialized_ = SUCCEEDED(hr);
+        if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) return;
 
         hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory), &options_, &d2d_factory_);
         if (FAILED(hr)) return;
@@ -116,11 +117,12 @@ public:
         dwrite_factory_ = nullptr;
         text_format_ = nullptr;
         wic_factory_ = nullptr;
-        CoUninitialize();
+        if (com_initialized_) CoUninitialize();
     }
 
 private:
     bool initialized_ = false;
+    bool com_initialized_ = false;
     ComPtr<ID2D1Factory> d2d_factory_;
     D2D1_FACTORY_OPTIONS options_ = {};
     ComPtr<IDWriteFactory> dwrite_factory_;

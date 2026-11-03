@@ -75,6 +75,11 @@ public:
     virtual void setWindowDimensions(uint32_t width, uint32_t height) = 0;
 
     /**
+     * @brief Resize the editor to a size the host chose, in the host's units: points on macOS, pixels elsewhere.
+     */
+    virtual void setWindowDimensionsFromHost(uint32_t width, uint32_t height) { setWindowDimensions(width, height); }
+
+    /**
      * @brief Configure whether the editor maintains a fixed aspect ratio.
      */
     virtual void setFixedAspectRatio(bool fixed) = 0;

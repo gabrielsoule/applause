@@ -24,11 +24,8 @@ public:
     // The token this one follows when nothing sets it, or null when its default is a fixed value.
     const Token* base() const { return base_; }
 
-    // Every token of this type.
-    static std::vector<const Token*>& all() {
-        static std::vector<const Token*> tokens;
-        return tokens;
-    }
+    // Every token of this type. Defined out of line, so a plugin never shares the list with another in the same host.
+    static std::vector<const Token*>& all();
 
 private:
     friend Color color(const Frame& frame, const Token<Color>& token);

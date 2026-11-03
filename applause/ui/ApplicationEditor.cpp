@@ -23,8 +23,9 @@
 
 #include <applause/graphics/Canvas.h>
 #include <applause/graphics/Renderer.h>
-#include <applause/ui/ClientWindowDecoration.h>
+#include <applause/ui/WindowDecoration.h>
 #include <applause/ui/WindowEventHandler.h>
+#include <applause/util/TimeUtils.h>
 #include <applause/windowing/Windowing.h>
 
 namespace applause {
@@ -39,43 +40,71 @@ void TopLevelFrame::resized() {
     editor_->setCanvasDetails();
     editor_->notifyContentsResized();
 
-    if (client_decoration_) {
-        int decoration_width = client_decoration_->requiredWidth();
-        client_decoration_->setBounds(width() - decoration_width, 0, decoration_width,
-                                      client_decoration_->requiredHeight());
+    for (WindowDecoration* decoration : decorations()) {
+        if (decoration) decoration->setBounds(decoration->decorationBounds(localBounds()));
     }
 }
+
+std::array<WindowDecoration*, 2> TopLevelFrame::decorations() const {
+    return {client_decoration_.get(), frame_decoration_.get()};
+}
+
+void TopLevelFrame::addDecoration(WindowDecoration* decoration) {
+    addChild(decoration);
+    decoration->setOnTop(true);
+    decoration->setBounds(decoration->decorationBounds(localBounds()));
+}
+
+HitTestResult TopLevelFrame::decorationHitTest(const Point& position) const {
+    for (const WindowDecoration* decoration : decorations()) {
+        HitTestResult result = decoration ? decoration->windowHitTest(position) : HitTestResult::Client;
+        if (result != HitTestResult::Client) return result;
+    }
+    return HitTestResult::Client;
+}
+
+void TopLevelFrame::addWindowFrameDecoration(Window* window) {
+    frame_decoration_ = std::make_unique<WindowFrameDecoration>(window);
+    addDecoration(frame_decoration_.get());
+}
+
+void TopLevelFrame::removeWindowFrameDecoration() { frame_decoration_ = nullptr; }
 
 void TopLevelFrame::addClientDecoration() {
 #if !APPLAUSE_MAC && !APPLAUSE_EMSCRIPTEN
     client_decoration_ = std::make_unique<ClientWindowDecoration>();
-    addChild(client_decoration_.get());
-    client_decoration_->setOnTop(true);
+    addDecoration(client_decoration_.get());
 #endif
 }
 
 ApplicationEditor::ApplicationEditor() :
     canvas_(std::make_unique<Canvas>()), top_level_(std::make_unique<TopLevelFrame>(this)) {
+    APPLAUSE_ASSERT(!hasStaticStorage(this));
     canvas_->addRegion(top_level_->region());
     top_level_->addChild(this);
 
     event_handler_.request_redraw = [this](Frame* frame) {
-        if (std::find(stale_children_.begin(), stale_children_.end(), frame) == stale_children_.end())
-            stale_children_.push_back(frame);
+        if (stale_set_.insert(frame).second) stale_children_.push_back(frame);
     };
     event_handler_.request_keyboard_focus = [this](Frame* frame) {
         if (window_event_handler_) window_event_handler_->setKeyboardFocus(frame);
+    };
+    event_handler_.keyboard_focused_frame = [this]() -> Frame* {
+        return window_event_handler_ ? window_event_handler_->keyboardFocusedFrame() : nullptr;
     };
     event_handler_.remove_from_hierarchy = [this](Frame* frame) {
         // Do not edit the hierarchy during draw() calls
         APPLAUSE_ASSERT(drawing_children_.empty());
 
         if (window_event_handler_) window_event_handler_->giveUpFocus(frame);
-        auto pos = std::find(stale_children_.begin(), stale_children_.end(), frame);
-        if (pos != stale_children_.end()) stale_children_.erase(pos);
+        if (stale_set_.erase(frame))
+            stale_children_.erase(std::find(stale_children_.begin(), stale_children_.end(), frame));
     };
     event_handler_.set_mouse_relative_mode = [this](bool relative) {
         if (window_) window_->setMouseRelativeMode(relative);
+    };
+    event_handler_.take_mouse_drag = [this](Frame* frame) {
+        return window_event_handler_ && window_event_handler_->takeMouseDrag(frame);
     };
     event_handler_.set_cursor_style = applause::setCursorStyle;
     event_handler_.set_cursor_visible = applause::setCursorVisible;
@@ -85,10 +114,16 @@ ApplicationEditor::ApplicationEditor() :
     onResize() += [this] { top_level_->setNativeBounds(nativeLocalBounds()); };
 }
 
-ApplicationEditor::~ApplicationEditor() { top_level_->setEventHandler(nullptr); }
+ApplicationEditor::~ApplicationEditor() {
+    removeFromWindow();
+    top_level_->setEventHandler(nullptr);
+}
 
 void ApplicationEditor::notifyContentsResized() {
-    if (window_) window_->setInternalWindowSize(nativeWidth(), nativeHeight());
+    if (window_ == nullptr || (window_->clientWidth() == nativeWidth() && window_->clientHeight() == nativeHeight()))
+        return;
+
+    window_->setInternalWindowSize(nativeWidth(), nativeHeight());
     on_window_contents_resized_.callback();
 }
 
@@ -96,15 +131,17 @@ const Screenshot& ApplicationEditor::takeScreenshot() { return canvas_->takeScre
 
 void ApplicationEditor::setCanvasDetails() {
     canvas_->setDimensions(nativeWidth(), nativeHeight());
-
-    if (window_) canvas_->setDpiScale(window_->dpiScale());
+    canvas_->setDpiScale(window_ ? window_->dpiScale() : dpiScale());
 }
 
 void ApplicationEditor::addToWindow(Window* window) {
     window_ = window;
 
-    Renderer::instance().initialize(window_->initWindow(), window->globalDisplay());
-    canvas_->pairToWindow(window_->nativeHandle(), window->clientWidth(), window->clientHeight());
+    Renderer::instance().initialize(window_->initWindow(), window->globalDisplay(), window->waylandDisplay());
+    void* frame_handle = window_->frameDecorationHandle();
+    canvas_->pairToWindow(window_->graphicsHandle(), window->clientWidth(), window->clientHeight(),
+                          frame_handle != nullptr);
+    if (frame_handle) top_level_->addWindowFrameDecoration(window_);
     top_level_->setDpiScale(window_->dpiScale());
     top_level_->setNativeBounds(0, 0, window->clientWidth(), window->clientHeight());
     window_->setFixedAspectRatio(fixed_aspect_ratio_ != 0.0f);
@@ -112,10 +149,10 @@ void ApplicationEditor::addToWindow(Window* window) {
     window_event_handler_ = std::make_unique<WindowEventHandler>(this, top_level_.get());
     checkFixedAspectRatio();
 
-    window_->setDrawCallback([this](double time) {
+    window_->setDrawCallback([this, alive = aliveToken()](double time) {
         canvas_->updateTime(time);
         EventManager::instance().checkEventTimers();
-        drawWindow();
+        if (!alive.expired() && window_) drawWindow();
     });
 
     drawWindow();
@@ -127,13 +164,19 @@ void ApplicationEditor::setWindowless(int width, int height) {
     canvas_->removeFromWindow();
     window_ = nullptr;
     setBounds(0, 0, width, height);
-    canvas_->setWindowless(width, height);
+    canvas_->setWindowless(nativeWidth(), nativeHeight());
     drawWindow();
 }
 
 void ApplicationEditor::removeFromWindow() {
     window_event_handler_ = nullptr;
+    if (window_) {
+        window_->setFrameWaiter(nullptr);
+        window_->setDrawCallback(nullptr);
+    }
+    top_level_->removeWindowFrameDecoration();
     window_ = nullptr;
+    waited_frame_buffer_id_ = -1;
     canvas_->removeFromWindow();
 }
 
@@ -144,8 +187,26 @@ void ApplicationEditor::drawWindow() {
 
     if (!initialized()) init();
 
+    if (window_) window_->waitForFrame();
+
+    long long start_microseconds = time::microseconds();
+    int frame = canvas_->frameCount();
     drawStaleChildren();
     canvas_->submit();
+    if (window_ == nullptr) return;
+
+    if (canvas_->frameCount() != frame) {
+        window_->framePresented();
+        double cpu_time = (time::microseconds() - start_microseconds) / 1000000.0;
+        window_->setFrameRenderTime(cpu_time + Canvas::gpuFrameTime());
+    }
+
+    int frame_buffer_id = canvas_->frameBufferId();
+    if (frame_buffer_id != waited_frame_buffer_id_) {
+        waited_frame_buffer_id_ = frame_buffer_id;
+        window_->setFrameWaiter(
+            [frame_buffer_id](int timeout_ms) { return Canvas::waitForFrame(frame_buffer_id, timeout_ms); });
+    }
 }
 
 void ApplicationEditor::setFixedAspectRatio(bool fixed) {
@@ -155,25 +216,31 @@ void ApplicationEditor::setFixedAspectRatio(bool fixed) {
 
 void ApplicationEditor::drawStaleChildren() {
     drawing_children_.clear();
+    drawing_set_.clear();
     std::swap(stale_children_, drawing_children_);
+    std::swap(stale_set_, drawing_set_);
     for (Frame* child : drawing_children_) {
         if (child->isDrawing()) child->drawToRegion(*canvas_);
     }
-    for (auto it = stale_children_.begin(); it != stale_children_.end();) {
-        Frame* child = *it;
-        if (std::find(drawing_children_.begin(), drawing_children_.end(), child) == drawing_children_.end()) {
+    for (int i = 0; i < stale_children_.size();) {
+        Frame* child = stale_children_[i];
+        if (drawing_set_.insert(child).second) {
+            stale_children_.erase(stale_children_.begin() + i);
+            stale_set_.erase(child);
+            drawing_children_.push_back(child);
             child->drawToRegion(*canvas_);
-            it = stale_children_.erase(it);
         } else
-            ++it;
+            ++i;
     }
     drawing_children_.clear();
+    drawing_set_.clear();
 }
 
 void ApplicationEditor::adjustWindowDimensions(int* width, int* height, bool horizontal_resize,
                                                bool vertical_resize) const {
-    int min_width = min_width_ * dpiScale();
-    int min_height = min_height_ * dpiScale();
+    float dpi_scale = window_ ? window_->dpiScale() : dpiScale();
+    int min_width = min_width_ * dpi_scale;
+    int min_height = min_height_ * dpi_scale;
     Point min_dimensions(min_width, min_height);
     if (isFixedAspectRatio()) {
         auto max_dimensions = window_ ? Point(window_->maxWindowDimensions()) : Point(FLT_MAX, FLT_MAX);

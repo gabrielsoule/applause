@@ -23,10 +23,11 @@
 
 #include <applause/util/StringUtils.h>
 
+#include <dlfcn.h>
 #include <iostream>
 
 namespace applause {
-inline void debugLogString(const char* file, unsigned int line, const String& log_message) {
+void debugLogString(const char* file, unsigned int line, const String& log_message) {
     std::cerr << file << " (" << line << ") " << log_message.toUtf8();
     if (log_message.isEmpty() || log_message[log_message.size() - 1] != '\n') std::cerr << std::endl;
 }
@@ -50,4 +51,13 @@ void debugAssert(bool condition, const char* file, unsigned int line) {
 }
 
 void forceCrash() { __builtin_trap(); }
+
+bool hasStaticStorage(const void* address) {
+#if APPLAUSE_EMSCRIPTEN
+    return false;
+#else
+    Dl_info info;
+    return dladdr(address, &info) != 0;
+#endif
+}
 }  // namespace applause

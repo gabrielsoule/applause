@@ -115,6 +115,7 @@ endif()
 
 add_library(applause STATIC ${APPLAUSE_SOURCES})
 add_library(Applause::Applause ALIAS applause)
+set_target_properties(applause PROPERTIES ${APPLAUSE_HIDDEN_VISIBILITY})
 
 target_include_directories(applause PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -140,8 +141,10 @@ target_compile_options(applause PRIVATE ${APPLAUSE_UI_COMPILE_OPTIONS})
 # We don't serialize paths to JSON, so disable that overload globally.
 target_compile_definitions(applause PUBLIC JSON_HAS_FILESYSTEM=0)
 
-# Inspector utility (debug-only) reads bgfx::Stats directly, so we include it here
-target_link_libraries(applause PRIVATE bgfx)
+# Plugins on Linux keep the bundled freetype from clashing with the host's.
+if(UNIX AND NOT APPLE)
+    target_link_options(applause INTERFACE "LINKER:--exclude-libs,$<TARGET_FILE_NAME:freetype>")
+endif()
 
 if(APPLAUSE_USE_FMT)
     message(STATUS "Configuring Applause with fmt")
@@ -159,6 +162,7 @@ if(WIN32)
     target_compile_definitions(applause PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
 elseif(APPLE)
     target_link_libraries(applause PRIVATE "-framework CoreFoundation")
+    target_compile_options(applause PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
 endif()
 
 # Tests

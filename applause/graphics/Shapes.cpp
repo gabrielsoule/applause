@@ -30,6 +30,14 @@
     const EmbeddedFile& shape::fragmentShader() { return fragment; }
 
 namespace applause {
+template <typename T>
+VectorPool<T>& VectorPool<T>::instance() {
+    static VectorPool instance;
+    return instance;
+}
+
+template class VectorPool<FontAtlasQuad>;
+
 APPLAUSE_SET_PROGRAM(Fill, shaders::vs_color, shaders::fs_color)
 APPLAUSE_SET_PROGRAM(Rectangle, shaders::vs_shape, shaders::fs_rectangle)
 APPLAUSE_SET_PROGRAM(RoundedRectangle, shaders::vs_shape, shaders::fs_rounded_rectangle)
@@ -50,12 +58,13 @@ APPLAUSE_SET_PROGRAM(HeatMapWrapper, shaders::vs_shape, shaders::fs_heat_map)
 APPLAUSE_SET_PROGRAM(SampleRegion, shaders::vs_post_effect, shaders::fs_post_effect)
 
 SampleRegion::SampleRegion(const ClampBounds& clamp, const PackedBrush* brush, float x, float y, float width,
-                           float height, const Region* region, PostEffect* post_effect) :
-    Shape(region->layer(), clamp, brush, x, y, width, height), region(region), post_effect(post_effect) {
+                           float height, const Region* region, PostEffect* post_effect, float alpha) :
+    Shape(region->layer(), clamp, brush, x, y, width, height), region(region), post_effect(post_effect), alpha(alpha) {
     if (post_effect) batch_id = post_effect;
 }
 
 void SampleRegion::setVertexData(Vertex* vertices) const {
     region->layer()->setTexturePositionsForRegion(region, vertices);
+    for (int i = 0; i < kVerticesPerQuad; ++i) vertices[i].value1 = alpha;
 }
 }  // namespace applause

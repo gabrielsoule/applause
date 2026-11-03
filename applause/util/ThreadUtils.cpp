@@ -19,12 +19,9 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#pragma once
+#include <applause/util/ThreadUtils.h>
 
 namespace applause {
-#if APPLAUSE_MAC
-void* windowlessContext();
-#else
-static void* windowlessContext() { return nullptr; }
-#endif
+std::thread::id Thread::main_thread_id_;
+bool Thread::main_thread_set_ = false;
 }  // namespace applause

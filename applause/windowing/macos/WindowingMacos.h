@@ -26,39 +26,62 @@
 
 #include <Carbon/Carbon.h>
 #include <Cocoa/Cocoa.h>
+#include <IOKit/hidsystem/IOLLEvent.h>
 #include <MetalKit/MetalKit.h>
 
 namespace applause {
 class WindowMac;
 }
 
-@interface ApplauseDraggingSource : NSObject <NSDraggingSource>
+@class ApplauseAppView;
+
+@interface ApplauseDraggingSource : NSObject <NSDraggingSource, NSFilePromiseProviderDelegate>
+@property(weak) ApplauseAppView* view;
+@property(strong) NSURL* file_url;
+@property(strong) NSOperationQueue* write_queue;
+@property bool cleanup_pending;
+@property bool session_ended;
+@property bool dropped;
+@property bool file_written;
+@property bool delivered_in_app;
+
+- (void)startWithFile:(NSURL*)file_url;
+- (void)cleanupIfPending;
 @end
 
 @interface ApplauseAppViewDelegate : NSObject <MTKViewDelegate>
 @property(nonatomic) applause::WindowMac* applause_window;
 @property long long start_microseconds;
+@property int skipped_frames;
 @end
 
-@interface ApplauseAppView : MTKView <NSDraggingDestination>
+@interface ApplauseAppView : MTKView <NSDraggingDestination, NSTextInputClient>
 @property(nonatomic) applause::WindowMac* applause_window;
 @property(strong) ApplauseDraggingSource* drag_source;
+@property(strong) NSString* marked_text;
+@property(strong) NSMutableString* pending_text;
 @property bool allow_quit;
 @property NSPoint mouse_down_screen_position;
+@property NSPoint text_input_screen_position;
+@property NSUInteger typed_length;
+@property bool command_requested;
+@property bool has_focus;
+@property CFTimeInterval frame_target_time;
+@property CFTimeInterval render_time;
 
 - (instancetype)initWithFrame:(NSRect)frame_rect inWindow:(applause::WindowMac*)window;
+- (void)dragEndedAtScreenPoint:(NSPoint)screen_point;
 @end
 
 @interface ApplauseAppWindowDelegate : NSObject <NSWindowDelegate>
 @property(nonatomic) applause::WindowMac* applause_window;
-@property(nonatomic, retain) NSWindow* window_handle;
+@property(nonatomic, weak) NSWindow* window_handle;
 @property bool resizing_horizontal;
 @property bool resizing_vertical;
 @end
 
 @interface ApplauseAppDelegate : NSObject <NSApplicationDelegate>
 @property(nonatomic, retain) NSWindow* window_handle;
-@property(nonatomic, strong) ApplauseAppWindowDelegate* window_delegate;
 @property applause::WindowMac* applause_window;
 @end
 
@@ -76,6 +99,7 @@ public:
     void resetBackingScale();
 
     void* nativeHandle() const override { return (__bridge void*)view_; }
+    void* graphicsHandle() const override;
     void* initWindow() const override;
 
     void runEventLoop() override;
@@ -85,22 +109,28 @@ public:
     void hide() final;
     void close() final;
     bool isShowing() const override;
+    bool isClosed() const override;
 
     void setWindowTitle(const std::string& title) override;
     IPoint maxWindowDimensions() const override;
     void setAlwaysOnTop(bool on_top) override;
 
     void handleNativeResize(int width, int height);
+    void setFrameWaiter(std::function<bool(int)> waiter) override { frame_waiter_ = std::move(waiter); }
+    void setFrameRenderTime(double seconds) override;
+    bool frameQueueReady() const { return frame_waiter_ == nullptr || frame_waiter_(0); }
     bool isPopup() const { return decoration_ == Decoration::Popup; }
 
 private:
     static bool running_event_loop_;
     NSWindow* window_handle_ = nullptr;
+    ApplauseAppWindowDelegate* window_delegate_ = nullptr;
     NSView* parent_view_ = nullptr;
     ApplauseAppView* view_ = nullptr;
     ApplauseAppViewDelegate* view_delegate_ = nullptr;
     NSRect last_content_rect_{};
     Decoration decoration_ = Decoration::Native;
+    std::function<bool(int)> frame_waiter_;
 };
 }  // namespace applause
 

@@ -236,8 +236,9 @@ void Button::mouseExit(const applause::MouseEvent& e) {
 }
 
 void Button::mouseDown(const applause::MouseEvent& e) {
-    if (!enabled_) return;
+    if (!enabled_ || (e.button_state & ~e.button_id)) return;
 
+    pressed_button_ = e.button_id;
     pressed_ = true;
     hover_amount_.target(false);
     redraw();
@@ -245,11 +246,14 @@ void Button::mouseDown(const applause::MouseEvent& e) {
 }
 
 void Button::mouseUp(const applause::MouseEvent& e) {
+    if (e.button_id != applause::kMouseButtonNone && e.button_id != pressed_button_) return;
+
+    pressed_button_ = applause::kMouseButtonNone;
     if (!enabled_) return;
 
     pressed_ = false;
     redraw();
-    if (localBounds().contains(e.position)) {
+    if (!e.isCancelled() && localBounds().contains(e.position)) {
         hover_amount_.target(true, true);
         if (!triggered_on_mouse_down_) click();
     }

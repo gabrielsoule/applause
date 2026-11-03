@@ -209,7 +209,7 @@ std::pair<float, float> TextEditor::indexToPosition(int index) const {
 std::pair<int, int> TextEditor::lineRange(int line) const {
     int start_index = 0;
     int end_index = textLength();
-    line = std::max(line, 0);
+    line = std::max(0, std::min<int>(line, line_breaks_.size()));
 
     if (line > 0) start_index = line_breaks_[line - 1];
     if (line < static_cast<int>(line_breaks_.size())) {
@@ -238,7 +238,9 @@ int TextEditor::positionToIndex(const std::pair<float, float>& position) const {
 
     int index = font().widthOverflowIndex(text_.text().c_str() + range.first, range.second - range.first,
                                           position.first - line_x, true, text_.characterOverride());
-    return std::min(range.first + index, range.second);
+    int max_index = range.second;
+    if (line < line_breaks_.size() && max_index == line_breaks_[line]) max_index = std::max(range.first, max_index - 1);
+    return std::min(range.first + index, max_index);
 }
 
 bool TextEditor::enterPressed() {
@@ -272,6 +274,8 @@ void TextEditor::clear() {
 }
 
 void TextEditor::deleteSelected() {
+    if (selectionStart() == selectionEnd()) return;
+
     undone_history_.clear();
 
     if (action_state_ != kDeleting) addUndoPosition();
@@ -350,14 +354,20 @@ applause::String TextEditor::selection() const {
 }
 
 int TextEditor::beginningOfWord() const {
-    int index = caret_position_ - 1;
+    int index = caret_position_;
+    while (index > 0 && isWhiteSpace(text_.text()[index - 1])) --index;
+
+    --index;
     while (index > 0 && isVariableCharacter(text_.text()[index - 1])) --index;
     return std::max(0, index);
 }
 
 int TextEditor::endOfWord() const {
     int string_length = textLength();
-    int index = caret_position_ + 1;
+    int index = caret_position_;
+    while (index < string_length && isWhiteSpace(text_.text()[index])) ++index;
+
+    ++index;
     while (index < string_length && isVariableCharacter(text_.text()[index])) ++index;
     return std::min(string_length, index);
 }
@@ -422,46 +432,59 @@ void TextEditor::tripleClick(const applause::MouseEvent& e) {
 }
 
 bool TextEditor::handleDeadKey(const applause::KeyEvent& key) {
+    DeadKey dead_key = DeadKey::None;
+    char32_t accent = 0;
     switch (key.key_code) {
     case applause::KeyCode::E:
-        insertTextAtCaret(kAcuteAccentCharacter);
-        dead_key_entry_ = DeadKey::AcuteAccent;
+        dead_key = DeadKey::AcuteAccent;
+        accent = kAcuteAccentCharacter;
         break;
     case applause::KeyCode::Grave:
-        insertTextAtCaret(kGraveAccentCharacter);
-        dead_key_entry_ = DeadKey::GraveAccent;
+        dead_key = DeadKey::GraveAccent;
+        accent = kGraveAccentCharacter;
         break;
     case applause::KeyCode::N:
-        insertTextAtCaret(kTildeCharacter);
-        dead_key_entry_ = DeadKey::Tilde;
+        dead_key = DeadKey::Tilde;
+        accent = kTildeCharacter;
         break;
     case applause::KeyCode::U:
-        insertTextAtCaret(kUmlautCharacter);
-        dead_key_entry_ = DeadKey::Umlaut;
+        dead_key = DeadKey::Umlaut;
+        accent = kUmlautCharacter;
         break;
     case applause::KeyCode::I:
-        insertTextAtCaret(kCircumflexCharacter);
-        dead_key_entry_ = DeadKey::Circumflex;
+        dead_key = DeadKey::Circumflex;
+        accent = kCircumflexCharacter;
         break;
     default:
         dead_key_entry_ = DeadKey::None;
-        break;
-    }
-    if (dead_key_entry_ != DeadKey::None) {
-        selection_position_ = caret_position_ - 1;
-        makeCaretVisible();
+        return false;
     }
 
-    return dead_key_entry_ != DeadKey::None;
+    if (insertTextAtCaret(accent) == 0) return false;
+
+    dead_key_entry_ = dead_key;
+    selection_position_ = caret_position_ - 1;
+    makeCaretVisible();
+    return true;
 }
 
-bool TextEditor::keyPress(const applause::KeyEvent& key) {
+bool TextEditor::handleKeyPress(const applause::KeyEvent& key) {
     redraw();
 
     bool modifier = key.isMainModifier();
     if (key.isAltDown()) {
-        if (!modifier) handleDeadKey(key);
-        return !modifier;
+#if APPLAUSE_MAC || APPLAUSE_EMSCRIPTEN
+        if (modifier) return false;
+
+        if (key.keyCode() == applause::KeyCode::Left) return moveCaretLeft(true, key.isShiftDown());
+        if (key.keyCode() == applause::KeyCode::Right) return moveCaretRight(true, key.isShiftDown());
+        if (key.keyCode() == applause::KeyCode::Backspace) return deleteBackwards(true);
+        if (key.keyCode() == applause::KeyCode::Delete) return deleteForwards(true);
+        if (active_) handleDeadKey(key);
+        return true;
+#else
+        return false;
+#endif
     }
 
     applause::KeyCode code = key.keyCode();
@@ -525,7 +548,19 @@ bool TextEditor::keyPress(const applause::KeyEvent& key) {
     return key.modifierMask() == 0 || key.modifierMask() == applause::kModifierShift;
 }
 
-bool TextEditor::keyRelease(const applause::KeyEvent& key) { return active_; }
+bool TextEditor::keyPress(const applause::KeyEvent& key) {
+    std::weak_ptr<bool> alive = aliveToken();
+    bool used = handleKeyPress(key);
+    if (alive.expired() || !hasKeyboardFocus()) return used;
+
+    if (used)
+        consumed_keys_.insert(key.keyCode());
+    else
+        consumed_keys_.erase(key.keyCode());
+    return used;
+}
+
+bool TextEditor::keyRelease(const applause::KeyEvent& key) { return consumed_keys_.erase(key.keyCode()) > 0; }
 
 applause::String TextEditor::translateDeadKeyText(const applause::String& text) const {
     if (text.length() != 1 || dead_key_entry_ == DeadKey::None) return text;
@@ -559,6 +594,7 @@ void TextEditor::textInput(const std::string& text) {
 void TextEditor::focusChanged(bool is_focused, bool was_clicked) {
     redraw();
     if (!is_focused) {
+        consumed_keys_.clear();
         if (dead_key_entry_ != DeadKey::None) {
             dead_key_entry_ = DeadKey::None;
             selection_position_ = caret_position_;
@@ -694,6 +730,8 @@ bool TextEditor::cutToClipboard() {
 }
 
 bool TextEditor::pasteFromClipboard() {
+    if (!active_) return false;
+
     addUndoPosition();
     action_state_ = kInserting;
     insertTextAtCaret(applause::readClipboardText());
@@ -701,6 +739,8 @@ bool TextEditor::pasteFromClipboard() {
 }
 
 bool TextEditor::deleteBackwards(bool modifier) {
+    if (!active_) return false;
+
     if (caret_position_ == selection_position_) {
         if (modifier)
             selection_position_ = beginningOfWord();
@@ -713,6 +753,8 @@ bool TextEditor::deleteBackwards(bool modifier) {
 }
 
 bool TextEditor::deleteForwards(bool modifier) {
+    if (!active_) return false;
+
     if (caret_position_ == selection_position_) {
         if (modifier)
             selection_position_ = endOfWord();
@@ -732,6 +774,8 @@ bool TextEditor::selectAll() {
 }
 
 bool TextEditor::undo() {
+    if (!active_) return false;
+
     if (undo_history_.empty()) return true;
 
     action_state_ = kNone;
@@ -748,7 +792,9 @@ bool TextEditor::undo() {
 }
 
 bool TextEditor::redo() {
-    if (undone_history_.empty()) return false;
+    if (!active_) return false;
+
+    if (undone_history_.empty()) return true;
 
     addUndoPosition();
     std::pair<applause::String, int> state = undone_history_.back();
@@ -762,13 +808,14 @@ bool TextEditor::redo() {
     return true;
 }
 
-void TextEditor::insertTextAtCaret(const applause::String& insert_text) {
+int TextEditor::insertTextAtCaret(const applause::String& insert_text) {
     undone_history_.clear();
     applause::String text = translateDeadKeyText(insert_text);
     if (dead_key_entry_ != DeadKey::None && text == insert_text) selection_position_ = caret_position_;
 
     dead_key_entry_ = DeadKey::None;
     if (!filtered_characters_.empty()) text = text.removeCharacters(filtered_characters_);
+    if (!text_.multiLine()) text = text.removeCharacters("\r\n");
     text = text.removeEmojiVariations();
 
     if (action_state_ != kInserting) addUndoPosition();
@@ -787,8 +834,10 @@ void TextEditor::insertTextAtCaret(const applause::String& insert_text) {
     selection_position_ = caret_position_;
     makeCaretVisible();
 
+    std::weak_ptr<bool> alive = aliveToken();
     on_text_change_.callback();
-    redraw();
+    if (!alive.expired()) redraw();
+    return max_text;
 }
 
 void TextEditor::setNumberEntry() {

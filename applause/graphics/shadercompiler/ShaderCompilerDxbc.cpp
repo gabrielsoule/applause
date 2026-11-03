@@ -19,29 +19,35 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#include <applause/graphics/WindowlessContext.h>
+#include <applause/graphics/gpu/GpuBackend.h>
 
-#include <Carbon/Carbon.h>
-#include <MetalKit/MetalKit.h>
+#include <d3dcompiler.h>
+#include <windows.h>
 
-namespace applause {
-class WindowlessMetalLayer {
-public:
-    static CAMetalLayer* layer() { return instance().metal_layer_; }
+using namespace applause::gpu;
 
-private:
-    static WindowlessMetalLayer& instance() {
-        static WindowlessMetalLayer instance;
-        return instance;
+bool compileDxbc(const std::string& hlsl, ShaderStage stage, std::vector<uint8_t>& result, std::string& error) {
+    const char* profile = "ps_5_0";
+    if (stage == ShaderStage::Vertex)
+        profile = "vs_5_0";
+    else if (stage == ShaderStage::Compute)
+        profile = "cs_5_0";
+
+    ID3DBlob* code = nullptr;
+    ID3DBlob* errors = nullptr;
+    HRESULT hr = D3DCompile(hlsl.data(), hlsl.size(), nullptr, nullptr, nullptr, "main", profile,
+                            D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &code, &errors);
+    if (errors) {
+        error.assign(static_cast<const char*>(errors->GetBufferPointer()), errors->GetBufferSize());
+        errors->Release();
+    }
+    if (FAILED(hr) || code == nullptr) {
+        error = hlsl + "\n" + error;
+        return false;
     }
 
-    WindowlessMetalLayer() {
-        metal_layer_ = [CAMetalLayer layer];
-        metal_layer_.colorspace = CGColorSpaceCreateWithName(kCGColorSpaceDisplayP3);
-    }
-
-    CAMetalLayer* metal_layer_ = nullptr;
-};
-
-void* windowlessContext() { return (__bridge void*)WindowlessMetalLayer::layer(); }
-}  // namespace applause
+    auto data = static_cast<const uint8_t*>(code->GetBufferPointer());
+    result.assign(data, data + code->GetBufferSize());
+    code->Release();
+    return true;
+}
