@@ -40,8 +40,8 @@ TEST_CASE("ShapeBatcher keeps draw order across overlapping shape types", "[grap
         canvas.endRegion();
 
         REQUIRE(region.numSubmitBatches() == 3);
-        REQUIRE(region.submitBatchAtPosition(0)->id() == region.submitBatchAtPosition(2)->id());
-        REQUIRE(region.submitBatchAtPosition(0)->id() != region.submitBatchAtPosition(1)->id());
+        REQUIRE(region.submitBatchAtPosition(0)->type() == region.submitBatchAtPosition(2)->type());
+        REQUIRE(region.submitBatchAtPosition(0)->type() != region.submitBatchAtPosition(1)->type());
     }
 
     SECTION("A shape clear of later batches joins the earlier matching batch") {

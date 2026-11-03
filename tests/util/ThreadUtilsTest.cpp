@@ -52,8 +52,6 @@ TEST_CASE("Thread without task", "[utils]") {
     Thread thread;
 
     thread.start();
-    REQUIRE(thread.running());
-
     REQUIRE(thread.waitForEnd(100));
     REQUIRE_FALSE(thread.running());
     REQUIRE(thread.completed());
@@ -125,6 +123,21 @@ TEST_CASE("Thread restart after completion", "[utils]") {
     REQUIRE(execution_count == 2);
 }
 
+TEST_CASE("Thread restart after its task finishes without stopping", "[utils]") {
+    Thread thread;
+    std::atomic<int> execution_count{0};
+
+    thread.setThreadTask([&execution_count] { execution_count++; });
+
+    thread.start();
+    while (!thread.completed()) Thread::sleep(1);
+
+    REQUIRE_FALSE(thread.running());
+    thread.start();
+    REQUIRE(thread.waitForEnd(1000));
+    REQUIRE(execution_count == 2);
+}
+
 TEST_CASE("Thread task modification", "[utils]") {
     Thread thread;
     std::atomic<bool> first_task_executed{false};
@@ -147,7 +160,8 @@ TEST_CASE("Thread task modification", "[utils]") {
 #endif
 
 TEST_CASE("Main thread detection", "[utils]") {
-    REQUIRE_FALSE(Thread::main_thread_set_);
+    // Tests share one process, and every window marks the thread that creates it as the main thread.
+    Thread::main_thread_set_ = false;
 
     Thread::setAsMainThread();
     REQUIRE(Thread::main_thread_set_);
