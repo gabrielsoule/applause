@@ -4,8 +4,6 @@
 
 A fast, flexible, and free C++20 framework for building CLAP, VST3, and AU audio plugins.
 
-Applause is still a work in progress, but you _can_ make fully functional plugins with what exists so far. Check out the examples subdirectory.
-
 There's lots of work to do. Pull requests, comments, and suggestions are all welcome. 
 
 ### Built with CLAP, an open audio plugin ABI
@@ -19,6 +17,9 @@ Applause is fully modular. The underlying CLAP specification is composed of C "e
 
 ### GPU-accelerated UI
 Applause's UI layer is built on top of Matt Tytel's visage library, which in turn inherits from the Vital synthesizer. The UI is GPU-accelerated and supports 60fps animations, shaders, gradients, et cetera. Applause supplies a collection of useful plugin widgets such as knobs and sliders, which can directly connect to host parameters if desired. It's all plug-and-play; we handle the cross-thread shenanigans for you.
+
+### Programmed with Intention
+Author's Note: I started working on Applause back when Claude Code was but a coruscating twinkle in Dario Amodei's eye. Now, LLMs can effortlessly slop-fork complex software libraries with the stroke of a key. I am not opposed to agentic programming: it is undeniable that frontier LLMs have greatly accelerated my work on Applause, and I have leveraged their abilities to implement features in days that would have otherwise taken months. That said, Applause is not a "slop project" and never will become one. All LLM-generated code is reviewed by humans; LLMs are never permitted to make API design decisions (they still have poor taste with respect to ontological boundaries). 
 
 ## Roadmap
 
