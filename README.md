@@ -2,6 +2,8 @@
 
 # Applause
 
+![The ExampleShowcase plugin, built with Applause](https://ccrma.stanford.edu/~gns/applause.png)
+
 A fast, flexible, and free C++20 framework for building CLAP, VST3, and AU audio plugins.
 
 There's lots of work to do. Pull requests, comments, and suggestions are all welcome. 
