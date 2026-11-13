@@ -94,7 +94,7 @@ void EventManager::checkEventTimers() {
 
 MouseEvent MouseEvent::relativeTo(const Frame* new_frame) const {
     MouseEvent copy = *this;
-    copy.position = copy.window_position - new_frame->positionInWindow();
+    copy.position = new_frame->windowToLocal(copy.window_position);
     copy.event_frame = new_frame;
     return copy;
 }

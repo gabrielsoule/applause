@@ -41,6 +41,7 @@ applause::Frame* frameAtPointExcluding(
     if (!root || (exclude && exclude(root))) return nullptr;
 
     const auto& children = root->children();
+    point = point / root->childScale();
     // Walk on_top siblings first (drawn last → on top), reverse iter so
     // last-added/topmost wins. Matches applause::Frame::frameAtPoint order.
     for (auto it = children.rbegin(); it != children.rend(); ++it) {

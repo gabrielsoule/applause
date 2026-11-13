@@ -156,11 +156,13 @@ void InspectorWindow::refreshSelectionHighlight() {
                 (p && p != &editor_)
                     ? editor_.relativeBounds(p)
                     : applause::Bounds(0, 0, editor_.width(), editor_.height());
+            // The selected frame's bounds are in its own units, which a scaled parent makes differ from the editor's.
+            const float scale = selected_->scaleInWindow() / editor_.scaleInWindow();
             selected_->setBounds(
-                new_in_editor.x() - parent_in_editor.x(),
-                new_in_editor.y() - parent_in_editor.y(),
-                new_in_editor.width(),
-                new_in_editor.height());
+                (new_in_editor.x() - parent_in_editor.x()) / scale,
+                (new_in_editor.y() - parent_in_editor.y()) / scale,
+                new_in_editor.width() / scale,
+                new_in_editor.height() / scale);
             refreshSelectionHighlight();
         });
     }

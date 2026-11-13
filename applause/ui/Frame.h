@@ -313,7 +313,7 @@ public:
         dpi_scale_ = dpi_scale;
         if (changed) redraw();
 
-        for (Frame* child : children_) child->setDpiScale(dpi_scale);
+        for (Frame* child : children_) child->setDpiScale(childDpiScale(child));
 
         if (changed) {
             on_dpi_change_.callback();
@@ -322,6 +322,16 @@ public:
     }
 
     float dpiScale() const { return dpi_scale_; }
+
+    // Scales every frame under this one, as a display with a different DPI would, so a zoomed view can hold ordinary
+    // frames. Children are positioned, sized and laid out in the scaled units, and mouse events reach them in those
+    // units. This frame's own bounds and drawing don't change. Changing the scale lays the children out again, as a
+    // resize does.
+    void setChildScale(float scale);
+    float childScale() const { return child_scale_; }
+    // The size of one of this frame's units in the window's.
+    float scaleInWindow() const;
+    Point windowToLocal(Point window_position) const;
 
     bool requestRedraw() {
         if (event_handler_ && event_handler_->request_redraw) {
@@ -428,6 +438,11 @@ private:
     void createMaskFrame();
     void updateGroup();
 
+    // The mask covers this frame, so it stays in this frame's units.
+    float childDpiScale(const Frame* child) const {
+        return child == mask_frame_.get() ? dpi_scale_ : dpi_scale_ * child_scale_;
+    }
+
     bool groupsPostEffect() const {
         PostEffect* post_effect = postEffect();
         return post_effect && !post_effect->appliedInPlace() && !post_effect->hdr() &&
@@ -485,6 +500,7 @@ private:
     std::shared_ptr<bool> alive_;
 
     float dpi_scale_ = 1.0f;
+    float child_scale_ = 1.0f;
     std::unordered_map<const ColorToken*, Setting<Color>> theme_colors_;
     std::unordered_map<const ValueToken*, Setting<float>> theme_values_;
     bool initialized_ = false;

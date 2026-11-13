@@ -83,7 +83,7 @@ void Frame::addChild(Frame* child, bool make_visible) {
 
     region_.addRegion(child->outerRegion());
 
-    child->setDpiScale(dpi_scale_);
+    child->setDpiScale(childDpiScale(child));
     if (initialized_) child->init();
 
     child->notifyHierarchyChanged();
@@ -132,6 +132,7 @@ int Frame::indexOfChild(const Frame* child) const {
 
 Frame* Frame::frameAtPoint(Point point) {
     if (pass_mouse_events_to_children_) {
+        point = point / child_scale_;
         for (auto it = children_.rbegin(); it != children_.rend(); ++it) {
             auto& child = *it;
             if (child->isOnTop() && child->isVisible() && child->containsPoint(point)) {
@@ -199,7 +200,7 @@ IBounds Frame::computeLayoutBoundingBox(IBounds bounds) const {
     for (Frame* child : children_) {
         if (child->layout_) children_layouts.push_back(child->layout_.get());
     }
-    layout_->flexPositions(children_layouts, bounds, dpi_scale_);
+    layout_->flexPositions(children_layouts, bounds, dpi_scale_ * child_scale_);
     return layout_->boundingBox();
 }
 
@@ -211,7 +212,7 @@ void Frame::computeLayout() {
         }
 
         std::vector<IBounds> children_bounds =
-            layout_->flexPositions(children_layouts, nativeLocalBounds(), dpi_scale_);
+            layout_->flexPositions(children_layouts, nativeLocalBounds(), dpi_scale_ * child_scale_);
         int index = 0;
         for (Frame* child : children_) {
             if (child->layout_) child->setNativeBounds(children_bounds[index++]);
@@ -224,7 +225,7 @@ void Frame::computeLayout(Frame* child) {
 
     int width = this->nativeWidth();
     int height = this->nativeHeight();
-    float dpi = dpi_scale_;
+    float dpi = child->dpi_scale_;
 
     int pad_left = 0;
     int pad_top = 0;
@@ -255,23 +256,40 @@ void Frame::computeLayout(Frame* child) {
     child->setNativeBounds(x, y, w, h);
 }
 
+void Frame::setChildScale(float scale) {
+    APPLAUSE_ASSERT(scale > 0.0f);
+    if (child_scale_ == scale) return;
+
+    child_scale_ = scale;
+    for (Frame* child : children_) child->setDpiScale(childDpiScale(child));
+    runLayout();
+}
+
 Point Frame::positionInWindow() const {
     Point global_position = topLeft();
     Frame* frame = parent_;
     while (frame) {
-        global_position = global_position + frame->topLeft();
+        global_position = global_position * frame->child_scale_ + frame->topLeft();
         frame = frame->parent_;
     }
 
     return global_position;
 }
 
+float Frame::scaleInWindow() const {
+    float scale = 1.0f;
+    for (Frame* frame = parent_; frame; frame = frame->parent_) scale *= frame->child_scale_;
+    return scale;
+}
+
+Point Frame::windowToLocal(Point window_position) const {
+    return (window_position - positionInWindow()) / scaleInWindow();
+}
+
 Bounds Frame::relativeBounds(const Frame* other) const {
-    Point position = positionInWindow();
-    Point other_position = other->positionInWindow();
-    float width = other->bounds().width();
-    float height = other->bounds().height();
-    return {other_position.x - position.x, other_position.y - position.y, width, height};
+    Point position = windowToLocal(other->positionInWindow());
+    float scale = other->scaleInWindow() / scaleInWindow();
+    return {position.x, position.y, other->bounds().width() * scale, other->bounds().height() * scale};
 }
 
 bool Frame::tryFocusTextReceiver() {
@@ -336,7 +354,7 @@ void Frame::drawToRegion(Canvas& canvas) {
         return;
     }
 
-    canvas.beginRegion(&region_);
+    canvas.beginRegion(&region_, dpi_scale_);
     on_draw_.callback(canvas);
     canvas.endRegion();
 }

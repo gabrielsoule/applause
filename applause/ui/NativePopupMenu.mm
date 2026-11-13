@@ -111,7 +111,7 @@ void NativePopupMenu::show(Frame* source, Point position) {
         return;
 
     NSView* view = (__bridge NSView*)editor->window()->nativeHandle();
-    Point window_position = source->positionInWindow() + position;
+    Point window_position = source->positionInWindow() + position * source->scaleInWindow();
     ApplauseNativeMenuHandler* handler = [[ApplauseNativeMenuHandler alloc] init];
 
     NSMenu* menu = [[NSMenu alloc] init];

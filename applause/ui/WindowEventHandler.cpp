@@ -66,7 +66,7 @@ bool WindowEventHandler::takeMouseDrag(Frame* frame) {
 
     MouseEvent mouse_event;
     mouse_event.window_position = last_mouse_position_;
-    mouse_event.position = last_mouse_position_ - pressed_frame->positionInWindow();
+    mouse_event.position = pressed_frame->windowToLocal(last_mouse_position_);
     mouse_event.event_frame = pressed_frame;
     mouse_event.is_cancelled = true;
     pressed_frame->processMouseUp(mouse_event);
@@ -83,7 +83,7 @@ void WindowEventHandler::handleFocusLost() {
     IPoint position = window_->lastWindowMousePosition();
     MouseEvent mouse_event = mouseEvent(position.x, position.y, 0, 0);
     if (mouse_down_frame_) {
-        mouse_event.position = mouse_event.window_position - mouse_down_frame_->positionInWindow();
+        mouse_event.position = mouse_down_frame_->windowToLocal(mouse_event.window_position);
         mouse_event.event_frame = mouse_down_frame_;
         mouse_event.is_cancelled = true;
         mouse_down_frame_->processMouseUp(mouse_event);
@@ -91,7 +91,7 @@ void WindowEventHandler::handleFocusLost() {
         mouse_down_frame_ = nullptr;
     }
     if (mouse_hovered_frame_) {
-        mouse_event.position = mouse_event.window_position - mouse_hovered_frame_->positionInWindow();
+        mouse_event.position = mouse_hovered_frame_->windowToLocal(mouse_event.window_position);
         mouse_event.event_frame = mouse_hovered_frame_;
         mouse_hovered_frame_->processMouseExit(mouse_event);
         mouse_hovered_frame_ = nullptr;
@@ -248,7 +248,7 @@ HitTestResult WindowEventHandler::handleHitTest(int x, int y) {
     if (hovered_frame == nullptr)
         current_hit_test_ = HitTestResult::Client;
     else {
-        Point position = window_position - hovered_frame->positionInWindow();
+        Point position = hovered_frame->windowToLocal(window_position);
         current_hit_test_ = hovered_frame->hitTest(position);
     }
     return current_hit_test_;
@@ -259,7 +259,7 @@ void WindowEventHandler::handleMouseMove(int x, int y, int button_state, int mod
     if (window_->mouseRelativeMode() && mouse_event.relative_position == Point(0, 0)) return;
 
     if (mouse_down_frame_) {
-        mouse_event.position = mouse_event.window_position - mouse_down_frame_->positionInWindow();
+        mouse_event.position = mouse_down_frame_->windowToLocal(mouse_event.window_position);
         mouse_event.event_frame = mouse_down_frame_;
         mouse_down_frame_->processMouseDrag(mouse_event);
         return;
@@ -267,7 +267,7 @@ void WindowEventHandler::handleMouseMove(int x, int y, int button_state, int mod
 
     Frame* frame = content_frame_->frameAtPoint(mouse_event.window_position);
     if (!setHoveredFrame(frame, mouse_event) && mouse_hovered_frame_) {
-        mouse_event.position = mouse_event.window_position - mouse_hovered_frame_->positionInWindow();
+        mouse_event.position = mouse_hovered_frame_->windowToLocal(mouse_event.window_position);
         mouse_event.event_frame = mouse_hovered_frame_;
         mouse_hovered_frame_->processMouseMove(mouse_event);
     }
@@ -278,13 +278,13 @@ bool WindowEventHandler::setHoveredFrame(Frame* frame, MouseEvent mouse_event) {
 
     temporary_frame_ = frame;
     if (mouse_hovered_frame_) {
-        mouse_event.position = mouse_event.window_position - mouse_hovered_frame_->positionInWindow();
+        mouse_event.position = mouse_hovered_frame_->windowToLocal(mouse_event.window_position);
         mouse_event.event_frame = mouse_hovered_frame_;
         mouse_hovered_frame_->processMouseExit(mouse_event);
     }
 
     if (temporary_frame_) {
-        mouse_event.position = mouse_event.window_position - temporary_frame_->positionInWindow();
+        mouse_event.position = temporary_frame_->windowToLocal(mouse_event.window_position);
         mouse_event.event_frame = temporary_frame_;
         temporary_frame_->processMouseEnter(mouse_event);
     }
@@ -307,7 +307,7 @@ void WindowEventHandler::handleMouseDown(MouseButton button_id, int x, int y, in
     }
 
     if (mouse_down_frame_) {
-        mouse_event.position = mouse_event.window_position - mouse_down_frame_->positionInWindow();
+        mouse_event.position = mouse_down_frame_->windowToLocal(mouse_event.window_position);
         mouse_event.event_frame = mouse_down_frame_;
         mouse_down_frame_->processMouseDown(mouse_event);
     }
@@ -319,7 +319,7 @@ void WindowEventHandler::handleMouseUp(MouseButton button_id, int x, int y, int 
     mouse_event.repeat_click_count = repeat;
 
     if (mouse_down_frame_ && (button_state & ~button_id)) {
-        mouse_event.position = mouse_event.window_position - mouse_down_frame_->positionInWindow();
+        mouse_event.position = mouse_down_frame_->windowToLocal(mouse_event.window_position);
         mouse_event.event_frame = mouse_down_frame_;
         mouse_down_frame_->processMouseUp(mouse_event);
         return;
@@ -329,7 +329,7 @@ void WindowEventHandler::handleMouseUp(MouseButton button_id, int x, int y, int 
     bool exited = mouse_hovered_frame_ != mouse_down_frame_;
 
     if (mouse_down_frame_) {
-        mouse_event.position = mouse_event.window_position - mouse_down_frame_->positionInWindow();
+        mouse_event.position = mouse_down_frame_->windowToLocal(mouse_event.window_position);
         mouse_event.event_frame = mouse_down_frame_;
         temporary_frame_ = mouse_down_frame_;
         mouse_down_frame_ = nullptr;
@@ -339,7 +339,7 @@ void WindowEventHandler::handleMouseUp(MouseButton button_id, int x, int y, int 
     }
 
     if (exited && mouse_hovered_frame_) {
-        mouse_event.position = mouse_event.window_position - mouse_hovered_frame_->positionInWindow();
+        mouse_event.position = mouse_hovered_frame_->windowToLocal(mouse_event.window_position);
         mouse_event.event_frame = mouse_hovered_frame_;
         mouse_hovered_frame_->processMouseEnter(mouse_event);
     }
@@ -350,7 +350,7 @@ void WindowEventHandler::handleMouseEnter(int x, int y) { last_mouse_position_ =
 void WindowEventHandler::handleMouseLeave(int x, int y, int button_state, int modifiers) {
     if (mouse_hovered_frame_) {
         MouseEvent mouse_event = mouseEvent(x, y, button_state, modifiers);
-        mouse_event.position = mouse_event.window_position - mouse_hovered_frame_->positionInWindow();
+        mouse_event.position = mouse_hovered_frame_->windowToLocal(mouse_event.window_position);
         mouse_event.event_frame = mouse_hovered_frame_;
         mouse_hovered_frame_->processMouseExit(mouse_event);
         mouse_hovered_frame_ = nullptr;
@@ -373,7 +373,7 @@ void WindowEventHandler::handleMouseWheel(float delta_x, float delta_y, float pr
             temporary_frame_ = temporary_frame_->parent();
 
         if (temporary_frame_) {
-            mouse_event.position = mouse_event.window_position - temporary_frame_->positionInWindow();
+            mouse_event.position = temporary_frame_->windowToLocal(mouse_event.window_position);
             used = temporary_frame_->processMouseWheel(mouse_event);
             if (temporary_frame_) temporary_frame_ = temporary_frame_->parent();
         }

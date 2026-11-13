@@ -522,6 +522,14 @@ public:
         state_.current_region = region;
     }
 
+    // Draws the region at a scale of its own. The clamp is the region, in native pixels.
+    void beginRegion(Region* region, float scale) {
+        beginRegion(region);
+        state_.scale = scale;
+        state_.clamp.right = region->width();
+        state_.clamp.bottom = region->height();
+    }
+
     void endRegion() {
         APPLAUSE_ASSERT(state_memory_.size() == 1);
         if (state_memory_.size() > 1) state_memory_.erase(state_memory_.begin() + 1, state_memory_.end());

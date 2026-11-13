@@ -115,7 +115,8 @@ void NativePopupMenu::show(Frame* source, Point position) {
 
     auto* window = editor->window();
     HWND hwnd = static_cast<HWND>(window->nativeHandle());
-    IPoint client_position = window->convertToNative(source->positionInWindow() + position);
+    IPoint client_position =
+        window->convertToNative(source->positionInWindow() + position * source->scaleInWindow());
     POINT screen_position = {client_position.x, client_position.y};
     ClientToScreen(hwnd, &screen_position);
 
