@@ -54,7 +54,7 @@ if(APPLE)
     CPMAddPackage(
         NAME clap-wrapper
         GITHUB_REPOSITORY free-audio/clap-wrapper
-        GIT_TAG v0.16.0
+        GIT_TAG v0.18.0
         OPTIONS
             "CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}"
             "CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE"
@@ -64,7 +64,7 @@ else()
     CPMAddPackage(
         NAME clap-wrapper
         GITHUB_REPOSITORY free-audio/clap-wrapper
-        GIT_TAG v0.16.0
+        GIT_TAG v0.18.0
         OPTIONS
             "CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE"
             "CLAP_WRAPPER_BUILD_TESTS OFF"
