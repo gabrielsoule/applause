@@ -6,6 +6,7 @@
 #include <applause/util/DebugHelpers.h>
 
 #include <algorithm>
+#include <cmath>
 
 #ifndef NDEBUG
 #include <applause/util/inspector/InspectorWindow.h>
@@ -87,6 +88,19 @@ void ApplauseEditor::setWindowDimensionsFromHost(uint32_t width, uint32_t height
 #else
     applause::ApplicationWindow::setNativeWindowDimensionsFromHost(static_cast<int>(width), static_cast<int>(height));
 #endif
+}
+
+void ApplauseEditor::adjustWindowDimensionsFromHost(uint32_t* width, uint32_t* height) const {
+#if __APPLE__
+    const float scale = window() ? window()->dpiScale() : dpiScale();
+#else
+    const float scale = 1.0f;
+#endif
+    int native_width = static_cast<int>(std::lround(static_cast<float>(*width) * scale));
+    int native_height = static_cast<int>(std::lround(static_cast<float>(*height) * scale));
+    adjustWindowDimensions(&native_width, &native_height, true, false);
+    *width = static_cast<uint32_t>(std::ceil(static_cast<float>(native_width) / scale));
+    *height = static_cast<uint32_t>(std::ceil(static_cast<float>(native_height) / scale));
 }
 
 void ApplauseEditor::setFixedAspectRatio(bool fixed) {

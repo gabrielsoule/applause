@@ -80,6 +80,12 @@ public:
     virtual void setWindowDimensionsFromHost(uint32_t width, uint32_t height) { setWindowDimensions(width, height); }
 
     /**
+     * @brief Change a size the host proposes, in the host's units, to the nearest size the editor accepts, for
+     * example its minimum. The host calls this function to ask the editor about its preferences before it resizes the editor. Hosts may or may not obey the editor's requested adjustment.
+     */
+    virtual void adjustWindowDimensionsFromHost(uint32_t* width, uint32_t* height) const {}
+
+    /**
      * @brief Configure whether the editor maintains a fixed aspect ratio.
      */
     virtual void setFixedAspectRatio(bool fixed) = 0;

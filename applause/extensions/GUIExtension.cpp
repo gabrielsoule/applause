@@ -174,6 +174,7 @@ bool GUIExtension::clap_gui_adjust_size(const clap_plugin_t* plugin, uint32_t* w
     float aspectRatio = ext->aspectRatio_;
 
     if (ext->editor_) {
+        ext->editor_->adjustWindowDimensionsFromHost(width, height);
         shouldEnforceAspectRatio = ext->editor_->isFixedAspectRatio();
         if (shouldEnforceAspectRatio) {
             aspectRatio = ext->editor_->getAspectRatio();

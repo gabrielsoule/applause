@@ -49,6 +49,7 @@ public:
     uint32_t height() const override;
     void setWindowDimensions(uint32_t width, uint32_t height) override;
     void setWindowDimensionsFromHost(uint32_t width, uint32_t height) override;
+    void adjustWindowDimensionsFromHost(uint32_t* width, uint32_t* height) const override;
     void setFixedAspectRatio(bool fixed) override;
     bool isFixedAspectRatio() const override;
     float getAspectRatio() const override;
