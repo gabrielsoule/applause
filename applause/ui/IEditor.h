@@ -56,18 +56,18 @@ public:
     virtual void close() = 0;
 
     /**
-     * @brief Get the current width of the editor window.
+     * @brief Get the current width of the editor window, as reported to the host.
      * @return Width in pixels (physical or logical depending on platform)
      * [main-thread]
      */
-    virtual uint32_t width() const = 0;
+    virtual uint32_t hostWidth() const = 0;
 
     /**
-     * @brief Get the current height of the editor window.
+     * @brief Get the current height of the editor window, as reported to the host.
      * @return Height in pixels (physical or logical depending on platform)
      * [main-thread]
      */
-    virtual uint32_t height() const = 0;
+    virtual uint32_t hostHeight() const = 0;
 
     /**
      * @brief Set the editor window dimensions.

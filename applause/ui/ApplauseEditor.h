@@ -45,8 +45,8 @@ public:
     ParamsExtension* getParamsExtension();
     void show(void* parent_window) override;
     void close() override;
-    uint32_t width() const override;
-    uint32_t height() const override;
+    uint32_t hostWidth() const override;
+    uint32_t hostHeight() const override;
     void setWindowDimensions(uint32_t width, uint32_t height) override;
     void setWindowDimensionsFromHost(uint32_t width, uint32_t height) override;
     void adjustWindowDimensionsFromHost(uint32_t* width, uint32_t* height) const override;

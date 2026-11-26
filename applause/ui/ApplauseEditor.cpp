@@ -69,13 +69,9 @@ void ApplauseEditor::show(void* parent_window) {
 
 void ApplauseEditor::close() { applause::ApplicationWindow::close(); }
 
-uint32_t ApplauseEditor::width() const {
-    return static_cast<uint32_t>(applause::ApplicationWindow::width());
-}
+uint32_t ApplauseEditor::hostWidth() const { return static_cast<uint32_t>(width()); }
 
-uint32_t ApplauseEditor::height() const {
-    return static_cast<uint32_t>(applause::ApplicationWindow::height());
-}
+uint32_t ApplauseEditor::hostHeight() const { return static_cast<uint32_t>(height()); }
 
 void ApplauseEditor::setWindowDimensions(uint32_t width, uint32_t height) {
     applause::ApplicationWindow::setWindowDimensions(static_cast<int>(width),

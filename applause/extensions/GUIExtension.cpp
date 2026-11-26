@@ -105,8 +105,8 @@ bool GUIExtension::clap_gui_get_size(const clap_plugin_t* plugin, uint32_t* widt
     if (!ext) return false;
 
     if (ext->editor_) {
-        *width = static_cast<uint32_t>(ext->editor_->width());
-        *height = static_cast<uint32_t>(ext->editor_->height());
+        *width = ext->editor_->hostWidth();
+        *height = ext->editor_->hostHeight();
     } else {
         // Return default size if editor not created yet
         *width = ext->width_;
@@ -137,8 +137,8 @@ bool GUIExtension::clap_gui_get_resize_hints(const clap_plugin_t* plugin, clap_g
 
         if (hints->preserve_aspect_ratio) {
             // Use editor's current dimensions for the most accurate ratio
-            uint32_t width = ext->editor_->width();
-            uint32_t height = ext->editor_->height();
+            uint32_t width = ext->editor_->hostWidth();
+            uint32_t height = ext->editor_->hostHeight();
 
             // Use GCD to find the simplest integer ratio
             uint32_t gcd = std::gcd(width, height);
