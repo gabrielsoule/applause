@@ -70,7 +70,8 @@ else()
             "CLAP_WRAPPER_BUILD_TESTS OFF"
     )
 endif()
-set(CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE)
+# cache so that clap-wrapper also sees it when a project that embeds Applause calls add_applause_plugin()
+set(CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE CACHE BOOL "Let clap-wrapper download the plugin format SDKs it needs")
 
 # Include clap-wrapper's CMake functions to make make_clapfirst_plugins available
 # The wrapper_functions.cmake uses relative paths, so we need to set the module path
