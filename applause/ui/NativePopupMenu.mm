@@ -4,7 +4,9 @@
  */
 
 
-#include "NativePopupMenu.h"
+#include "PopupMenu.h"
+
+#include <applause/ui/ApplauseUI.h>
 
 #import <Cocoa/Cocoa.h>
 
@@ -40,43 +42,40 @@
 
 namespace applause {
 
-using Modifier = NativePopupMenu::Modifier;
-
-static NSEventModifierFlags convertModifiers(Modifier modifiers) {
+static NSEventModifierFlags convertModifiers(int modifiers) {
     NSEventModifierFlags flags = 0;
-    if ((modifiers & Modifier::Cmd) != Modifier::None)
+    if (modifiers & kModifierCmd)
         flags |= NSEventModifierFlagCommand;
-    if ((modifiers & Modifier::Option) != Modifier::None)
+    if (modifiers & kModifierOption)
         flags |= NSEventModifierFlagOption;
-    if ((modifiers & Modifier::Ctrl) != Modifier::None)
+    if (modifiers & kModifierMacCtrl)
         flags |= NSEventModifierFlagControl;
-    if ((modifiers & Modifier::Shift) != Modifier::None)
+    if (modifiers & kModifierShift)
         flags |= NSEventModifierFlagShift;
     return flags;
 }
 
-static void buildNSMenu(NSMenu* nsMenu, const NativePopupMenu& menu, ApplauseNativeMenuHandler* handler) {
+static void buildNSMenu(NSMenu* nsMenu, const PopupMenu& menu, ApplauseNativeMenuHandler* handler) {
     for (const auto& option : menu.options()) {
         if (option.isBreak()) {
             [nsMenu addItem:[NSMenuItem separatorItem]];
             continue;
         }
 
-        NSString* title = [NSString stringWithUTF8String:option.name().c_str()];
-        NSString* keyEquiv = option.shortcutKey().empty()
-                                 ? @""
-                                 : [NSString stringWithUTF8String:option.shortcutKey().c_str()];
+        NSString* title = [NSString stringWithUTF8String:option.name().toUtf8().c_str()];
+        const std::string& key = option.nativeShortcutCharacter();
+        NSString* keyEquiv = key.empty() ? @"" : [NSString stringWithUTF8String:key.c_str()];
 
         NSMenuItem* item = [[NSMenuItem alloc] initWithTitle:title
                                                       action:@selector(menuItemSelected:)
                                                keyEquivalent:keyEquiv];
         item.target = handler;
         item.tag = option.id();
-        item.enabled = option.isEnabled();
-        item.state = option.isSelected() ? NSControlStateValueOn : NSControlStateValueOff;
+        item.enabled = option.enabled();
+        item.state = option.selected() ? NSControlStateValueOn : NSControlStateValueOff;
 
-        if (!option.shortcutKey().empty())
-            item.keyEquivalentModifierMask = convertModifiers(option.shortcutModifiers());
+        if (!key.empty())
+            item.keyEquivalentModifierMask = convertModifiers(option.nativeShortcutModifiers());
 
         if (option.hasOptions()) {
             NSMenu* submenu = [[NSMenu alloc] initWithTitle:title];
@@ -89,21 +88,19 @@ static void buildNSMenu(NSMenu* nsMenu, const NativePopupMenu& menu, ApplauseNat
     }
 }
 
-static const NativePopupMenu* findOptionById(const NativePopupMenu& menu, int id) {
+static const PopupMenu* findOptionById(const PopupMenu& menu, int id) {
     for (const auto& option : menu.options()) {
         if (option.isBreak())
             continue;
-        if (option.id() == id)
+        if (!option.hasOptions() && option.id() == id)
             return &option;
-        if (option.hasOptions()) {
-            if (const auto* found = findOptionById(option, id))
-                return found;
-        }
+        if (const auto* found = findOptionById(option, id))
+            return found;
     }
     return nullptr;
 }
 
-void NativePopupMenu::show(Frame* source, Point position) {
+void PopupMenu::showNative(Frame* source, Point position) const {
     auto* editor = dynamic_cast<ApplicationEditor*>(source);
     if (!editor)
         editor = source->findParent<ApplicationEditor>();

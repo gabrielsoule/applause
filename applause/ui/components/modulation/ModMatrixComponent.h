@@ -4,7 +4,7 @@
 
 #include <applause/core/ModMatrix.h>
 
-#include <applause/ui/components/Button.h>
+#include <applause/ui/components/Dropdown.h>
 #include <applause/ui/components/Slider.h>
 
 #include <memory>
@@ -43,11 +43,13 @@ public:
 
     private:
         void setControlsActive(bool active);
+        // Fills a menu with the destinations this row can pick, using dst_list_id values as IDs.
+        void buildDestinations(PopupMenu& menu) const;
 
         ModMatrixComponent& owner_;
 
-        applause::PopupMenuButton src_menu_{"—"};
-        applause::PopupMenuButton dst_menu_{"—"};
+        applause::Dropdown src_menu_;
+        applause::Dropdown dst_menu_;
         applause::Button bipolar_toggle_{"±"};
         applause::Slider depth_slider_;
         applause::Button delete_button_{"X"};

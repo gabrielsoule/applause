@@ -23,9 +23,6 @@
 
 #include "RadioGroup.h"
 
-#include <applause/ui/NativePopupMenu.h>
-#include <applause/ui/PopupMenu.h>
-
 #include <embedded/applause_fonts.h>
 
 #include <algorithm>
@@ -257,25 +254,6 @@ void Button::mouseUp(const applause::MouseEvent& e) {
         hover_amount_.target(true, true);
         if (!triggered_on_mouse_down_) click();
     }
-}
-
-PopupMenuButton::PopupMenuButton(std::string text) : Button(std::move(text)) {
-    onClick() += [this] { showPopup(); };
-}
-
-void PopupMenuButton::showPopup() {
-    if (!on_build_menu_) return;
-
-    NativePopupMenu menu("Select");
-    on_build_menu_(menu);
-
-    menu.onSelection() += [button = std::weak_ptr(reference_)](int id) {
-        if (auto alive = button.lock()) (*alive)->on_item_selected_.callback(id);
-    };
-    if (native_)
-        menu.show(this, {0.0f, height()});
-    else
-        menu.showDrawn(this, {PopupMenu::kNotSet, PopupMenu::kNotSet});
 }
 
 }  // namespace applause

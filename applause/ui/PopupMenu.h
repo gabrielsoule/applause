@@ -78,6 +78,10 @@ public:
         name_(name), id_(id), is_break_(is_break), options_(std::move(options)) {}
 
     void show(Frame* source, Point position = {kNotSet, kNotSet});
+    // Applause's addition. Shows the operating system's popup menu instead of the drawn one, with its top-left corner
+    // at `position` relative to `source`, which must be inside an ApplicationEditor's window. It blocks until the menu
+    // closes. Linux plugin windows have no native menu, so there it shows the drawn one.
+    void showNative(Frame* source, Point position) const;
     void setAsNativeMenuBar() { setNativeMenuBar(*this); }
 
     PopupMenu& addOption(int option_id, const String& option_name) {

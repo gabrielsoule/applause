@@ -1,12 +1,15 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
-#include <applause/ui/NativePopupMenu.h>
 #include <applause/ui/PopupMenu.h>
 #include <applause/ui/components/Button.h>
+#include <applause/ui/components/PopupMenuButton.h>
 
+#include <chrono>
+#include <cstddef>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -156,6 +159,49 @@ TEST_CASE("A button's icon is centered with its text and follows the icon size t
     REQUIRE(beside.x() == Catch::Approx((200.0f - content_width) * 0.5f));
 }
 
+TEST_CASE("A popup menu button's drawn menu is as wide as the button unless its options need more", "[ui][button]") {
+    applause::Frame root;
+    root.setBounds(0.0f, 0.0f, 300.0f, 200.0f);
+    applause::PopupMenuButton button("Pick");
+    root.addChild(button);
+    button.setBounds(10.0f, 10.0f, 100.0f, 24.0f);
+    std::string name = "One";
+    button.onBuildMenu() = [&](applause::PopupMenu& menu) { menu.addOption(1, name); };
+
+    button.click();
+    REQUIRE(openedList(root)->width() == 100.0f);
+
+    name = "An option far too long to fit in the button";
+    button.click();
+    REQUIRE(openedList(root)->width() > 100.0f);
+}
+
+TEST_CASE("Pressing a popup menu button while its menu is open only closes the menu", "[ui][button]") {
+    applause::Frame root;
+    root.setBounds(0.0f, 0.0f, 300.0f, 200.0f);
+    applause::PopupMenuButton button("Pick");
+    root.addChild(button);
+    button.setBounds(10.0f, 10.0f, 100.0f, 24.0f);
+    button.onBuildMenu() = [](applause::PopupMenu& menu) { menu.addOption(1, "One"); };
+
+    button.click();
+    REQUIRE(button.isOpen());
+    const std::size_t frames = root.children().size();
+
+    // A press takes keyboard focus from the menu, which cancels it, before the press reaches the button.
+    dynamic_cast<applause::PopupMenuFrame*>(root.children().back())->focusChanged(false, true);
+    REQUIRE_FALSE(button.isOpen());
+    button.click();
+    REQUIRE_FALSE(button.isOpen());
+    REQUIRE(root.children().size() == frames);
+
+    // A later press opens it again.
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    button.click();
+    REQUIRE(button.isOpen());
+    REQUIRE(root.children().size() == frames + 1);
+}
+
 TEST_CASE("A popup menu button opens the drawn menu by default and reports the chosen option", "[ui][button]") {
     applause::Frame root;
     root.setBounds(0.0f, 0.0f, 300.0f, 200.0f);
@@ -164,7 +210,7 @@ TEST_CASE("A popup menu button opens the drawn menu by default and reports the c
     button.setBounds(10.0f, 10.0f, 80.0f, 24.0f);
     REQUIRE_FALSE(button.isNative());
 
-    button.onBuildMenu() = [](applause::NativePopupMenu& menu) {
+    button.onBuildMenu() = [](applause::PopupMenu& menu) {
         menu.addOption(1, "One");
         menu.addOption(2, "Two").select(true);
         menu.addOption(3, "Three").enable(false);

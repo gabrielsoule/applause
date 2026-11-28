@@ -5,7 +5,8 @@
 #include <embedded/applause_fonts.h>
 
 #include <applause/ui/ApplauseEditor.h>
-#include <applause/ui/NativePopupMenu.h>
+
+#include <algorithm>
 
 using namespace applause::dimension;
 
@@ -22,35 +23,13 @@ ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(
     layout().setFlexGrow(0.0f);
     layout().setFlexShrink(0.0f);
 
-    src_menu_.onBuildMenu() = [this](NativePopupMenu& menu) {
-        for (uint16_t i = 0; i < owner_.matrix_.getSourceCount(); ++i) {
-            menu.addOption(i, owner_.matrix_.getSource(i).name).select(i == src_list_id);
-        }
-    };
-
-    dst_menu_.onBuildMenu() = [this](NativePopupMenu& menu) {
-        for (uint16_t i = 0; i < owner_.matrix_.getDestinationCount(); ++i) {
-            const auto& destination = owner_.matrix_.getDestination(i);
-            if (!destination.active) continue;
-            menu.addOption(i + 1, destination.name).select(i + 1 == dst_list_id);
-        }
-
-        bool has_connections = false;
-        for (auto& conn : owner_.matrix_.getConnections()) {
-            if (!conn.isDepthMod()) {
-                has_connections = true;
-                break;
-            }
-        }
-        if (has_connections) {
-            menu.addBreak();
-            auto& sub = menu.addSubMenu("Connections");
-            for (auto& conn : owner_.matrix_.getConnections()) {
-                if (conn.isDepthMod()) continue;
-                sub.addOption(-(static_cast<int>(conn.depth_slot) + 1), connectionLabel(owner_.matrix_, conn));
-            }
-        }
-    };
+    std::vector<std::string> sources;
+    for (uint16_t i = 0; i < owner_.matrix_.getSourceCount(); ++i) sources.push_back(owner_.matrix_.getSource(i).name);
+    src_menu_.setOptions(sources);
+    src_menu_.setPlaceholder("—");
+    dst_menu_.setPlaceholder("—");
+    // Destinations come and go with dynamic parameters, so the menu is rebuilt each time it opens.
+    dst_menu_.onBuildMenu() = [this](PopupMenu& menu) { buildDestinations(menu); };
 
     addChild(&src_menu_);
     src_menu_.layout().setFlexGrow(1.0f);
@@ -74,41 +53,53 @@ ModMatrixComponent::Row::Row(ModMatrixComponent& owner, bool is_dummy) : owner_(
     if (is_dummy) {
         setControlsActive(false);
 
-        src_menu_.onItemSelected() += [this](int id) {
+        src_menu_.onSelectionChanged() += [this](int id) {
             src_list_id = id;
-            src_menu_.setText(owner_.matrix_.getSource(id).name);
-            if (src_list_id >= 0 && dst_list_id != 0) owner_.activateRow(this);
+            if (dst_list_id != 0) owner_.activateRow(this);
         };
-        dst_menu_.onItemSelected() += [this](int id) {
+        dst_menu_.onSelectionChanged() += [this](int id) {
             dst_list_id = id;
-            if (id < 0) {
-                auto slot = static_cast<uint16_t>(-(id + 1));
-                if (auto target = owner_.matrix_.findConnection(slot))
-                    dst_menu_.setText(connectionLabel(owner_.matrix_, *target));
-            } else {
-                dst_menu_.setText(owner_.matrix_.getDestination(id - 1).name);
-            }
-            if (src_list_id >= 0 && dst_list_id != 0) owner_.activateRow(this);
+            if (src_list_id >= 0) owner_.activateRow(this);
         };
     }
+}
+
+void ModMatrixComponent::Row::buildDestinations(PopupMenu& menu) const {
+    if (!is_dummy && conn.isDepthMod()) {
+        // A depth modulation's target is fixed.
+        auto target = owner_.matrix_.findConnection(conn.dst_idx);
+        menu.addOption(dst_list_id, target ? connectionLabel(owner_.matrix_, *target) : "[deleted]");
+        return;
+    }
+
+    for (uint16_t i = 0; i < owner_.matrix_.getDestinationCount(); ++i) {
+        const auto& destination = owner_.matrix_.getDestination(i);
+        if (destination.active) menu.addOption(i + 1, destination.name);
+    }
+
+    // Only a new row can target a connection, which adds depth modulation to it.
+    const auto& connections = owner_.matrix_.getConnections();
+    if (!is_dummy || std::all_of(connections.begin(), connections.end(), [](auto& c) { return c.isDepthMod(); }))
+        return;
+
+    PopupMenu sub_menu("Connections");
+    for (const auto& c : connections) {
+        if (!c.isDepthMod())
+            sub_menu.addOption(-(static_cast<int>(c.depth_slot) + 1), connectionLabel(owner_.matrix_, c));
+    }
+    menu.addBreak();
+    menu.addSubMenu(std::move(sub_menu));
 }
 
 void ModMatrixComponent::Row::bindToConnection(const ModConnection& c) {
     conn = c;
     src_list_id = c.src_idx;
-    src_menu_.setText(owner_.matrix_.getSource(c.src_idx).name);
-
-    if (c.isDepthMod()) {
-        dst_list_id = -(static_cast<int>(c.dst_idx) + 1);
-        if (auto target = owner_.matrix_.findConnection(c.dst_idx))
-            dst_menu_.setText(connectionLabel(owner_.matrix_, *target));
-        else
-            dst_menu_.setText("[deleted]");
-        dst_menu_.onBuildMenu() = nullptr;
-    } else {
-        dst_list_id = c.dst_idx + 1;
-        dst_menu_.setText(owner_.matrix_.getDestination(c.dst_idx).name);
-    }
+    src_menu_.setSelectedId(c.src_idx);
+    dst_list_id = c.isDepthMod() ? -(static_cast<int>(c.dst_idx) + 1) : c.dst_idx + 1;
+    PopupMenu destinations;
+    buildDestinations(destinations);
+    dst_menu_.setMenu(std::move(destinations));
+    dst_menu_.setSelectedId(dst_list_id);
 
     depth_slider_.setValue(c.getDepth());
     bipolar_toggle_.setChecked(c.isBipolar());
@@ -120,13 +111,13 @@ void ModMatrixComponent::Row::bindToConnection(const ModConnection& c) {
 
     // Every connection change schedules a rebuild of all rows (see the ModMatrixComponent constructor), which also
     // drops rows that were merged into a peer or deleted.
-    src_menu_.onItemSelected() += [this](int id) {
+    src_menu_.onSelectionChanged() += [this](int id) {
         conn = owner_.matrix_.reassignSource(conn, owner_.matrix_.getSource(id));
     };
 
     if (!c.isDepthMod()) {
-        dst_menu_.onItemSelected() += [this](int id) {
-            if (id > 0) conn = owner_.matrix_.reassignDestination(conn, owner_.matrix_.getDestination(id - 1));
+        dst_menu_.onSelectionChanged() += [this](int id) {
+            conn = owner_.matrix_.reassignDestination(conn, owner_.matrix_.getDestination(id - 1));
         };
     }
 

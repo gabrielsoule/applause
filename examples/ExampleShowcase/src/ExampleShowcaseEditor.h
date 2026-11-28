@@ -4,6 +4,7 @@
 #include <applause/extensions/ParamsExtension.h>
 #include <applause/ui/ApplauseEditor.h>
 #include <applause/ui/components/Button.h>
+#include <applause/ui/components/PopupMenuButton.h>
 #include <applause/ui/components/Checkbox.h>
 #include <applause/ui/components/ParamCheckbox.h>
 #include <applause/ui/components/ParamRadioGroup.h>
@@ -59,8 +60,8 @@ private:
     std::unique_ptr<applause::Button> action_button_;
     std::unique_ptr<applause::Button> toggle_button_;
     std::unique_ptr<applause::Button> load_file_button_;
-    std::unique_ptr<applause::Button> native_popup_menu_button_;
-    std::unique_ptr<applause::Button> popup_menu_button_;
+    std::unique_ptr<applause::PopupMenuButton> native_popup_menu_button_;
+    std::unique_ptr<applause::PopupMenuButton> popup_menu_button_;
 
     // Inactive button
     std::unique_ptr<applause::Button> inactive_button_;

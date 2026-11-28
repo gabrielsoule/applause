@@ -12,8 +12,14 @@ using namespace applause::dimension;
 
 namespace applause {
 GenericParameterEntry::GenericParameterEntry(ParamInfo& paramInfo) :
-    paramInfo_(paramInfo), paramSlider_(paramInfo), font_(13, applause::fonts::Barlow_Medium_ttf) {
-    addChild(&paramSlider_);
+    paramInfo_(paramInfo), font_(13, applause::fonts::Barlow_Medium_ttf) {
+    if (paramInfo.isEnumerated()) {
+        paramDropdown_ = std::make_unique<ParamDropdown>(paramInfo);
+        addChild(paramDropdown_.get());
+    } else {
+        paramSlider_ = std::make_unique<ParamSlider>(paramInfo);
+        addChild(paramSlider_.get());
+    }
 }
 
 void GenericParameterEntry::draw(applause::Canvas& canvas) {
@@ -32,18 +38,20 @@ void GenericParameterEntry::draw(applause::Canvas& canvas) {
 }
 
 void GenericParameterEntry::resized() {
-    // Position the ParamSlider on the right side, leaving space for label on the left
-    float sliderX = std::clamp(value(*this, kLabelWidth), 0.0f, std::max(0.0f, width()));
-    float sliderWidth = std::max(0.0f, width() - sliderX);
+    // Position the control on the right side, leaving space for label on the left
+    float controlX = std::clamp(value(*this, kLabelWidth), 0.0f, std::max(0.0f, width()));
+    float controlWidth = std::max(0.0f, width() - controlX);
 
-    paramSlider_.setBounds(sliderX, 0, sliderWidth, height());
+    if (paramSlider_) paramSlider_->setBounds(controlX, 0, controlWidth, height());
+    if (paramDropdown_) paramDropdown_->setBounds(controlX, 0, controlWidth, height());
 }
 
 void GenericParameterEntry::setLabelWidth(float labelWidth) { set(kLabelWidth, labelWidth); }
 
 void GenericParameterEntry::setFont(const applause::Font& font) {
     font_ = font;
-    paramSlider_.setFont(font);
+    if (paramSlider_) paramSlider_->setFont(font);
+    if (paramDropdown_) paramDropdown_->setFont(font);
     redraw();
 }
 

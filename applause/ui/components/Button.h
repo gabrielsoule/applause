@@ -6,11 +6,9 @@
 
 #include <applause/ui/ApplauseUI.h>
 
-#include <functional>
 #include <memory>
 
 namespace applause {
-class NativePopupMenu;
 class RadioGroup;
 
 // A button that shows text, an icon, or both. A checkable button turns on when clicked and off when clicked again.
@@ -131,29 +129,6 @@ private:
     bool triggered_on_mouse_down_ = false;
 
     APPLAUSE_LEAK_CHECKER(Button)
-};
-
-// A button that opens a menu when clicked: the drawn, themed PopupMenu, or after setNative(true) the operating
-// system's menu. Linux has no native menu, so it always gets the drawn one.
-class PopupMenuButton : public Button {
-public:
-    explicit PopupMenuButton(std::string text = "--");
-
-    bool isNative() const { return native_; }
-    void setNative(bool native) { native_ = native; }
-
-    // Fills the menu each time it opens.
-    auto& onBuildMenu() { return on_build_menu_; }
-    auto& onItemSelected() { return on_item_selected_; }
-
-private:
-    void showPopup();
-
-    std::function<void(NativePopupMenu&)> on_build_menu_;
-    applause::CallbackList<void(int)> on_item_selected_;
-    // The drawn menu stays open after showPopup() returns, so its callback checks that the button still exists.
-    std::shared_ptr<PopupMenuButton*> reference_ = std::make_shared<PopupMenuButton*>(this);
-    bool native_ = false;
 };
 
 }  // namespace applause

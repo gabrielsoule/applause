@@ -1,7 +1,6 @@
 #include "ExampleShowcaseEditor.h"
 
 #include <applause/ui/ApplauseUI.h>
-#include <applause/ui/NativePopupMenu.h>
 #include <applause/ui/PopupMenu.h>
 #include <applause/ui/Tooltip.h>
 #include <applause/util/DebugHelpers.h>
@@ -159,54 +158,25 @@ ExampleShowcaseEditor::ExampleShowcaseEditor(applause::ParamsExtension* params,
     load_file_button_->onClick() += [this] { onLoadFileClicked(); };
     buttons_panel_.content().addChild(load_file_button_.get());
 
-    native_popup_menu_button_ = std::make_unique<applause::Button>("Native Popup Menu");
-    native_popup_menu_button_->onClick() += [this] {
-        applause::NativePopupMenu menu("Demo Menu");
-
-        menu.addOption(1, "Option 1").select(true).withKeyboardShortcut(applause::NativePopupMenu::Modifier::Cmd, "1");
-
-        menu.addOption(2, "Option 2").withKeyboardShortcut(applause::NativePopupMenu::Modifier::Cmd, "2");
-
+    // The same menu, once as the operating system's menu and once drawn.
+    auto build_demo_menu = [](applause::PopupMenu& menu) {
+        menu.addOption(1, "Option 1").select(true).withNativeKeyboardShortcut(applause::kModifierCmd, "1");
+        menu.addOption(2, "Option 2").withNativeKeyboardShortcut(applause::kModifierCmd, "2");
         menu.addOption(3, "Disabled Option").enable(false);
-
         menu.addBreak();
-
-        auto& submenu = menu.addSubMenu("Submenu");
-        submenu.addOption(10, "Sub Option A");
-        submenu.addOption(11, "Sub Option B");
-
-        menu.onSelection() += [](int id) { LOG_INFO("Popup menu selected: {}", id); };
-
-        menu.onCancel() += []() { LOG_INFO("Popup menu cancelled"); };
-
-        menu.show(native_popup_menu_button_.get(), {0.0f, native_popup_menu_button_->height()});
-    };
-    buttons_panel_.content().addChild(native_popup_menu_button_.get());
-
-    popup_menu_button_ = std::make_unique<applause::Button>("Popup Menu");
-    popup_menu_button_->onClick() += [this] {
-        applause::PopupMenu menu("Demo Menu");
-
-        menu.addOption(1, "Option 1").select(true);
-
-        menu.addOption(2, "Option 2");
-
-        menu.addOption(3, "Disabled Option").enable(false);
-
-        menu.addBreak();
-
         applause::PopupMenu submenu("Submenu");
         submenu.addOption(10, "Sub Option A");
         submenu.addOption(11, "Sub Option B");
         menu.addSubMenu(std::move(submenu));
-
-        menu.onSelection() += [](int id) { LOG_INFO("Popup menu selected: {}", id); };
-
-        menu.onCancel() += []() { LOG_INFO("Popup menu cancelled"); };
-
-        menu.show(popup_menu_button_.get());
     };
-    buttons_panel_.content().addChild(popup_menu_button_.get());
+    native_popup_menu_button_ = std::make_unique<applause::PopupMenuButton>("Native Popup Menu");
+    popup_menu_button_ = std::make_unique<applause::PopupMenuButton>("Popup Menu");
+    native_popup_menu_button_->setNative(true);
+    for (auto* button : {native_popup_menu_button_.get(), popup_menu_button_.get()}) {
+        button->onBuildMenu() = build_demo_menu;
+        button->onItemSelected() += [](int id) { LOG_INFO("Popup menu selected: {}", id); };
+        buttons_panel_.content().addChild(button);
+    }
 
     inactive_button_ = std::make_unique<applause::Button>("Inactive");
     inactive_button_->setEnabled(false);

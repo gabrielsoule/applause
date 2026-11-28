@@ -6,15 +6,17 @@
 #include <optional>
 #include <vector>
 
+#include <applause/ui/components/ParamDropdown.h>
 #include <applause/ui/components/ParamSlider.h>
 
 namespace applause {
 /**
- * A Frame that wraps a ParamSlider while placing
- * label text, with the name of the parameter, to the left of the ParamSlider.
+ * A Frame that wraps the control for one parameter while placing
+ * label text, with the name of the parameter, to the left of the control.
+ * The control is a ParamDropdown for an enumerated parameter and a ParamSlider otherwise.
  * The GenericParameterEntry reserves a theme-able width for the label,
- * and adjusts the ParamSlider to fit the rest of the horizontal space.
- * The ParamSlider inherits the full height of the GenericParameterEntry.
+ * and adjusts the control to fit the rest of the horizontal space.
+ * The control inherits the full height of the GenericParameterEntry.
  */
 class GenericParameterEntry : public applause::Frame {
 public:
@@ -32,7 +34,9 @@ public:
 
 private:
     ParamInfo& paramInfo_;
-    ParamSlider paramSlider_;
+    // Exactly one of these exists.
+    std::unique_ptr<ParamSlider> paramSlider_;
+    std::unique_ptr<ParamDropdown> paramDropdown_;
     applause::Font font_;
 };
 
